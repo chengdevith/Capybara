@@ -34,6 +34,16 @@ const themeOverrides: GlobalThemeOverrides = {
   --capy-sider-bg: #212427;
   --capy-content-bg: #f0f0f0;
 }
+.capy-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.capy-plain-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 html,
 body {
   margin: 0;

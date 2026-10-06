@@ -13,7 +13,11 @@ const ctx = useExtensionContext()
 const tree = computed(() => navTree(registry, ctx.value))
 
 function link(item: Registered<NavItemExtension>): MenuOption {
-  const to = ctx.value.cluster ? { name: item.route, params: { cluster: ctx.value.cluster } } : { name: item.route }
+  // Keep the selected namespace when moving between pages.
+  const query = route.query.ns ? { ns: route.query.ns } : {}
+  const to = ctx.value.cluster
+    ? { name: item.route, params: { cluster: ctx.value.cluster }, query }
+    : { name: item.route, query }
   return {
     key: item.id,
     label: () => h(RouterLink, { to }, { default: () => item.label }),
@@ -29,9 +33,11 @@ const options = computed<MenuOption[]>(() =>
   ),
 )
 
-/** The item whose route is the current route (or an ancestor of it). */
+/** The item whose route is the current route, an ancestor of it, or the
+ * page it belongs under (route `parent`, e.g. list page of a detail page). */
 const selected = computed(() => {
-  const names = new Set(route.matched.map((m) => m.name))
+  const names = new Set<unknown>(route.matched.map((m) => m.name))
+  if (typeof route.meta.parent === 'string') names.add(route.meta.parent)
   for (const entry of tree.value) {
     const items = entry.kind === 'item' ? [entry.item] : entry.items
     const hit = items.find((i) => names.has(i.route))

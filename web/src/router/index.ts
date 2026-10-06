@@ -54,7 +54,7 @@ function toRecord(ext: Registered<RouteExtension>): RouteRecordRaw {
     name: ext.id,
     component: ext.component,
     props: ext.props ?? false,
-    meta: { extension: ext.id, title: ext.title },
+    meta: { extension: ext.id, title: ext.title, parent: ext.parent },
   }
 }
 

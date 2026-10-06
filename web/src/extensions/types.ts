@@ -56,6 +56,9 @@ export interface RouteExtension extends ExtensionBase {
   scope: 'cluster' | 'global'
   component: LazyComponent
   title?: string
+  /** Route id this page belongs under (e.g. a detail page's list page):
+   * keeps that page's sidebar item highlighted. */
+  parent?: string
   /** Static props passed to the page (lets one generic page serve many kinds). */
   props?: Record<string, unknown>
 }

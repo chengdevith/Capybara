@@ -17,11 +17,13 @@ const options = computed(() =>
   })),
 )
 
-/** Stay on the same page in the other cluster; from a global page, go to
- * the cluster's landing page. */
+/** Stay on the same kind of page in the other cluster: detail pages go to
+ * their list (the object is unlikely to exist there), and the namespace
+ * filter is dropped. From a global page, go to the cluster's landing page. */
 function switchTo(id: string) {
   if (current.value && route.name) {
-    void router.push({ name: route.name, params: { ...route.params, cluster: id }, query: route.query })
+    const parent = typeof route.meta.parent === 'string' ? route.meta.parent : null
+    void router.push(parent ? { name: parent, params: { cluster: id } } : { name: route.name, params: { ...route.params, cluster: id } })
   } else {
     void router.push(`/c/${encodeURIComponent(id)}`)
   }

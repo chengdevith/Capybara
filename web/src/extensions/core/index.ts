@@ -1,5 +1,7 @@
 import type { ExtensionRegistry } from '../registry'
+import { registerDetailTabs } from './detail-tabs'
 import { registerHome } from './home'
+import { registerCoreResources } from './resources'
 import { registerNavSections } from './sections'
 
 /** Registers everything the core console ships with. Each feature area has
@@ -7,4 +9,6 @@ import { registerNavSections } from './sections'
 export function registerCoreExtensions(registry: ExtensionRegistry): void {
   registerNavSections(registry)
   registerHome(registry)
+  registerCoreResources(registry)
+  registerDetailTabs(registry)
 }
