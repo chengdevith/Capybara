@@ -12,9 +12,14 @@ import (
 	"syscall"
 	"time"
 
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/capybara/capybara/api/v1alpha1"
 	"github.com/capybara/capybara/pkg/audit"
 	"github.com/capybara/capybara/pkg/cluster"
 	"github.com/capybara/capybara/pkg/config"
+	"github.com/capybara/capybara/pkg/project"
 )
 
 func main() {
@@ -51,13 +56,30 @@ func run(args []string) error {
 	auditor := audit.NewAuditor(auditStore, logger)
 	logger.Info("audit log", "file", cfg.AuditFile)
 
+	projectCfg, err := project.LoadConfig(cfg.ProjectConfigFile)
+	if err != nil {
+		return err
+	}
+	// Projects live in capybara-mgmt. Without it the server still runs;
+	// the Projects endpoints answer 503 with the reason.
+	mgmt, mgmtErr := mgmtClient(cfg.MgmtKubeconfig)
+	if mgmtErr != nil {
+		logger.Warn("capybara-mgmt unavailable; Projects disabled", "err", mgmtErr)
+	}
+
 	if !cfg.IsLoopback() {
 		logger.Warn("listening on a non-loopback address; there is no authentication yet", "addr", cfg.Addr)
 	}
 
 	srv := &http.Server{
-		Addr:              cfg.Addr,
-		Handler:           newHandler(deps{cfg: cfg, clusters: registry, auditor: auditor, auditLog: auditStore, logger: logger}),
+		Addr: cfg.Addr,
+		Handler: newHandler(deps{
+			cfg: cfg, clusters: registry, auditor: auditor, auditLog: auditStore, logger: logger,
+			projects: &project.API{
+				Mgmt: mgmt, MgmtErr: mgmtErr, Clusters: registry, Config: projectCfg,
+				Protected: cfg.Protected(), Auditor: auditor, Logger: logger,
+			},
+		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -86,6 +108,18 @@ func run(args []string) error {
 		return err
 	}
 	return nil
+}
+
+func mgmtClient(kubeconfig string) (client.WithWatch, error) {
+	restCfg, err := cluster.RESTConfigFromFile(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	scheme := runtime.NewScheme()
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	return client.NewWithWatch(restCfg, client.Options{Scheme: scheme})
 }
 
 func newLogger(level string) *slog.Logger {

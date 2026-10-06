@@ -91,64 +91,77 @@ func WatchHandler(clusters cluster.Provider, logger *slog.Logger) http.Handler {
 		if !clusterOK(w, err) {
 			return
 		}
-		secrets := sensitive.IsSecrets(req.gvr)
-
-		// Errors before this point are plain HTTP; after it, websocket messages.
-		conn, err := websocket.Accept(w, r, nil) // same-origin only (default)
-		if err != nil {
-			return // Accept already wrote the response
+		var filter func(runtime.Object) bool
+		if sensitive.IsSecrets(req.gvr) {
+			filter = scrubSecretEvent
 		}
-		defer conn.CloseNow() //nolint:errcheck // best effort on exit
-
-		// We never read client messages; CloseRead handles pongs/close and
-		// cancels ctx when the browser goes away, which stops the watch.
-		ctx := conn.CloseRead(r.Context())
 		log := logger.With("cluster", id, "gvr", req.gvr.String(), "namespace", req.namespace)
+		ServeWatch(w, r, log, func(ctx context.Context) (watch.Interface, error) {
+			return watchFn(ctx, metav1.ListOptions{
+				ResourceVersion:     req.resourceVersion,
+				LabelSelector:       req.labels,
+				FieldSelector:       req.fields,
+				AllowWatchBookmarks: true,
+			})
+		}, filter)
+	})
+}
 
-		wi, err := watchFn(ctx, metav1.ListOptions{
-			ResourceVersion:     req.resourceVersion,
-			LabelSelector:       req.labels,
-			FieldSelector:       req.fields,
-			AllowWatchBookmarks: true,
-		})
-		if err != nil {
-			sendStatusAndClose(ctx, conn, statusOf(err), log)
+// ServeWatch upgrades to a websocket and streams one watch with the
+// protocol described on Event. The watch stops when the browser leaves.
+// filter, if set, may scrub an event in place; returning false refuses to
+// send it and closes the socket (policy violation).
+func ServeWatch(w http.ResponseWriter, r *http.Request, log *slog.Logger,
+	start func(context.Context) (watch.Interface, error), filter func(runtime.Object) bool) {
+	// Errors before this point are plain HTTP; after it, websocket messages.
+	conn, err := websocket.Accept(w, r, nil) // same-origin only (default)
+	if err != nil {
+		return // Accept already wrote the response
+	}
+	defer conn.CloseNow() //nolint:errcheck // best effort on exit
+
+	// We never read client messages; CloseRead handles pongs/close and
+	// cancels ctx when the browser goes away, which stops the watch.
+	ctx := conn.CloseRead(r.Context())
+
+	wi, err := start(ctx)
+	if err != nil {
+		sendStatusAndClose(ctx, conn, statusOf(err), log)
+		return
+	}
+	defer wi.Stop()
+	log.Debug("watch started")
+
+	ping := time.NewTicker(pingInterval)
+	defer ping.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			log.Debug("watch client gone")
 			return
-		}
-		defer wi.Stop()
-		log.Debug("watch started")
-
-		ping := time.NewTicker(pingInterval)
-		defer ping.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				log.Debug("watch client gone")
+		case <-ping.C:
+			if err := pingWithTimeout(ctx, conn); err != nil {
 				return
-			case <-ping.C:
-				if err := pingWithTimeout(ctx, conn); err != nil {
-					return
-				}
-			case ev, ok := <-wi.ResultChan():
-				if !ok {
-					_ = conn.Close(websocket.StatusNormalClosure, "watch ended")
-					return
-				}
-				if ev.Type == watch.Error {
-					sendStatusAndClose(ctx, conn, statusFromObject(ev.Object), log)
-					return
-				}
-				if secrets && !scrubSecretEvent(ev.Object) {
-					log.Error("refusing to stream a Secret event that is not metadata")
-					_ = conn.Close(websocket.StatusPolicyViolation, "secret data refused")
-					return
-				}
-				if err := writeJSON(ctx, conn, Event{Type: string(ev.Type), Object: ev.Object}); err != nil {
-					return
-				}
+			}
+		case ev, ok := <-wi.ResultChan():
+			if !ok {
+				_ = conn.Close(websocket.StatusNormalClosure, "watch ended")
+				return
+			}
+			if ev.Type == watch.Error {
+				sendStatusAndClose(ctx, conn, statusFromObject(ev.Object), log)
+				return
+			}
+			if filter != nil && !filter(ev.Object) {
+				log.Error("refusing to stream an event that failed the filter")
+				_ = conn.Close(websocket.StatusPolicyViolation, "event refused")
+				return
+			}
+			if err := writeJSON(ctx, conn, Event{Type: string(ev.Type), Object: ev.Object}); err != nil {
+				return
 			}
 		}
-	})
+	}
 }
 
 type watchFunc func(context.Context, metav1.ListOptions) (watch.Interface, error)

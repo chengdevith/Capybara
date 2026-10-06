@@ -11,6 +11,7 @@ import (
 	"github.com/capybara/capybara/pkg/cluster"
 	"github.com/capybara/capybara/pkg/config"
 	"github.com/capybara/capybara/pkg/httpjson"
+	"github.com/capybara/capybara/pkg/project"
 	"github.com/capybara/capybara/pkg/proxy"
 	"github.com/capybara/capybara/pkg/resource"
 	"github.com/capybara/capybara/pkg/stream"
@@ -21,6 +22,7 @@ type deps struct {
 	clusters cluster.Provider
 	auditor  *audit.Auditor
 	auditLog audit.Reader
+	projects *project.API
 	logger   *slog.Logger
 }
 
@@ -30,6 +32,7 @@ func newHandler(d deps) http.Handler {
 	cfg, clusters, logger := d.cfg, d.clusters, d.logger
 	api := http.NewServeMux()
 	api.Handle("GET /api/audit", audit.ListHandler(d.auditLog))
+	d.projects.Register(api)
 	(&action.Handlers{Clusters: clusters, Auditor: d.auditor, Protected: cfg.Protected(), Logger: logger}).Register(api)
 	api.Handle("GET /api/clusters", cluster.ListHandler(clusters, cfg.ClusterTimeout))
 	// Any method is routed so the proxy can answer non-GET with 405 itself.
