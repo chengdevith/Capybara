@@ -21,6 +21,7 @@ import (
 
 	"github.com/capybara/capybara/pkg/cluster"
 	"github.com/capybara/capybara/pkg/httpjson"
+	"github.com/capybara/capybara/pkg/sensitive"
 )
 
 const (
@@ -86,10 +87,11 @@ func WatchHandler(clusters cluster.Provider, logger *slog.Logger) http.Handler {
 			return
 		}
 		id := r.PathValue("id")
-		dyn, err := clusters.Dynamic(id)
+		watchFn, err := watcherFor(clusters, id, req)
 		if !clusterOK(w, err) {
 			return
 		}
+		secrets := sensitive.IsSecrets(req.gvr)
 
 		// Errors before this point are plain HTTP; after it, websocket messages.
 		conn, err := websocket.Accept(w, r, nil) // same-origin only (default)
@@ -103,14 +105,7 @@ func WatchHandler(clusters cluster.Provider, logger *slog.Logger) http.Handler {
 		ctx := conn.CloseRead(r.Context())
 		log := logger.With("cluster", id, "gvr", req.gvr.String(), "namespace", req.namespace)
 
-		res := dyn.Resource(req.gvr)
-		var ri interface {
-			Watch(context.Context, metav1.ListOptions) (watch.Interface, error)
-		} = res
-		if req.namespace != "" {
-			ri = res.Namespace(req.namespace)
-		}
-		wi, err := ri.Watch(ctx, metav1.ListOptions{
+		wi, err := watchFn(ctx, metav1.ListOptions{
 			ResourceVersion:     req.resourceVersion,
 			LabelSelector:       req.labels,
 			FieldSelector:       req.fields,
@@ -143,12 +138,54 @@ func WatchHandler(clusters cluster.Provider, logger *slog.Logger) http.Handler {
 					sendStatusAndClose(ctx, conn, statusFromObject(ev.Object), log)
 					return
 				}
+				if secrets && !scrubSecretEvent(ev.Object) {
+					log.Error("refusing to stream a Secret event that is not metadata")
+					_ = conn.Close(websocket.StatusPolicyViolation, "secret data refused")
+					return
+				}
 				if err := writeJSON(ctx, conn, Event{Type: string(ev.Type), Object: ev.Object}); err != nil {
 					return
 				}
 			}
 		}
 	})
+}
+
+type watchFunc func(context.Context, metav1.ListOptions) (watch.Interface, error)
+
+// watcherFor picks the client for a watch. Secrets are always watched
+// through the metadata client, so their values are never even fetched.
+func watcherFor(clusters cluster.Provider, id string, req watchRequest) (watchFunc, error) {
+	if sensitive.IsSecrets(req.gvr) {
+		mc, err := clusters.Metadata(id)
+		if err != nil {
+			return nil, err
+		}
+		if req.namespace != "" {
+			return mc.Resource(req.gvr).Namespace(req.namespace).Watch, nil
+		}
+		return mc.Resource(req.gvr).Watch, nil
+	}
+	dyn, err := clusters.Dynamic(id)
+	if err != nil {
+		return nil, err
+	}
+	if req.namespace != "" {
+		return dyn.Resource(req.gvr).Namespace(req.namespace).Watch, nil
+	}
+	return dyn.Resource(req.gvr).Watch, nil
+}
+
+// scrubSecretEvent strips value-bearing metadata from a Secret watch event.
+// It returns false for anything that is not metadata (never sent).
+func scrubSecretEvent(obj runtime.Object) bool {
+	switch o := obj.(type) {
+	case *metav1.PartialObjectMetadata:
+		sensitive.ScrubMeta(&o.ObjectMeta)
+		return true
+	default:
+		return false
+	}
 }
 
 // clusterOK writes the HTTP error for a failed cluster lookup.

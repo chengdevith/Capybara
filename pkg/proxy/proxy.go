@@ -2,24 +2,33 @@
 // /api/clusters/{id}/k8s/<kube path> is forwarded to <kube path> on that
 // cluster, authenticated with the cluster's own credentials.
 //
-// Phase 1 is read-only: only GET is forwarded, watches go through the
-// websocket hub (pkg/stream), and subresources that open a channel into a
-// container or service (exec, attach, portforward, proxy) are refused.
+// It is read-only: only GET is forwarded (writes go through pkg/action),
+// watches go through the websocket hub (pkg/stream), and subresources that
+// open a channel into a container or service (exec, attach, portforward,
+// proxy) are refused.
+//
+// Secrets are only ever returned as scrubbed metadata (see pkg/sensitive);
+// if the cluster answers with anything else, the response is refused.
 package proxy
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"k8s.io/client-go/rest"
 
 	"github.com/capybara/capybara/pkg/cluster"
 	"github.com/capybara/capybara/pkg/httpjson"
+	"github.com/capybara/capybara/pkg/sensitive"
 )
 
 // Prefixes of the Kubernetes API that may be reached.
@@ -43,6 +52,12 @@ func Handler(clusters cluster.Provider, logger *slog.Logger) http.Handler {
 			return
 		}
 
+		isSecret, single, deeper := sensitive.SecretPath(kubePath)
+		if deeper {
+			httpjson.Error(w, http.StatusForbidden, "secret subresources are not allowed through the passthrough")
+			return
+		}
+
 		id := r.PathValue("id")
 		cfg, err := clusters.RESTConfig(id)
 		if errors.Is(err, cluster.ErrNotFound) {
@@ -54,7 +69,11 @@ func Handler(clusters cluster.Provider, logger *slog.Logger) http.Handler {
 			return
 		}
 
-		rp, err := reverseProxy(cfg, kubePath, logger.With("cluster", id))
+		var secrets *secretMode
+		if isSecret {
+			secrets = &secretMode{single: single}
+		}
+		rp, err := reverseProxy(cfg, kubePath, secrets, logger.With("cluster", id))
 		if err != nil {
 			httpjson.Error(w, http.StatusBadGateway, err.Error())
 			return
@@ -123,7 +142,10 @@ func subresource(p string) string {
 	return ""
 }
 
-func reverseProxy(cfg *rest.Config, kubePath string, logger *slog.Logger) (*httputil.ReverseProxy, error) {
+// secretMode marks a request for Secrets: metadata only, scrubbed.
+type secretMode struct{ single bool }
+
+func reverseProxy(cfg *rest.Config, kubePath string, secrets *secretMode, logger *slog.Logger) (*httputil.ReverseProxy, error) {
 	target, err := url.Parse(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("bad cluster host: %w", err)
@@ -150,10 +172,22 @@ func reverseProxy(cfg *rest.Config, kubePath string, logger *slog.Logger) (*http
 					pr.Out.Header.Del(name)
 				}
 			}
+			if secrets != nil {
+				accept := sensitive.AcceptMetadataList
+				if secrets.single {
+					accept = sensitive.AcceptMetadata
+				}
+				pr.Out.Header.Set("Accept", accept)
+				// Let the transport handle compression so the body can be scrubbed.
+				pr.Out.Header.Del("Accept-Encoding")
+			}
 		},
 		ModifyResponse: func(resp *http.Response) error {
 			resp.Header.Del("Set-Cookie")
 			resp.Header.Del("Www-Authenticate")
+			if secrets != nil {
+				return scrubSecretResponse(resp)
+			}
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
@@ -164,4 +198,48 @@ func reverseProxy(cfg *rest.Config, kubePath string, logger *slog.Logger) (*http
 			httpjson.Error(w, http.StatusBadGateway, "cluster request failed: "+err.Error())
 		},
 	}, nil
+}
+
+const maxSecretResponse = 64 << 20
+
+// scrubSecretResponse lets through only metadata (and error Statuses),
+// with the last-applied annotation removed. Anything else is refused, so a
+// cluster that ignores the metadata Accept header cannot leak values.
+func scrubSecretResponse(resp *http.Response) error {
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxSecretResponse))
+	_ = resp.Body.Close()
+	if err != nil {
+		return err
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return errors.New("refusing to forward a Secret response that is not JSON")
+	}
+	switch kind, _ := obj["kind"].(string); kind {
+	case "Status":
+	case "PartialObjectMetadata":
+		if meta, ok := obj["metadata"].(map[string]any); ok {
+			sensitive.ScrubMetaMap(meta)
+		}
+	case "PartialObjectMetadataList":
+		items, _ := obj["items"].([]any)
+		for _, it := range items {
+			if m, ok := it.(map[string]any); ok {
+				if meta, ok := m["metadata"].(map[string]any); ok {
+					sensitive.ScrubMetaMap(meta)
+				}
+			}
+		}
+	default:
+		return fmt.Errorf("refusing to forward Secret data (cluster returned %q, not metadata)", kind)
+	}
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return err
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(out))
+	resp.ContentLength = int64(len(out))
+	resp.Header.Set("Content-Length", strconv.Itoa(len(out)))
+	resp.Header.Del("Content-Encoding")
+	return nil
 }

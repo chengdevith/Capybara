@@ -16,6 +16,7 @@ import (
 
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/yaml"
@@ -38,6 +39,8 @@ type Provider interface {
 	Client(id string) (kubernetes.Interface, error)
 	// Dynamic is the dynamic client, for any resource by GroupVersionResource.
 	Dynamic(id string) (dynamic.Interface, error)
+	// Metadata returns objects as PartialObjectMetadata (used for Secrets).
+	Metadata(id string) (metadata.Interface, error)
 	// RESTConfig is a copy of the cluster's REST config (for the passthrough proxy).
 	RESTConfig(id string) (*rest.Config, error)
 }
@@ -60,6 +63,7 @@ type entry struct {
 	config  *rest.Config
 	client  kubernetes.Interface
 	dynamic dynamic.Interface
+	meta    metadata.Interface
 }
 
 // Registry holds the known clusters in file order.
@@ -135,6 +139,15 @@ func (r *Registry) Dynamic(id string) (dynamic.Interface, error) {
 	return e.dynamic, nil
 }
 
+// Metadata returns the cached metadata-only client for id.
+func (r *Registry) Metadata(id string) (metadata.Interface, error) {
+	e, err := r.load(id)
+	if err != nil {
+		return nil, err
+	}
+	return e.meta, nil
+}
+
 // RESTConfig returns a copy of the REST config for id.
 func (r *Registry) RESTConfig(id string) (*rest.Config, error) {
 	e, err := r.load(id)
@@ -168,7 +181,11 @@ func (r *Registry) load(id string) (*entry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cluster %q: %w", id, err)
 	}
-	e.config, e.client, e.dynamic = cfg, client, dyn
+	meta, err := metadata.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("cluster %q: %w", id, err)
+	}
+	e.config, e.client, e.dynamic, e.meta = cfg, client, dyn, meta
 	return e, nil
 }
 

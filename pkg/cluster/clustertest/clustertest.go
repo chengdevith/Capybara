@@ -4,6 +4,7 @@ package clustertest
 import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
 
 	"github.com/capybara/capybara/pkg/cluster"
@@ -16,6 +17,7 @@ type Provider struct {
 	Infos    []cluster.Info
 	Clients  map[string]kubernetes.Interface
 	Dynamics map[string]dynamic.Interface
+	Metas    map[string]metadata.Interface
 	Configs  map[string]*rest.Config
 	// Unavailable is returned for known clusters missing a client (default: generic error).
 	Unavailable error
@@ -34,6 +36,11 @@ func (p *Provider) Client(id string) (kubernetes.Interface, error) {
 // Dynamic implements cluster.Provider.
 func (p *Provider) Dynamic(id string) (dynamic.Interface, error) {
 	return lookup(p, id, p.Dynamics)
+}
+
+// Metadata implements cluster.Provider.
+func (p *Provider) Metadata(id string) (metadata.Interface, error) {
+	return lookup(p, id, p.Metas)
 }
 
 // RESTConfig implements cluster.Provider.
