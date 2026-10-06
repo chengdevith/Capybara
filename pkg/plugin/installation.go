@@ -40,6 +40,10 @@ import (
 const (
 	ConditionPreflight = "PreflightPassed"
 	ConditionApplied   = "Applied"
+	// ConditionInstalled: every step passed once for the applied version;
+	// failing steps afterwards mean the installation is degraded (Error),
+	// not still installing.
+	ConditionInstalled = "Installed"
 )
 
 // TokenSecretName is the mgmt Secret holding a plugin's token for a cluster.
@@ -206,6 +210,7 @@ func (r *InstallationReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return fail(fmt.Sprintf("cannot apply: %v", instErr))
 		}
 		st.Phase, st.Message = v1alpha1.InstallInstalling, ""
+		meta.RemoveStatusCondition(&st.Conditions, ConditionInstalled)
 		r.initSteps(&p, &in, st, true)
 		if err := r.writeStatus(ctx, &in, st); err != nil {
 			return ctrl.Result{}, err
@@ -395,7 +400,8 @@ func (r *InstallationReconciler) checkSteps(ctx context.Context, in *v1alpha1.Pl
 	}
 	ns, _ := Namespace(&p.Spec, in.Spec.Mode, ConfigOf(in))
 
-	allDone, wasReady := true, st.Phase == v1alpha1.InstallReady || st.Phase == v1alpha1.InstallDisabled
+	allDone := true
+	wasReady := meta.IsStatusConditionTrue(st.Conditions, ConditionInstalled)
 	st.CurrentStep = ""
 	for _, def := range p.Spec.Steps {
 		if !applies(def.Modes, in.Spec.Mode) {
@@ -429,6 +435,9 @@ func (r *InstallationReconciler) checkSteps(ctx context.Context, in *v1alpha1.Pl
 			continue
 		}
 		s.State, s.Message = v1alpha1.StepDone, ""
+	}
+	if allDone {
+		setCond(st, ConditionInstalled, metav1.ConditionTrue, "AllStepsPassed", "version "+st.InstalledVersion)
 	}
 	switch {
 	case allDone && !in.Spec.Enabled:

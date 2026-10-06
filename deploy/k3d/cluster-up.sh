@@ -26,7 +26,10 @@ for entry in "${CAPYBARA_CLUSTERS[@]}"; do
 
   if k3d cluster get "${name}" >/dev/null 2>&1; then
     echo "==> ${name} exists, making sure it is running"
-    k3d cluster start "${name}" --wait >/dev/null
+    # After a Docker restart k3d sometimes gives up waiting for a log line
+    # although the node runs; the readiness check below decides.
+    k3d cluster start "${name}" --wait >/dev/null || echo "    (k3d start reported an error; checking readiness)"
+
   else
     echo "==> creating ${name} (API on 127.0.0.1:${port})"
     k3d cluster create "${name}" \
@@ -53,7 +56,9 @@ for entry in "${CAPYBARA_CLUSTERS[@]}"; do
   ready=false
   for attempt in 1 2; do
     for _ in $(seq 1 45); do
-      if kubectl --kubeconfig "${kc}" get --raw /readyz >/dev/null 2>&1; then ready=true; break; fi
+      # Twice, 10s apart: a k3s that crash-loops (stale node IP) answers briefly.
+      if kubectl --kubeconfig "${kc}" get --raw /readyz >/dev/null 2>&1 && sleep 10 &&
+        kubectl --kubeconfig "${kc}" get --raw /readyz >/dev/null 2>&1; then ready=true; break; fi
       sleep 2
     done
     $ready && break

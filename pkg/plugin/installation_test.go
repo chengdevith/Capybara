@@ -229,6 +229,18 @@ func TestConnectModeLifecycle(t *testing.T) {
 		t.Errorf("backend token can list secrets: %v", err)
 	}
 
+	// A step failing after everything passed once is an error, not "installing".
+	setCond(&in.Status, ConditionInstalled, metav1.ConditionTrue, "AllStepsPassed", "")
+	if err := f.c.Status().Update(ctx, &in); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		in = f.reconcile(t, "monitoring.dev-1")
+		if in.Status.Phase != v1alpha1.InstallError || !strings.Contains(in.Status.Message, "step connected is failing") {
+			t.Fatalf("degraded: %s %q", in.Status.Phase, in.Status.Message)
+		}
+	}
+
 	// Disabling does not re-apply.
 	hash := in.Status.AppliedHash
 	in.Spec.Enabled = false
