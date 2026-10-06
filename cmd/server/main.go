@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/capybara/capybara/pkg/audit"
 	"github.com/capybara/capybara/pkg/cluster"
 	"github.com/capybara/capybara/pkg/config"
 )
@@ -42,13 +43,21 @@ func run(args []string) error {
 		}
 	}
 
+	// Fail closed from the start: no server without a writable audit log.
+	auditStore, err := audit.NewFileStore(cfg.AuditFile)
+	if err != nil {
+		return err
+	}
+	auditor := audit.NewAuditor(auditStore, logger)
+	logger.Info("audit log", "file", cfg.AuditFile)
+
 	if !cfg.IsLoopback() {
 		logger.Warn("listening on a non-loopback address; there is no authentication yet", "addr", cfg.Addr)
 	}
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           newHandler(cfg, registry, logger),
+		Handler:           newHandler(deps{cfg: cfg, clusters: registry, auditor: auditor, auditLog: auditStore, logger: logger}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

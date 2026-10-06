@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/capybara/capybara/pkg/audit"
 	"github.com/capybara/capybara/pkg/auth"
 	"github.com/capybara/capybara/pkg/cluster"
 	"github.com/capybara/capybara/pkg/config"
@@ -13,10 +14,20 @@ import (
 	"github.com/capybara/capybara/pkg/stream"
 )
 
+type deps struct {
+	cfg      config.Config
+	clusters cluster.Provider
+	auditor  *audit.Auditor
+	auditLog audit.Reader
+	logger   *slog.Logger
+}
+
 // newHandler wires every route. All /api routes pass through the auth
 // middleware so handlers can read the user from the request context.
-func newHandler(cfg config.Config, clusters cluster.Provider, logger *slog.Logger) http.Handler {
+func newHandler(d deps) http.Handler {
+	cfg, clusters, logger := d.cfg, d.clusters, d.logger
 	api := http.NewServeMux()
+	api.Handle("GET /api/audit", audit.ListHandler(d.auditLog))
 	api.Handle("GET /api/clusters", cluster.ListHandler(clusters, cfg.ClusterTimeout))
 	// Any method is routed so the proxy can answer non-GET with 405 itself.
 	api.Handle("/api/clusters/{id}/k8s/{path...}", proxy.Handler(clusters, logger))
@@ -28,7 +39,13 @@ func newHandler(cfg config.Config, clusters cluster.Provider, logger *slog.Logge
 
 	root := http.NewServeMux()
 	root.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		httpjson.Write(w, http.StatusOK, map[string]string{"status": "ok"})
+		// The server is up either way; "audit" tells the UI whether write
+		// actions are currently possible.
+		auditState := "ok"
+		if err := d.auditor.Healthy(); err != nil {
+			auditState = "failing: " + err.Error()
+		}
+		httpjson.Write(w, http.StatusOK, map[string]string{"status": "ok", "audit": auditState})
 	})
 	root.Handle("/api/", auth.Middleware(api))
 
