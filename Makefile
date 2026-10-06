@@ -64,6 +64,13 @@ test-go:
 test-web: web/node_modules
 	npm --prefix web run test
 
+.PHONY: e2e
+e2e: web/node_modules ## Browser end-to-end tests (needs make cluster-up; resets the demo)
+	@test -f $(KUBECONFIGS)/capybara-dev-1.yaml || { echo "run make cluster-up first" >&2; exit 1; }
+	./deploy/samples/demo.sh up
+	cd web && npx playwright install chromium-headless-shell
+	cd web && npx playwright test
+
 .PHONY: lint
 lint: lint-go lint-web ## Run all linters and type checks
 
