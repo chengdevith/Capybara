@@ -76,13 +76,13 @@ test: test-go test-web ## Run all tests
 
 .PHONY: test-go
 test-go: envtest
-	KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST) use $(ENVTEST_K8S) --bin-dir .local/envtest -p path)" \
+	KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST) use $(ENVTEST_K8S) --bin-dir $(CURDIR)/.local/envtest -p path)" \
 	  go test $(GO_PKGS)
 
 # Controller tests run real kube-apiservers (envtest); binaries go to .local.
 .PHONY: envtest
 envtest:
-	@$(SETUP_ENVTEST) use $(ENVTEST_K8S) --bin-dir .local/envtest >/dev/null
+	@$(SETUP_ENVTEST) use $(ENVTEST_K8S) --bin-dir $(CURDIR)/.local/envtest >/dev/null
 
 .PHONY: test-web
 test-web: web/node_modules
