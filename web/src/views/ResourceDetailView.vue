@@ -127,7 +127,6 @@ const status = computed(() => (object.value && props.resource.status ? props.res
       <NTabs
         v-model:value="activeTab"
         type="line"
-        animated
       >
         <NTabPane
           v-for="tab in tabs"

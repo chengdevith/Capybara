@@ -78,7 +78,7 @@ export const pods: ResourceDef = {
       sortValue: (o) => podStatus(o).text,
     },
     { key: 'ready', title: 'Ready', render: ready, width: 80 },
-    { key: 'restarts', title: 'Restarts', render: restarts, sortValue: restarts, width: 90 },
+    { key: 'restarts', title: 'Restarts', render: restarts, sortValue: restarts, width: 110 },
     { key: 'node', title: 'Node', render: (o) => dash(o.spec?.nodeName) },
     { key: 'ip', title: 'IP', render: (o) => dash(o.status?.podIP), width: 130 },
   ],

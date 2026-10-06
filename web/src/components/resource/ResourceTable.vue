@@ -100,7 +100,7 @@ const columns = computed<DataTableColumns<KubeObject>>(() => {
       size="small"
       :columns="columns"
       :data="rows"
-      :loading="loading"
+      :loading="loading && items.length === 0"
       :row-key="(o: KubeObject) => o.metadata.uid"
       :pagination="{ pageSize: 50 }"
       :bordered="false"
