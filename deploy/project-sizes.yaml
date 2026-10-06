@@ -1,0 +1,61 @@
+# Project size presets and network defaults, read by the Project controller
+# and the API server. Values are configuration, not code. (Phase 4 moves
+# this into a ConfigMap in capybara-mgmt.)
+#
+# quota  -> ResourceQuota "capybara-project-quota"
+# limits -> LimitRange "capybara-project-limits" (per container)
+sizes:
+  S:
+    quota:
+      requests.cpu: "1"
+      limits.cpu: "2"
+      requests.memory: 2Gi
+      limits.memory: 4Gi
+      pods: "10"
+      services: "5"
+      persistentvolumeclaims: "2"
+      requests.storage: 10Gi
+    limits:
+      defaultRequest: { cpu: 100m, memory: 128Mi }
+      default: { cpu: 500m, memory: 512Mi }
+      max: { cpu: "2", memory: 4Gi }
+  M:
+    quota:
+      requests.cpu: "4"
+      limits.cpu: "8"
+      requests.memory: 8Gi
+      limits.memory: 16Gi
+      pods: "30"
+      services: "15"
+      persistentvolumeclaims: "5"
+      requests.storage: 50Gi
+    limits:
+      defaultRequest: { cpu: 100m, memory: 128Mi }
+      default: { cpu: 500m, memory: 512Mi }
+      max: { cpu: "4", memory: 8Gi }
+  L:
+    quota:
+      requests.cpu: "8"
+      limits.cpu: "16"
+      requests.memory: 16Gi
+      limits.memory: 32Gi
+      pods: "60"
+      services: "30"
+      persistentvolumeclaims: "10"
+      requests.storage: 200Gi
+    limits:
+      defaultRequest: { cpu: 100m, memory: 128Mi }
+      default: { cpu: 500m, memory: 512Mi }
+      max: { cpu: "4", memory: 8Gi }
+
+# Who may reach Project pods besides pods in the same namespace
+# (NetworkPolicy "capybara-allow-from-ingress"). No egress is restricted.
+ingressSources:
+  - name: openshift-router
+    namespaceSelector:
+      matchLabels:
+        policy-group.network.openshift.io/ingress: ""
+  - name: ingress-nginx
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: ingress-nginx
