@@ -1,5 +1,9 @@
 # Capybara developer entry points. Run `make help` for the list.
 
+# Every recipe line runs with pipefail, so `cmd | tail` cannot hide a failing
+# cmd. (Not .SHELLFLAGS: macOS ships GNU make 3.81, which ignores it.)
+SHELL := /bin/bash -o pipefail
+
 # Explicit package trees: `./...` would also pick up Go files that npm
 # packages ship inside web/node_modules.
 GO_PKGS      := ./cmd/... ./pkg/...
@@ -72,7 +76,11 @@ e2e: web/node_modules ## Browser end-to-end tests (needs make cluster-up; resets
 	cd web && npx playwright test
 
 .PHONY: lint
-lint: lint-go lint-web ## Run all linters and type checks
+lint: lint-make lint-go lint-web ## Run all linters and type checks
+
+.PHONY: lint-make
+lint-make:
+	@if (false | true); then echo "Makefile recipes are not running with pipefail" >&2; exit 1; fi
 
 .PHONY: lint-go
 lint-go:
