@@ -1,6 +1,6 @@
 # Architecture (as built)
 
-Status: end of Phase 3 (Projects). CLAUDE.md is the target design; this
+Status: end of Phase 4 (Multi-cluster). CLAUDE.md is the target design; this
 file records what exists and how the pieces fit.
 
 ## Local clusters
@@ -9,12 +9,17 @@ file records what exists and how the pieces fit.
 
 | k3d cluster      | API                    | Used by Capybara as |
 |------------------|------------------------|---------------------|
-| capybara-mgmt    | https://127.0.0.1:6550 | not yet (CRDs from Phase 3) |
+| capybara-mgmt    | https://127.0.0.1:6550 | Capybara's state: CRDs, Clusters, Projects, kubeconfig Secrets, size presets |
 | capybara-dev-1   | https://127.0.0.1:6551 | cluster `dev-1`     |
 | capybara-dev-2   | https://127.0.0.1:6552 | cluster `dev-2`     |
 
-Each kubeconfig is written to `.local/kubeconfig/<k3d-name>.yaml` (mode 600).
-The script refuses to write if `.local/` is not git-ignored.
+Each admin kubeconfig is written to `.local/kubeconfig/<k3d-name>.yaml`
+(mode 600) for the host tools only. The script refuses to write if `.local/`
+is not git-ignored. It then installs the CRDs and the size-presets ConfigMap
+in capybara-mgmt and registers dev-1 and dev-2 with least-privilege
+ServiceAccount kubeconfigs (`hack/capybara-sa.sh --with-secrets`, 30-day
+tokens) through `cmd/bootstrap`, which records one audit entry as user
+`bootstrap`. Re-running leaves registered clusters alone.
 
 `make demo` deploys `deploy/samples/demo.yaml` (namespace `capybara-demo`:
 a 2-replica busybox Deployment that logs every 3s and serves HTTP, a
@@ -32,8 +37,11 @@ handlers ─▶ cluster.Provider ─▶ client-go (typed, dynamic, REST config; 
 
 | Endpoint | Package | Notes |
 |---|---|---|
-| `GET /healthz` | cmd/server | includes audit log state |
-| `GET /api/clusters` | pkg/cluster | live health check per cluster |
+| `GET /healthz` | cmd/server | audit log state and Project size presets source |
+| `GET /api/clusters` | pkg/cluster | clusters with the health the controller recorded (no cluster calls) |
+| `POST /api/clusters/_validate`, `POST /api/clusters/_test` | pkg/cluster | parse / connect with an uploaded kubeconfig; nothing stored |
+| `POST /api/clusters`, `PATCH /api/clusters/{id}`, `PUT /api/clusters/{id}/kubeconfig`, `DELETE /api/clusters/{id}?confirm=&abandon=` | pkg/cluster | register, edit, rotate, remove; audited |
+| `GET /api/clusters/{id}/overview` | pkg/cluster | status plus counts (null when not permitted) |
 | `ANY /api/clusters/{id}/k8s/...` | pkg/proxy | passthrough, **GET only**; Secrets as scrubbed metadata |
 | `WS /api/clusters/{id}/watch` | pkg/stream | live events for any resource; Secrets via the metadata client |
 | `WS /api/clusters/{id}/logs` | pkg/stream | follows one container's logs |
@@ -48,15 +56,13 @@ handlers ─▶ cluster.Provider ─▶ client-go (typed, dynamic, REST config; 
 
 - `pkg/config`: flags + `CAPYBARA_*` env; binds `127.0.0.1:8080` by default
   and warns when bound to a non-loopback address.
-- `pkg/cluster`: registry loaded from `deploy/clusters.yaml`
-  (id → kubeconfig path). Clients are built lazily, so a cluster that is
-  not up yet shows as `Error` rather than stopping the server. Handlers depend
-  on the `Provider` interface (`List`, `Client`, `Dynamic`, `RESTConfig`), so
-  Phase 4 can swap the source. `pkg/cluster/clustertest` is the shared fake.
-- Local-only guard (`pkg/cluster/guard.go`): a kubeconfig is refused unless its
-  context is `k3d-capybara-*`, its server is loopback, and it uses no
-  exec/auth-provider plugin or proxy. Kubeconfigs are loaded from their file
-  only (never `KUBECONFIG`, `~/.kube/config` or in-cluster config).
+- `pkg/cluster`: the registry, fed from capybara-mgmt (see Clusters below).
+  Handlers depend on the `Provider` interface (`List`, `Client`, `Dynamic`,
+  `RESTConfig`, `Context`). `pkg/cluster/clustertest` is the shared fake.
+- Local-only guard: uploaded kubeconfigs must point to a loopback server
+  (`kubeconfig.go`); the host kubeconfig for capybara-mgmt must also have a
+  `k3d-capybara-*` context (`guard.go`) and is loaded from its file only
+  (never `KUBECONFIG`, `~/.kube/config` or in-cluster config).
 - `pkg/proxy`: forwards `/api/...`, `/apis/...` and `/version` with the
   cluster's own credentials. Refuses non-GET methods, protocol upgrades,
   `?watch=true`, and the `exec`, `attach`, `portforward` and `proxy`
@@ -133,6 +139,41 @@ never recorded. When a session is cut on purpose, client-go reports "use of clos
 network connection"; exec sessions pass client-go a logger (via the
 context) that logs exactly those messages at debug level.
 
+## Clusters (api/v1alpha1, pkg/cluster, cmd/controller)
+
+```
+/clusters UI ─▶ /api/clusters (validated, audited) ─▶ Cluster + kubeconfig Secret in capybara-mgmt
+                                                         │ cache (Clusters; Secrets of the kubeconfig type only)
+                                                         ▼
+                      registry (server and controller): clients per cluster, lifetime per credentials
+                         │ events                                   │
+                         ▼                                          ▼
+          health controller ─▶ Cluster.status          streams (watch/logs/exec) end on rotation/removal
+```
+
+- **Cluster** `spec`: displayName, environment (dev/uat/prod),
+  kubeconfigSecret. `status`: phase (Pending/Connected/Error), reason
+  (Connected, Unreachable, AuthFailed, CredentialsExpired, InvalidKubeconfig,
+  SecretMissing, PermissionsLimited), message, version, node count,
+  identity, credential expiry, last checked, conditions (Ready, Reachable,
+  Authenticated, CredentialsExpiring).
+- **Kubeconfig Secrets**: type `platform.capybara.io/kubeconfig`, namespace
+  `capybara-system`, owned by the Cluster. Never returned by any API; reveal,
+  edit and delete refuse that type on every cluster.
+- **Validation** (`ParseKubeconfig`): one inline context/cluster/user, no
+  exec/auth-provider/file paths/basic auth/impersonation/proxy, https to
+  loopback, no insecure TLS unless `--allow-insecure-kubeconfig`.
+- **Health** (`HealthReconciler`): every 30s (`--cluster-check-interval`)
+  and immediately on add/rotation. SelfSubjectReview (401 → AuthFailed,
+  transport error → Unreachable), version, nodes, expiry warning 7 days ahead
+  (`--credential-expiry-warning`).
+- **Removal**: type-the-name; refused while Projects use the cluster unless
+  their remote resources are abandoned (the Projects are marked, deleted, and
+  their finalizer leaves the namespace alone, audited `abandon-remote` linked
+  to the removal).
+- **Least privilege**: `hack/capybara-sa.sh` / `make sa-kubeconfig` (see
+  ADR 0005 for what the role can and cannot do).
+
 ## Projects (api/v1alpha1, pkg/project, cmd/controller)
 
 A Project (`platform.capybara.io/v1alpha1`, cluster-scoped, platform-wide
@@ -157,9 +198,14 @@ browser ─▶ /api/projects (audited) ─▶ Project in capybara-mgmt
   `capybara-allow-same-namespace`, `capybara-allow-from-ingress` (no egress
   rules), RoleBinding `capybara-project-owner` (ClusterRole `admin`, the
   owner as a Group subject).
-- **Sizes and ingress sources** come from `deploy/project-sizes.yaml`
-  (validated on load; with no ingress sources the allow policy has no rules,
-  never an allow-all rule).
+- **Sizes and ingress sources** come from the ConfigMap
+  `capybara-system/capybara-project-sizes` (key `sizes.yaml`; `make
+  project-sizes` loads `deploy/project-sizes.yaml` into it). It is validated
+  on every change; an invalid one keeps the last good config, and the
+  problem shows in `/healthz`, the console banner and a Warning event.
+  With no ConfigMap the embedded defaults are used and reported. A valid
+  change re-reconciles all Projects. With no ingress sources the allow
+  policy has no rules, never an allow-all rule.
 - **Drift**: server-side apply as `capybara-controller` with force restores
   managed fields; other managers' fields survive. Per-cluster informers on
   the managed kinds (label-filtered) requeue the owning Project, so drift is
@@ -281,6 +327,19 @@ URLs always carry the cluster (`/c/{cluster}/...`); `/` redirects to the
 first registered cluster. `ClusterScope` shows "Cluster not found" for an
 unknown id.
 
+### Clusters in the console
+
+`/clusters` (global) lists clusters with environment, health, version,
+nodes and credential expiry. Add: paste or pick a kubeconfig, Parse (server
+summary), Test connection (identity, version, permission checks,
+cluster-admin warning), then id, display name and environment. The detail
+page edits, replaces the kubeconfig and removes (type-the-name, lists the
+affected Projects, opt-in abandon). Home (`/c/{id}/home`) is the cluster
+overview built from `cluster-overview-card` extensions. The top bar shows the
+environment; prod adds a red line under the masthead. The cluster list is
+polled every 10s. A list the cluster refuses (403) shows "Not permitted on
+this cluster".
+
 ### Projects in the console
 
 The Projects page lists Projects of the current cluster (or all), live
@@ -294,12 +353,15 @@ between Namespaces and Projects (a Project stands for its namespace in
 ## Tests
 
 - `make test`: Go unit tests (fakes for clusters, a real audit file), the
-  Project controller's envtest suite (two real kube-apiservers: mgmt and a
-  managed cluster, plus an unreachable one; binaries in `.local/envtest`),
+  envtest suites (Project controller with two real kube-apiservers plus an
+  unreachable one; cluster registry sync; health reasons; size presets
+  ConfigMap; binaries in `.local/envtest`),
   and Vitest (stores, composables, registry, pages with a faked network).
 - `make lint`: pipefail check, generated files up to date, golangci-lint,
   ESLint, vue-tsc. Go tools are pinned one module each under `tools/`.
 - `make e2e`: Playwright in headless Chromium against `make dev` and the k3d
   clusters (`web/e2e/`). Resets the demo first and only changes
-  `capybara-demo`; not part of `make test` because it needs the clusters.
+  `capybara-demo`, except the cluster suite: it re-registers dev-2 from a
+  fresh ServiceAccount kubeconfig and stops/starts it (health checks every
+  5s). Not part of `make test` because it needs the clusters.
   Its server writes audit entries to `.local/audit/e2e.jsonl`.
