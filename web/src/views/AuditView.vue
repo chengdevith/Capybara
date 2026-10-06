@@ -62,7 +62,7 @@ onBeforeUnmount(() => clearInterval(timer))
 
 const actions = ['apply', 'apply-force', 'scale', 'restart', 'delete', 'reveal', 'exec-open', 'exec-close']
 const results = ['success', 'failure', 'conflict', 'denied', 'unknown']
-const opts = (xs: string[], all: string) => [{ label: all, value: null as unknown as string }, ...xs.map((x) => ({ label: x, value: x }))]
+const opts = (xs: string[]) => xs.map((x) => ({ label: x, value: x }))
 
 const tone: Record<string, Tone> = { success: 'success', failure: 'error', conflict: 'warning', denied: 'error', unknown: 'default' }
 
@@ -95,14 +95,18 @@ const columns = computed<DataTableColumns<AuditRecord>>(() => [
       >
         <NSelect
           v-model:value="action"
-          :options="opts(actions, 'All actions')"
+          :options="opts(actions)"
+          placeholder="All actions"
+          clearable
           size="small"
           class="select"
           data-test="audit-action"
         />
         <NSelect
           v-model:value="result"
-          :options="opts(results, 'All results')"
+          :options="opts(results)"
+          placeholder="All results"
+          clearable
           size="small"
           class="select"
         />
