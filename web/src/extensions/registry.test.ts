@@ -39,8 +39,8 @@ describe('extension registry', () => {
     const r = createRegistry()
     r.register({ type: 'nav-section', id: 'always', label: 'A', order: 1 })
     r.register({ type: 'nav-section', id: 'dev2', label: 'B', order: 2, when: (ctx) => ctx.cluster === 'dev-2' })
-    expect(r.active('nav-section', { cluster: 'dev-1' }).map((e) => e.id)).toEqual(['always'])
-    expect(r.active('nav-section', { cluster: 'dev-2' }).map((e) => e.id)).toEqual(['always', 'dev2'])
+    expect(r.active('nav-section', { cluster: 'dev-1', plugins: new Set<string>() }).map((e) => e.id)).toEqual(['always'])
+    expect(r.active('nav-section', { cluster: 'dev-2', plugins: new Set<string>() }).map((e) => e.id)).toEqual(['always', 'dev2'])
   })
 
   it('notifies subscribers and supports unregistering', () => {

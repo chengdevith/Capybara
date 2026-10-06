@@ -16,7 +16,13 @@
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["vite/client"],
-    "paths": { "@/*": ["./src/*"] }
+    "paths": {
+      "@/*": ["./src/*"],
+      "@capybara/sdk": ["../sdk/src/index.ts"],
+      "@capybara/sdk/*": ["../sdk/src/*"],
+      "vue": ["./node_modules/vue"],
+      "vue-router": ["./node_modules/vue-router"]
+    }
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "env.d.ts"]
+  "include": ["src/**/*.ts", "src/**/*.vue", "env.d.ts", "../sdk/src/**/*.ts"]
 }

@@ -137,9 +137,32 @@ type CatalogEntry struct {
 	Status        v1alpha1.PluginStatus `json:"status"`
 	Trusted       bool                  `json:"trusted"`
 	Installations []InstallationView    `json:"installations"`
+	// UI says where the console loads the bundle from.
+	UI *UIView `json:"ui,omitempty"`
 	// Rules the installer needs per mode (shown before install); connect
 	// mode adds get services/proxy on the connected service.
 	InstallerRules map[string]RuleView `json:"installerRules,omitempty"`
+}
+
+// UIView locates a plugin's UI bundle. SHA256 is what the browser checks
+// the bytes against (empty for dev bundles, which are unpinned).
+type UIView struct {
+	URL    string `json:"url"`
+	SHA256 string `json:"sha256,omitempty"`
+	Dev    bool   `json:"dev,omitempty"`
+}
+
+func (a *API) uiView(p *v1alpha1.Plugin, trusted bool) *UIView {
+	if p.Spec.UI == nil || !trusted {
+		return nil
+	}
+	if a.Bundles != nil && a.Bundles.DevDir != "" {
+		return &UIView{URL: "/api/plugins/_ui/" + p.Name + "/dev.js", Dev: true}
+	}
+	if !p.Status.Available {
+		return nil
+	}
+	return &UIView{URL: "/api/plugins/_ui/" + p.Name + "/" + p.Spec.UI.SHA256 + ".js", SHA256: p.Spec.UI.SHA256}
 }
 
 // RuleView is a RuleSet for display.
@@ -191,6 +214,7 @@ func (a *API) list(w http.ResponseWriter, r *http.Request) {
 	out := make([]CatalogEntry, 0, len(plugins.Items))
 	for _, p := range plugins.Items {
 		v := CatalogEntry{Name: p.Name, Spec: p.Spec, Status: p.Status, Trusted: trusted[p.Spec.Repository], Installations: []InstallationView{}}
+		v.UI = a.uiView(&p, v.Trusted)
 		for i := range ins.Items {
 			if ins.Items[i].Spec.Plugin == p.Name {
 				v.Installations = append(v.Installations, viewOf(&ins.Items[i]))
@@ -231,6 +255,7 @@ func (a *API) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v := CatalogEntry{Name: p.Name, Spec: p.Spec, Status: p.Status, Trusted: a.trusted(r.Context())[p.Spec.Repository], Installations: []InstallationView{}}
+	v.UI = a.uiView(&p, v.Trusted)
 	v.InstallerRules = map[string]RuleView{
 		string(v1alpha1.ModeInstall): {ClusterRules: p.Spec.Permissions.Install.ClusterRules, NamespaceRules: p.Spec.Permissions.Install.NamespaceRules},
 		string(v1alpha1.ModeConnect): {ClusterRules: p.Spec.Permissions.Connect.ClusterRules, NamespaceRules: p.Spec.Permissions.Connect.NamespaceRules},

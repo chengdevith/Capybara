@@ -7,7 +7,7 @@ describe('core extensions', () => {
   it('register without conflicts and give a Home landing page', () => {
     const r = createRegistry()
     registerCoreExtensions(r)
-    const tree = navTree(r, { cluster: 'dev-1' })
+    const tree = navTree(r, { cluster: 'dev-1', plugins: new Set<string>() })
     expect(tree[0]).toMatchObject({ kind: 'item', item: { label: 'Home', route: 'core.home' } })
     expect(r.all('route').every((route) => route.source === 'core')).toBe(true)
   })

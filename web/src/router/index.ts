@@ -10,7 +10,20 @@ import ClusterScope from '@/components/layout/ClusterScope.vue'
 import NotFound from '@/components/layout/NotFound.vue'
 import RootRedirect from '@/components/layout/RootRedirect.vue'
 import { clusterFromParams } from '@/composables/useExtensionContext'
-import { firstNavRoute, isActive, type ExtensionRegistry, type Registered, type RouteExtension } from '@/extensions'
+import {
+  firstNavRoute,
+  isActive,
+  type ExtensionContext,
+  type ExtensionRegistry,
+  type Registered,
+  type RouteExtension,
+} from '@/extensions'
+
+/** Builds the extension context for a route's params. */
+export type ContextFor = (params: Record<string, unknown>) => ExtensionContext
+
+const noPlugins: ReadonlySet<string> = new Set()
+export const defaultContextFor: ContextFor = (params) => ({ cluster: clusterFromParams(params), plugins: noPlugins })
 
 /** Names of the structural routes. Feature routes are named by their
  * extension id and are never declared here. */
@@ -18,7 +31,7 @@ export const LAYOUT_ROUTE = 'layout'
 export const CLUSTER_ROUTE = 'cluster'
 export const NOT_FOUND_ROUTE = 'not-found'
 
-function structuralRoutes(registry: ExtensionRegistry): RouteRecordRaw[] {
+function structuralRoutes(registry: ExtensionRegistry, contextFor: ContextFor): RouteRecordRaw[] {
   return [
     {
       path: '/',
@@ -36,7 +49,7 @@ function structuralRoutes(registry: ExtensionRegistry): RouteRecordRaw[] {
               path: '',
               name: 'cluster-index',
               redirect: (to) => {
-                const target = firstNavRoute(registry, { cluster: clusterFromParams(to.params) })
+                const target = firstNavRoute(registry, contextFor(to.params))
                 return target ? { name: target, params: to.params } : { name: NOT_FOUND_ROUTE, params: { pathMatch: [] } }
               },
             },
@@ -74,15 +87,19 @@ export function syncRoutes(router: Router, registry: ExtensionRegistry): () => v
   })
 }
 
-export function createAppRouter(registry: ExtensionRegistry, history: RouterHistory = createWebHistory()): Router {
-  const router = createRouter({ history, routes: structuralRoutes(registry) })
+export function createAppRouter(
+  registry: ExtensionRegistry,
+  history: RouterHistory = createWebHistory(),
+  contextFor: ContextFor = defaultContextFor,
+): Router {
+  const router = createRouter({ history, routes: structuralRoutes(registry, contextFor) })
   syncRoutes(router, registry)
 
   // A route extension whose `when` fails for this cluster (e.g. a plugin not
   // enabled here) behaves as if it did not exist.
   router.beforeEach((to) => {
     const ext = typeof to.name === 'string' ? registry.get(to.name) : undefined
-    if (ext?.type === 'route' && !isActive(ext, { cluster: clusterFromParams(to.params) })) {
+    if (ext?.type === 'route' && !isActive(ext, contextFor(to.params))) {
       return { name: NOT_FOUND_ROUTE, params: { pathMatch: to.path.slice(1).split('/') } }
     }
   })

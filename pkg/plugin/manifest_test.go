@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -166,5 +167,18 @@ func TestCatalogSync(t *testing.T) {
 	_, _ = r.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: "builtin"}})
 	if p := get("good"); p.Status.Available || !strings.Contains(p.Status.Problem, "no longer") {
 		t.Errorf("removed: %+v", p.Status)
+	}
+}
+
+// The console's extension API version (sdk/src/extensions.ts) must match
+// what the controller checks plugins against.
+func TestExtensionAPIVersionMatchesSDK(t *testing.T) {
+	raw, err := os.ReadFile("../../sdk/src/extensions.ts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "export const EXTENSION_API_VERSION = " + strconv.Itoa(ExtensionAPIVersion) + "\n"
+	if !strings.Contains(string(raw), want) {
+		t.Fatalf("sdk/src/extensions.ts does not declare %q", strings.TrimSpace(want))
 	}
 }

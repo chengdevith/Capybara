@@ -22,7 +22,7 @@ function sample() {
 }
 
 const labels = (r: ReturnType<typeof sample>, cluster: string) =>
-  navTree(r, { cluster }).map((e) =>
+  navTree(r, { cluster, plugins: new Set<string>() }).map((e) =>
     e.kind === 'item' ? e.item.label : `${e.section.label}[${e.items.map((i) => i.label).join(',')}]`,
   )
 
@@ -49,13 +49,13 @@ describe('navTree', () => {
     const r = sample()
     r.register({ type: 'route', id: 'route.settings', path: 'settings', scope: 'global', component: page })
     r.register({ type: 'nav-item', id: 'nav.settings', label: 'Settings', order: 90, route: 'route.settings' })
-    const tree = navTree(r, { cluster: null })
+    const tree = navTree(r, { cluster: null, plugins: new Set<string>() })
     expect(tree.map((e) => (e.kind === 'item' ? e.item.label : e.section.label))).toEqual(['Settings'])
   })
 
   it('firstNavRoute is the landing page for a cluster', () => {
-    expect(firstNavRoute(sample(), { cluster: 'dev-1' })).toBe('route.home')
-    expect(firstNavRoute(createRegistry(), { cluster: 'dev-1' })).toBeUndefined()
+    expect(firstNavRoute(sample(), { cluster: 'dev-1', plugins: new Set<string>() })).toBe('route.home')
+    expect(firstNavRoute(createRegistry(), { cluster: 'dev-1', plugins: new Set<string>() })).toBeUndefined()
   })
 })
 
@@ -69,7 +69,7 @@ describe('detailTabs', () => {
       type: 'resource-detail-tab', id: 'metrics', label: 'Metrics', order: 50, kinds: ['Pod'], component: page,
       when: (ctx) => ctx.cluster === 'dev-2',
     })
-    const ids = (kind: string, cluster: string) => detailTabs(r, kind, { cluster }).map((t) => t.id)
+    const ids = (kind: string, cluster: string) => detailTabs(r, kind, { cluster, plugins: new Set<string>() }).map((t) => t.id)
     expect(ids('Pod', 'dev-1')).toEqual(['overview', 'yaml', 'logs'])
     expect(ids('Pod', 'dev-2')).toEqual(['overview', 'yaml', 'logs', 'metrics'])
     expect(ids('Service', 'dev-2')).toEqual(['overview', 'yaml'])
