@@ -9,10 +9,11 @@ Requirements: Go 1.27+, Node 22+, Docker (running), k3d, kubectl.
 
 ```sh
 make cluster-up   # k3d clusters capybara-mgmt, capybara-dev-1, capybara-dev-2
+make demo         # optional: demo workload in namespace capybara-demo
 make dev          # API on 127.0.0.1:8080, UI on http://127.0.0.1:5173
 ```
 
-Other targets: `make test`, `make lint`, `make cluster-down`, and
+Other targets: `make test`, `make lint`, `make demo-clean`, `make cluster-down`, and
 `make kubectl CLUSTER=dev-1 ARGS="get pods -A"`. Run `make help` for all.
 
 Kubeconfigs are written to `.local/kubeconfig/<cluster>.yaml` (git-ignored),
