@@ -29,6 +29,7 @@ export const deployments: ResourceDef = {
   label: 'Deployments',
   singular: 'Deployment',
   path: 'workloads/deployments',
+  deleteConfirm: 'type-name',
   status: deploymentStatus,
   columns: [
     {

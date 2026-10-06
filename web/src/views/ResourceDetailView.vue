@@ -3,6 +3,7 @@ import { NBreadcrumb, NBreadcrumbItem, NCard, NH2, NResult, NSpin, NTabPane, NTa
 import { computed, defineAsyncComponent, ref, watch, type Component } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import LiveIndicator from '@/components/resource/LiveIndicator.vue'
+import ResourceActions from '@/components/resource/ResourceActions.vue'
 import { listRouteOf, type ResourceDef } from '@/components/resource/types'
 import { statusTag } from '@/components/resource/render'
 import { useExtensionContext } from '@/composables/useExtensionContext'
@@ -102,6 +103,13 @@ const status = computed(() => (object.value && props.resource.status ? props.res
         :live="live"
         :loading="loading"
       />
+      <span class="spacer" />
+      <ResourceActions
+        v-if="object && ctx.cluster"
+        :cluster="ctx.cluster"
+        :resource="resource"
+        :object="object"
+      />
     </div>
     <div
       v-if="namespace"
@@ -158,6 +166,9 @@ const status = computed(() => (object.value && props.resource.status ? props.res
 }
 .title {
   margin: 0;
+}
+.spacer {
+  flex: 1;
 }
 .subtitle {
   color: var(--capy-text-muted);

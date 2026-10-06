@@ -54,6 +54,13 @@ function respond(url: string): unknown {
   if (path.endsWith('/pods')) return { metadata: { resourceVersion: '10' }, items: [pod('demo-a'), pod('demo-b')] }
   if (path.endsWith('/pods/demo-a')) return pod('demo-a')
   if (path.endsWith('/namespaces')) return { metadata: { resourceVersion: '10' }, items: [{ metadata: meta('capybara-demo'), status: { phase: 'Active' } }] }
+  if (path.endsWith('/secrets')) return { metadata: { resourceVersion: '10' }, items: [{ metadata: meta('demo-credentials', 'capybara-demo') }] }
+  if (path === '/api/clusters/dev-1/secrets/capybara-demo/demo-credentials') {
+    return { apiVersion: 'v1', kind: 'Secret', metadata: meta('demo-credentials', 'capybara-demo'), data: { password: 'c2VjcmV0LXZhbHVl' } }
+  }
+  if (path.endsWith('/deployments')) {
+    return { metadata: { resourceVersion: '10' }, items: [{ metadata: meta('demo-logger', 'capybara-demo'), spec: { replicas: 2 }, status: {} }] }
+  }
   if (path.endsWith('/services')) return { metadata: { resourceVersion: '10' }, items: [{ metadata: meta('demo-logger', 'capybara-demo'), spec: { type: 'ClusterIP' } }] }
   return { metadata: { resourceVersion: '10' }, items: [] }
 }
@@ -117,11 +124,11 @@ describe('resource pages (integration)', () => {
     expect(new URL(FakeSocket.find('pods')!.url).searchParams.get('namespace')).toBe('capybara-demo')
   })
 
-  it('shows registry tabs on the detail page, Logs only for Pods', async () => {
+  it('shows registry tabs on the detail page, Logs and Terminal only for Pods', async () => {
     const podPage = await boot('/c/dev-1/workloads/pods/capybara-demo/demo-a')
     await vi.waitFor(() => expect(podPage.wrapper.text()).toContain('Overview'))
     const podTabs = podPage.wrapper.findAll('.n-tabs-tab').map((t) => t.text().trim())
-    expect(podTabs).toEqual(['Overview', 'YAML', 'Events', 'Logs'])
+    expect(podTabs).toEqual(['Overview', 'YAML', 'Events', 'Logs', 'Terminal'])
     podPage.wrapper.unmount()
 
     const svcPage = await boot('/c/dev-1/networking/services/capybara-demo/demo-logger')
@@ -135,5 +142,42 @@ describe('resource pages (integration)', () => {
     const ws = FakeSocket.all.find((s) => new URL(s.url).searchParams.get('fieldSelector') === 'metadata.name=demo-a')!
     ws.send({ type: 'DELETED', object: pod('demo-a') })
     await vi.waitFor(() => expect(wrapper.text()).toContain('This Pod was deleted'))
+  })
+
+  it('never asks for Secret values until Reveal is clicked', async () => {
+    const { wrapper } = await boot('/c/dev-1/config/secrets/capybara-demo/demo-credentials?tab=core.tab.yaml')
+    await vi.waitFor(() => expect(wrapper.find('[data-test="secret-hidden"]').exists()).toBe(true))
+    const revealCalls = () => vi.mocked(fetch).mock.calls.filter((c) => String(c[0]).includes('/secrets/capybara-demo/'))
+    expect(revealCalls()).toHaveLength(0)
+
+    await wrapper.find('[data-test="secret-reveal"]').trigger('click')
+    await vi.waitFor(() => expect(revealCalls()).toHaveLength(1))
+    await vi.waitFor(() => expect(wrapper.find('[data-test="secret-hide"]').exists()).toBe(true))
+  })
+
+  it('offers Scale and Restart only on Deployments and guards Delete by name', async () => {
+    const pods = await boot('/c/dev-1/workloads/pods/capybara-demo/demo-a')
+    await vi.waitFor(() => expect(pods.wrapper.find('[data-test="actions"]').exists()).toBe(true))
+    await pods.wrapper.find('[data-test="actions"]').trigger('click')
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Edit YAML'))
+    expect(document.body.textContent).not.toContain('Scale')
+    pods.wrapper.unmount()
+    document.body.innerHTML = ''
+
+    const dep = await boot('/c/dev-1/workloads/deployments/capybara-demo/demo-logger')
+    await vi.waitFor(() => expect(dep.wrapper.find('[data-test="actions"]').exists()).toBe(true))
+    await dep.wrapper.find('[data-test="actions"]').trigger('click')
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Restart rollout'))
+    expect(document.body.textContent).toContain('Scale')
+
+    const del = [...document.querySelectorAll('.n-dropdown-option-body')].find((o) => o.textContent?.includes('Delete')) as HTMLElement
+    del.click()
+    const confirm = () => document.querySelector('[data-test="confirm"]') as HTMLButtonElement | null
+    await vi.waitFor(() => expect(confirm()).not.toBeNull())
+    expect(confirm()!.disabled).toBe(true) // until the name is typed
+    const input = document.querySelector('[data-test="confirm-name"] input') as HTMLInputElement
+    input.value = 'demo-logger'
+    input.dispatchEvent(new Event('input'))
+    await vi.waitFor(() => expect(confirm()!.disabled).toBe(false))
   })
 })

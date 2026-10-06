@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NConfigProvider, NGlobalStyle, NMessageProvider, darkTheme, type GlobalThemeOverrides } from 'naive-ui'
+import { NConfigProvider, NDialogProvider, NGlobalStyle, NMessageProvider, darkTheme, type GlobalThemeOverrides } from 'naive-ui'
 import { computed } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 
@@ -48,7 +48,9 @@ const overrides = computed(() => (theme.isDark ? dark : light))
   >
     <NGlobalStyle />
     <NMessageProvider>
-      <RouterView />
+      <NDialogProvider>
+        <RouterView />
+      </NDialogProvider>
     </NMessageProvider>
   </NConfigProvider>
 </template>

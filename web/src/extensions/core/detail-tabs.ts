@@ -34,4 +34,12 @@ export function registerDetailTabs(registry: ExtensionRegistry): void {
     kinds: ['Pod'],
     component: () => import('@/views/resource-tabs/LogsTab.vue'),
   })
+  registry.register({
+    type: 'resource-detail-tab',
+    id: 'core.tab.terminal',
+    label: 'Terminal',
+    order: 50,
+    kinds: ['Pod'],
+    component: () => import('@/views/resource-tabs/TerminalTab.vue'),
+  })
 }

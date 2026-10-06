@@ -75,12 +75,19 @@ export interface ResourceDetailTabExtension extends ExtensionBase {
 // The extension points below are declared now so the API shape is stable.
 // Nothing renders them until the phase that needs them.
 
-/** An action on a resource (scale, restart, ...). Phase 2. */
+/**
+ * An action on a resource (scale, restart, delete, ...), shown in the
+ * detail page's Actions menu and each list row's menu. `component` is a
+ * dialog: it gets `cluster`, `resource` (ResourceDef) and `object`, and
+ * emits `close` when done or cancelled.
+ */
 export interface ResourceActionExtension extends ExtensionBase {
   type: 'resource-action'
   label: string
   order: number
   kinds: KindMatcher
+  /** Destructive: shown last and in red. */
+  danger?: boolean
   component: LazyComponent
 }
 

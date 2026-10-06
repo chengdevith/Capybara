@@ -31,6 +31,7 @@ export const services: ResourceDef = {
   label: 'Services',
   singular: 'Service',
   path: 'networking/services',
+  deleteConfirm: 'type-name',
   columns: [
     { key: 'type', title: 'Type', render: (o) => dash(o.spec?.type), sortValue: (o) => o.spec?.type ?? '', width: 110 },
     { key: 'clusterIP', title: 'Cluster IP', render: (o) => dash(o.spec?.clusterIP), width: 130 },

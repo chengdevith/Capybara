@@ -5,6 +5,7 @@ import type {
   NavItemExtension,
   NavSectionExtension,
   Registered,
+  ResourceActionExtension,
   ResourceDetailTabExtension,
 } from './types'
 
@@ -56,6 +57,18 @@ export function detailTabs(
     .active('resource-detail-tab', ctx)
     .filter((t) => matchesKind(t.kinds, kind))
     .sort(byOrder)
+}
+
+/** Actions for one kind, in order, destructive ones last. */
+export function resourceActions(
+  registry: ExtensionRegistry,
+  kind: string,
+  ctx: ExtensionContext,
+): Registered<ResourceActionExtension>[] {
+  return registry
+    .active('resource-action', ctx)
+    .filter((a) => matchesKind(a.kinds, kind))
+    .sort((a, b) => Number(a.danger ?? false) - Number(b.danger ?? false) || a.order - b.order)
 }
 
 /** First page of the sidebar for ctx: where /c/:cluster lands. */

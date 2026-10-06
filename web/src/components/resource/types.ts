@@ -38,6 +38,13 @@ export interface ResourceDef {
   overview?: Field[]
   /** Status shown next to the title on the detail page. */
   status?: (obj: KubeObject) => { text: string; tone: Tone }
+  /**
+   * Values are never sent with lists, watches or the detail object (the
+   * server sends metadata only); they are fetched on Reveal or Edit.
+   */
+  sensitive?: boolean
+  /** How deleting one is confirmed. Default 'simple'. */
+  deleteConfirm?: 'simple' | 'type-name'
 }
 
 export const listRouteOf = (def: ResourceDef): string => `${def.id}.list`

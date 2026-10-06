@@ -5,6 +5,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import type { KubeObject } from '@/api/k8s'
 import { useNow } from '@/composables/useNow'
 import { age } from './format'
+import ResourceActions from './ResourceActions.vue'
 import { detailRouteOf, type ResourceDef } from './types'
 
 const props = defineProps<{
@@ -79,6 +80,12 @@ const columns = computed<DataTableColumns<KubeObject>>(() => {
     width: 80,
     render: (o) => age(o.metadata.creationTimestamp, now.value),
     sorter: (a, b) => created(b) - created(a),
+  })
+  cols.push({
+    key: 'actions',
+    title: '',
+    width: 48,
+    render: (o) => h(ResourceActions, { cluster: props.cluster, resource: def, object: o, compact: true }),
   })
   return cols
 })

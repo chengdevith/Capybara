@@ -13,6 +13,7 @@ export const namespaces: ResourceDef = {
   label: 'Namespaces',
   singular: 'Namespace',
   path: 'namespaces',
+  deleteConfirm: 'type-name',
   status: namespaceStatus,
   columns: [
     {

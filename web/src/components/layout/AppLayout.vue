@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { NLayout, NLayoutContent, NLayoutHeader, NLayoutSider } from 'naive-ui'
-import { onMounted } from 'vue'
+import { NAlert, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider } from 'naive-ui'
+import { onBeforeUnmount, onMounted } from 'vue'
 import { useClustersStore } from '@/stores/clusters'
+import { useHealthStore } from '@/stores/health'
 import AppSidebar from './AppSidebar.vue'
 import TopBar from './TopBar.vue'
 
 const clusters = useClustersStore()
-onMounted(() => clusters.ensureLoaded())
+const health = useHealthStore()
+onMounted(() => {
+  void clusters.ensureLoaded()
+  health.start()
+})
+onBeforeUnmount(() => health.stop())
 </script>
 
 <template>
@@ -30,6 +36,15 @@ onMounted(() => clusters.ensureLoaded())
         class="content"
         content-style="padding: 24px;"
       >
+        <NAlert
+          v-if="health.auditFailing"
+          type="error"
+          title="Write actions are disabled"
+          class="audit-banner"
+          data-test="audit-banner"
+        >
+          The audit log cannot be written ({{ health.audit }}). Changes are refused until it works again.
+        </NAlert>
         <RouterView />
       </NLayoutContent>
     </NLayout>
@@ -50,6 +65,9 @@ onMounted(() => clusters.ensureLoaded())
 }
 .sider {
   background: var(--capy-sider-bg);
+}
+.audit-banner {
+  margin-bottom: 16px;
 }
 .content {
   background: var(--capy-content-bg);
