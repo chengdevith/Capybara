@@ -45,4 +45,44 @@ for entry in "${CAPYBARA_CLUSTERS[@]}"; do
   echo "    kubeconfig: ${out#"${REPO_ROOT}"/}"
 done
 
+# Wait until every API server answers. After a Docker restart k3s can come
+# back with a stale node IP and stop itself; one stop/start fixes that.
+for entry in "${CAPYBARA_CLUSTERS[@]}"; do
+  name="${entry%%:*}"
+  kc="$(kubeconfig_path "${name}")"
+  ready=false
+  for attempt in 1 2; do
+    for _ in $(seq 1 45); do
+      if kubectl --kubeconfig "${kc}" get --raw /readyz >/dev/null 2>&1; then ready=true; break; fi
+      sleep 2
+    done
+    $ready && break
+    echo "==> ${name} is not answering; restarting it once"
+    k3d cluster stop "${name}" >/dev/null && k3d cluster start "${name}" --wait >/dev/null
+  done
+  $ready || { echo "${name} did not become ready" >&2; exit 1; }
+done
+
+# Capybara's state lives in capybara-mgmt: CRDs, then the managed clusters,
+# registered with least-privilege ServiceAccount kubeconfigs (30-day tokens,
+# with Secret access for the local clusters). Already registered clusters
+# are left alone; rotate credentials from the Clusters page.
+mgmt_kc="$(kubeconfig_path capybara-mgmt)"
+kubectl --kubeconfig "${mgmt_kc}" apply --server-side -f "${REPO_ROOT}/deploy/crds" >/dev/null
+kubectl --kubeconfig "${mgmt_kc}" wait --for condition=established --timeout=60s \
+  crd/clusters.platform.capybara.io crd/projects.platform.capybara.io >/dev/null
+
+register=()
+for id in dev-1 dev-2; do
+  if kubectl --kubeconfig "${mgmt_kc}" get cluster.platform.capybara.io "${id}" >/dev/null 2>&1; then
+    echo "==> ${id} already registered in capybara-mgmt"
+    continue
+  fi
+  "${REPO_ROOT}/hack/capybara-sa.sh" "${id}" --with-secrets
+  register+=("${id}=${REPO_ROOT}/.local/kubeconfig/capybara-${id}-sa.yaml")
+done
+if ((${#register[@]})); then
+  (cd "${REPO_ROOT}" && go run ./cmd/bootstrap "${register[@]}")
+fi
+
 echo "==> done. Try: make kubectl CLUSTER=dev-1 ARGS='get pods -A'"

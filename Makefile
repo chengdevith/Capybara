@@ -30,6 +30,10 @@ cluster-up: ## Create/start k3d clusters capybara-mgmt, -dev-1, -dev-2
 cluster-down: ## Delete the Capybara k3d clusters and their kubeconfigs
 	./deploy/k3d/cluster-down.sh
 
+.PHONY: sa-kubeconfig
+sa-kubeconfig: ## Least-privilege ServiceAccount kubeconfig: make sa-kubeconfig CLUSTER=dev-2 [WITH_SECRETS=1]
+	./hack/capybara-sa.sh $(CLUSTER) $(if $(WITH_SECRETS),--with-secrets,)
+
 .PHONY: kubectl
 kubectl: ## kubectl against one local cluster: make kubectl CLUSTER=dev-1 ARGS="get pods -A"
 	@test -f $(KUBECONFIGS)/capybara-$(CLUSTER).yaml || { echo "no kubeconfig for $(CLUSTER); run make cluster-up" >&2; exit 1; }
