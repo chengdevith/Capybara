@@ -1,7 +1,7 @@
 # Architecture (as built)
 
-Status: end of Phase 1 (read-only, single cluster at a time). CLAUDE.md is
-the target design; this file records what exists and how the pieces fit.
+Status: end of Phase 2 (write actions, terminal, audit). CLAUDE.md is the
+target design; this file records what exists and how the pieces fit.
 
 ## Local clusters
 
@@ -17,9 +17,10 @@ Each kubeconfig is written to `.local/kubeconfig/<k3d-name>.yaml` (mode 600).
 The script refuses to write if `.local/` is not git-ignored.
 
 `make demo` deploys `deploy/samples/demo.yaml` (namespace `capybara-demo`:
-a 2-replica busybox Deployment that logs every 3s and serves HTTP, plus a
-Service) to dev-1 and dev-2. The image is imported, never pulled by nodes
-(see ADR 0002). `make demo-clean` removes it.
+a 2-replica busybox Deployment that logs every 3s and serves HTTP, a
+Service, a ConfigMap and a clearly fake Secret) to dev-1 and dev-2. The
+image is imported, never pulled by nodes (see ADR 0002). `make demo-clean`
+removes it.
 
 ## API server (cmd/server)
 
@@ -31,11 +32,16 @@ handlers ─▶ cluster.Provider ─▶ client-go (typed, dynamic, REST config; 
 
 | Endpoint | Package | Notes |
 |---|---|---|
-| `GET /healthz` | cmd/server | |
+| `GET /healthz` | cmd/server | includes audit log state |
 | `GET /api/clusters` | pkg/cluster | live health check per cluster |
-| `ANY /api/clusters/{id}/k8s/...` | pkg/proxy | passthrough, **GET only** in Phase 1 |
-| `WS /api/clusters/{id}/watch` | pkg/stream | live events for any resource |
+| `ANY /api/clusters/{id}/k8s/...` | pkg/proxy | passthrough, **GET only**; Secrets as scrubbed metadata |
+| `WS /api/clusters/{id}/watch` | pkg/stream | live events for any resource; Secrets via the metadata client |
 | `WS /api/clusters/{id}/logs` | pkg/stream | follows one container's logs |
+| `WS /api/clusters/{id}/exec` | pkg/stream | web terminal (audited open/close) |
+| `POST /api/clusters/{id}/apply` | pkg/action | server-side apply as `capybara`; `?dryRun`, `?force` |
+| `POST /api/clusters/{id}/actions/{scale,restart,delete}` | pkg/action | audited |
+| `GET /api/clusters/{id}/secrets/{ns}/{name}` | pkg/action | the only way Secret values leave the server; audited `reveal` |
+| `GET /api/audit` | pkg/audit | filters, paging |
 
 - `pkg/config`: flags + `CAPYBARA_*` env; binds `127.0.0.1:8080` by default
   and warns when bound to a non-loopback address.
@@ -62,9 +68,67 @@ handlers ─▶ cluster.Provider ─▶ client-go (typed, dynamic, REST config; 
   - logs messages: `{type: log, data}` (chunks, may end mid-line),
     `{type: end}`, `{type: error, message}`.
 - `pkg/auth`: placeholder middleware; handlers read `auth.UserFrom(ctx)`.
-- `pkg/audit`: `Recorder` interface + log-only implementation; no callers yet
-  (Phase 2).
 - `pkg/httpjson`: shared JSON response helpers.
+
+### Write actions (pkg/action)
+
+The passthrough stays read-only; every change goes through pkg/action, and
+every action through the auditor.
+
+- **apply**: server-side apply, field manager `capybara`. The edit must keep
+  apiVersion, kind, name and namespace (the editor can never create, rename
+  or move objects); `status` and server-owned metadata are stripped;
+  `resourceVersion` is kept, so applying an outdated copy fails as *stale*.
+  A 409 lists field-manager conflicts (field, manager, subresource);
+  `?force=true` is a separate, audited `apply-force`. Dry runs are not audited.
+- **scale**: merge patch on the `scale` subresource (any scalable kind).
+- **restart**: `spec.template.metadata.annotations["kubectl.kubernetes.io/restartedAt"]`,
+  as `kubectl rollout restart` (Deployments, StatefulSets, DaemonSets).
+- **delete**: uid precondition (never deletes a newer object of the same
+  name), background propagation. Namespaces matching `--protected-namespaces`
+  (default `kube-system, kube-public, kube-node-lease, default, openshift-*`)
+  or `--capybara-namespace` are refused and audited as `denied`.
+
+### Audit (pkg/audit)
+
+Fail-closed. `Auditor.Do` writes an **attempted** entry *before* the action
+runs; if that write fails the action is refused (503) and nothing reaches
+the cluster. After the action, a **completed** entry records the result
+(`success`, `failure`, `conflict`, `denied`). Because every action starts
+with a write, writes stay refused until the log works again. An action
+whose outcome cannot be written returns 500 and the attempt shows as
+`unknown`. Refused edits and policy denials are recorded as attempts too.
+
+Storage: JSON Lines at `--audit-file` (default `.local/audit/audit.jsonl`,
+mode 600, fsync per entry), behind `Recorder`/`Reader` so it can move to
+ELK or a database. The server refuses to start without a writable log.
+Entries hold identifiers and short details only; on Secrets, quoted values
+are removed from error details.
+
+### Secrets (pkg/sensitive)
+
+Values reach the browser only when a user asks (Reveal or Edit):
+
+- passthrough lists/gets force `Accept: ...;as=PartialObjectMetadata(List)`
+  and scrub the response; anything that is not metadata is refused (502);
+- watches use the metadata client and are scrubbed the same way;
+- scrubbing removes `managedFields` and the
+  `kubectl.kubernetes.io/last-applied-configuration` annotation, which
+  `kubectl apply` fills with the whole object, values included;
+- the reveal endpoint is audited and `Cache-Control: no-store`.
+
+### Terminal (pkg/stream/exec.go)
+
+One exec of `/bin/sh -c '... exec bash || exec sh'` with a TTY, via
+client-go's websocket executor with SPDY fallback. Output goes to the
+browser as binary frames; input and resize as JSON. The session ends when
+the browser leaves, after `--exec-idle-timeout` (15m) without input, or at
+`--exec-max-duration` (8h). Audited as `exec-open` (before anything runs;
+refused if the container is not running or the audit log is unavailable)
+and `exec-close` (duration, exit code, reason). Keystrokes and output are
+never recorded. When a session is cut, client-go logs "use of closed
+network connection" at error level; this is expected and contains no
+session content.
 
 ## Web console (web/)
 
@@ -116,6 +180,9 @@ nav item. Both routes use the generic `views/ResourceListView.vue` and
 | Pods | Workloads | `/c/{cluster}/workloads/pods` |
 | Deployments | Workloads | `/c/{cluster}/workloads/deployments` |
 | Services | Networking | `/c/{cluster}/networking/services` |
+| ConfigMaps | Config | `/c/{cluster}/config/configmaps` |
+| Secrets | Config | `/c/{cluster}/config/secrets` (`sensitive`) |
+| Audit (not a kind) | top level, last | `/c/{cluster}/audit` |
 
 Detail pages: `<list path>/{namespace}/{name}` (or `/{name}` for
 cluster-scoped kinds). The detail page watches the one object (field
@@ -125,12 +192,24 @@ is kept in `?tab=`.
 Detail tabs (`views/resource-tabs/`):
 
 - **Overview**: metadata, labels, annotations, owners, plus the kind's fields.
-- **YAML**: read-only Monaco, loaded in its own chunk on first open; managed
-  fields hidden by default. Editing comes in Phase 2.
+- **YAML**: Monaco, loaded in its own chunk on first open; managed fields
+  hidden by default. **Edit** → **Review changes** (server dry run, shown as
+  a diff) → **Apply**. Conflicts list each field and its owner; **Force
+  apply** needs a confirmation. For `sensitive` kinds, values are fetched
+  only by **Reveal values** or **Edit**, and **Hide values** drops them.
 - **Events**: live, filtered with `involvedObject.uid=<uid>`, newest first,
   at most 100 kept in the browser.
 - **Logs** (Pods only): container picker, tail size, previous container,
   timestamps, wrap, follow with "jump to latest"; at most 5000 lines kept.
+- **Terminal** (Pods only): xterm.js, running-container picker, resize,
+  Reconnect; the session ends when the tab or page is left.
+
+Actions are `resource-action` extensions (dialogs) in an **Actions** menu on
+detail pages and a ⋮ menu on list rows: Edit YAML (all kinds), Scale and
+Restart rollout (Deployments), Delete (all kinds; `deleteConfirm:
+'type-name'` on Deployments, Namespaces, Services and Secrets, a simple
+confirmation otherwise). A banner across the app says when the audit log
+is failing and writes are disabled (from `/healthz`).
 
 ### Live data
 
@@ -148,3 +227,13 @@ when switching cluster. Switching cluster on a detail page goes to its list.
 URLs always carry the cluster (`/c/{cluster}/...`); `/` redirects to the
 first registered cluster. `ClusterScope` shows "Cluster not found" for an
 unknown id.
+
+## Tests
+
+- `make test`: Go unit tests (fakes for clusters, a real audit file) and
+  Vitest (stores, composables, registry, pages mounted with a faked network).
+- `make lint`: golangci-lint, ESLint, vue-tsc.
+- `make e2e`: Playwright in headless Chromium against `make dev` and the k3d
+  clusters (`web/e2e/`). Resets the demo first and only changes
+  `capybara-demo`; not part of `make test` because it needs the clusters.
+  Its server writes audit entries to `.local/audit/e2e.jsonl`.

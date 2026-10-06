@@ -13,7 +13,8 @@ make demo         # optional: demo workload in namespace capybara-demo
 make dev          # API on 127.0.0.1:8080, UI on http://127.0.0.1:5173
 ```
 
-Other targets: `make test`, `make lint`, `make demo-clean`, `make cluster-down`, and
+Other targets: `make test`, `make lint`, `make e2e` (browser tests; needs the
+clusters), `make demo-clean`, `make cluster-down`, and
 `make kubectl CLUSTER=dev-1 ARGS="get pods -A"`. Run `make help` for all.
 
 Kubeconfigs are written to `.local/kubeconfig/<cluster>.yaml` (git-ignored),
