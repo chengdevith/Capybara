@@ -15,6 +15,7 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.browser } },
     rules: {
       'vue/multi-word-component-names': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
 
@@ -30,7 +31,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['@/views/*', '**/views/*'],
+              group: ['@/views/*', '@/views/**', '**/views/*', '**/views/**'],
               message: 'Pages are wired through the extension registry (src/extensions). Register them there.',
             },
           ],
