@@ -24,7 +24,8 @@ export default defineConfig({
   outputDir: '../.local/e2e-results',
   webServer: {
     command: '../hack/dev.sh',
-    url: 'http://127.0.0.1:5173',
+    // /healthz through Vite answers only once both Vite and the API are up.
+    url: 'http://127.0.0.1:5173/healthz',
     reuseExistingServer: true,
     timeout: 180_000,
     env: { CAPYBARA_AUDIT_FILE: '.local/audit/e2e.jsonl' },

@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 const repo = resolve(import.meta.dirname, '../..')
 
 /** kubectl against one local cluster, through its own kubeconfig only. */
-export function kubectl(cluster: 'dev-1' | 'dev-2', ...args: string[]): string {
+export function kubectl(cluster: 'dev-1' | 'dev-2' | 'mgmt', ...args: string[]): string {
   return execFileSync('kubectl', ['--kubeconfig', resolve(repo, `.local/kubeconfig/capybara-${cluster}.yaml`), ...args], {
     encoding: 'utf8',
   }).trim()
