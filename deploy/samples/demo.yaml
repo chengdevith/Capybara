@@ -87,3 +87,28 @@ spec:
     - name: http
       port: 80
       targetPort: http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-config
+  namespace: capybara-demo
+  labels:
+    app.kubernetes.io/part-of: capybara-demo
+data:
+  greeting: hello from capybara
+  log-interval: "3s"
+---
+# NOT A REAL CREDENTIAL. A fixed demo value so the console's Secret
+# handling (metadata-only lists, explicit Reveal) can be tested end to end.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: demo-credentials
+  namespace: capybara-demo
+  labels:
+    app.kubernetes.io/part-of: capybara-demo
+type: Opaque
+stringData:
+  username: demo
+  password: capybara-demo-not-a-real-password

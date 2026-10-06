@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/capybara/capybara/pkg/action"
 	"github.com/capybara/capybara/pkg/audit"
 	"github.com/capybara/capybara/pkg/auth"
 	"github.com/capybara/capybara/pkg/cluster"
@@ -28,6 +29,7 @@ func newHandler(d deps) http.Handler {
 	cfg, clusters, logger := d.cfg, d.clusters, d.logger
 	api := http.NewServeMux()
 	api.Handle("GET /api/audit", audit.ListHandler(d.auditLog))
+	(&action.Handlers{Clusters: clusters, Auditor: d.auditor, Protected: cfg.Protected(), Logger: logger}).Register(api)
 	api.Handle("GET /api/clusters", cluster.ListHandler(clusters, cfg.ClusterTimeout))
 	// Any method is routed so the proxy can answer non-GET with 405 itself.
 	api.Handle("/api/clusters/{id}/k8s/{path...}", proxy.Handler(clusters, logger))
