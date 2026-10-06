@@ -9,6 +9,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/capybara/capybara/api/v1alpha1"
 	"github.com/capybara/capybara/pkg/cluster"
 	"github.com/capybara/capybara/pkg/httpjson"
 )
@@ -23,6 +24,8 @@ type SecretSummary struct {
 	ResourceVersion string   `json:"resourceVersion"`
 	Type            string   `json:"type"`
 	Keys            []string `json:"keys"`
+	// Protected: a Capybara kubeconfig Secret; even its key names are hidden.
+	Protected bool `json:"protected,omitempty"`
 }
 
 var dnsName = regexp.MustCompile(`^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$`)
@@ -53,14 +56,17 @@ func SecretSummaryHandler(clusters cluster.Provider) http.Handler {
 		out := make([]SecretSummary, 0, len(list.Items))
 		for i := range list.Items {
 			s := &list.Items[i]
+			protected := string(s.Type) == v1alpha1.KubeconfigSecretType
 			keys := make([]string, 0, len(s.Data))
 			for k := range s.Data {
-				keys = append(keys, k)
+				if !protected {
+					keys = append(keys, k)
+				}
 			}
 			sort.Strings(keys)
 			out = append(out, SecretSummary{
 				Namespace: s.Namespace, Name: s.Name, UID: string(s.UID),
-				ResourceVersion: s.ResourceVersion, Type: string(s.Type), Keys: keys,
+				ResourceVersion: s.ResourceVersion, Type: string(s.Type), Keys: keys, Protected: protected,
 			})
 		}
 		w.Header().Set("Cache-Control", "no-store")

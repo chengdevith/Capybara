@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -74,6 +75,10 @@ func newFixture(t *testing.T) *fixture {
 	typed := fake.NewClientset(&corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "demo", Name: "db"},
 		Data:       map[string][]byte{"password": []byte(secretValue)},
+	}, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "capybara-system", Name: "dev-9-kubeconfig"},
+		Type:       "platform.capybara.io/kubeconfig",
+		Data:       map[string][]byte{"kubeconfig": []byte(secretValue)},
 	})
 
 	f.auditPath = filepath.Join(t.TempDir(), "audit.jsonl")
@@ -426,5 +431,46 @@ func TestSecretErrorsAreRedactedInAudit(t *testing.T) {
 	}
 	if recs := f.records(t); len(recs) != 1 || recs[0].Result != audit.ResultFailure {
 		t.Fatalf("audit = %+v", recs)
+	}
+}
+
+func TestKubeconfigSecretsAreUntouchable(t *testing.T) {
+	f := newFixture(t)
+	target := Target{Version: "v1", Resource: "secrets", Kind: "Secret", Namespace: "capybara-system", Name: "dev-9-kubeconfig"}
+
+	resp, err := http.Get(f.srv.URL + "/api/clusters/dev-1/secrets/capybara-system/dev-9-kubeconfig") //nolint:noctx // test
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden || strings.Contains(string(body), secretValue) || strings.Contains(string(body), "a3ViZWNvbmZpZw") {
+		t.Fatalf("reveal: status %d body %s", resp.StatusCode, body)
+	}
+
+	obj := map[string]any{"apiVersion": "v1", "kind": "Secret", "metadata": map[string]any{"name": "dev-9-kubeconfig"}, "stringData": map[string]any{"kubeconfig": "x"}}
+	if code, _ := f.post(t, "/api/clusters/dev-1/apply", map[string]any{"target": target, "object": obj}); code != http.StatusForbidden {
+		t.Fatalf("apply: status %d", code)
+	}
+	if code, _ := f.post(t, "/api/clusters/dev-1/actions/delete", map[string]any{"target": target, "uid": "u"}); code != http.StatusForbidden {
+		t.Fatalf("delete: status %d", code)
+	}
+	// Declaring the type on another Secret is refused too.
+	other := Target{Version: "v1", Resource: "secrets", Kind: "Secret", Namespace: "demo", Name: "db"}
+	declared := map[string]any{"apiVersion": "v1", "kind": "Secret", "metadata": map[string]any{"name": "db"}, "type": "platform.capybara.io/kubeconfig"}
+	if code, _ := f.post(t, "/api/clusters/dev-1/apply", map[string]any{"target": other, "object": declared}); code != http.StatusForbidden {
+		t.Fatalf("apply declaring the type: status %d", code)
+	}
+	if len(f.patches()) != 0 {
+		t.Fatal("a kubeconfig Secret change reached the cluster")
+	}
+	for _, r := range f.records(t) {
+		if r.Result != audit.ResultDenied {
+			t.Errorf("refusal not audited as denied: %+v", r)
+		}
+	}
+	raw, _ := os.ReadFile(f.auditPath)
+	if strings.Contains(string(raw), secretValue) {
+		t.Fatal("kubeconfig content reached the audit log")
 	}
 }

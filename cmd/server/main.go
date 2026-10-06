@@ -80,8 +80,12 @@ func run(args []string) error {
 	srv := &http.Server{
 		Addr: cfg.Addr,
 		Handler: newHandler(deps{
-			cfg: cfg, clusters: registry, registry: registry, auditor: auditor, auditLog: auditStore, logger: logger,
+			cfg: cfg, clusters: registry, auditor: auditor, auditLog: auditStore, logger: logger,
 			sizes: projectCfg,
+			clusterAPI: &cluster.API{
+				Mgmt: mgmt, MgmtErr: mgmtErr, Registry: registry, Auditor: auditor, Logger: logger,
+				Opts: cluster.ValidateOptions{AllowInsecure: cfg.AllowInsecureKubeconfig},
+			},
 			projects: &project.API{
 				Mgmt: mgmt, MgmtErr: mgmtErr, Clusters: registry, Config: projectCfg,
 				Protected: cfg.Protected(), Auditor: auditor, Logger: logger,

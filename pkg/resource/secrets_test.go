@@ -86,3 +86,21 @@ func TestSecretSummaryRejectsBadInput(t *testing.T) {
 		}
 	}
 }
+
+func TestSecretSummaryHidesKubeconfigSecretKeys(t *testing.T) {
+	kc := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "capybara-system", Name: "dev-9-kubeconfig", UID: "k1"},
+		Type:       "platform.capybara.io/kubeconfig",
+		Data:       map[string][]byte{"kubeconfig": []byte("token: secret")},
+	}
+	p := &clustertest.Provider{Infos: []cluster.Info{{ID: "dev-1"}}, Clients: map[string]kubernetes.Interface{"dev-1": fake.NewClientset(kc)}}
+	mux := http.NewServeMux()
+	mux.Handle("GET /api/clusters/{id}/secrets/summary", SecretSummaryHandler(p))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/clusters/dev-1/secrets/summary", nil))
+	var got struct{ Items []SecretSummary }
+	_ = json.Unmarshal(rec.Body.Bytes(), &got)
+	if len(got.Items) != 1 || !got.Items[0].Protected || len(got.Items[0].Keys) != 0 {
+		t.Fatalf("summary = %+v", got.Items)
+	}
+}

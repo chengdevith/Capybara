@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/capybara/capybara/api/v1alpha1"
 	"github.com/capybara/capybara/pkg/audit"
 	"github.com/capybara/capybara/pkg/httpjson"
 	"github.com/capybara/capybara/pkg/sensitive"
@@ -147,6 +148,9 @@ func (h *Handlers) delete(w http.ResponseWriter, r *http.Request) {
 		if req.UID == "" {
 			return "", badRequest("uid is required")
 		}
+		if err := h.guardKubeconfigSecret(ctx, id, t, ""); err != nil {
+			return "", err
+		}
 		if isNamespace && IsProtected(t.Name, h.Protected) {
 			return "", fmt.Errorf("%w: namespace %q is protected and cannot be deleted", audit.ErrDenied, t.Name)
 		}
@@ -187,6 +191,9 @@ func (h *Handlers) revealSecret(w http.ResponseWriter, r *http.Request) {
 		s, err := client.CoreV1().Secrets(ns).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return "", err
+		}
+		if string(s.Type) == v1alpha1.KubeconfigSecretType {
+			return "", errKubeconfigSecret // never returned, not even on reveal
 		}
 		secret = s
 		return fmt.Sprintf("%d keys revealed", len(s.Data)), nil

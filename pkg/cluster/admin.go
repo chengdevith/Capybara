@@ -36,15 +36,20 @@ func validEnvironment(e v1alpha1.Environment) bool {
 	return e == v1alpha1.EnvDev || e == v1alpha1.EnvUAT || e == v1alpha1.EnvProd
 }
 
+// InputError is a bad request that is not about the kubeconfig itself.
+type InputError struct{ Msg string }
+
+func (e *InputError) Error() string { return e.Msg }
+
 // Register validates the kubeconfig, then creates the Cluster and its
 // kubeconfig Secret (owned by the Cluster) in capybara-mgmt. Nothing is
 // created if validation fails; a failed Secret rolls the Cluster back.
 func Register(ctx context.Context, c client.Client, req RegisterRequest, opts ValidateOptions) (*Summary, error) {
 	if !idPattern.MatchString(req.ID) {
-		return nil, &ValidationError{Problems: []string{"id must be a DNS label (lowercase letters, digits, -; max 63)"}}
+		return nil, &InputError{Msg: "id must be a DNS label (lowercase letters, digits, -; max 63)"}
 	}
 	if !validEnvironment(req.Environment) {
-		return nil, &ValidationError{Problems: []string{"environment must be dev, uat or prod"}}
+		return nil, &InputError{Msg: "environment must be dev, uat or prod"}
 	}
 	_, summary, err := ParseKubeconfig(req.Kubeconfig, opts)
 	if err != nil {
@@ -126,7 +131,7 @@ func UpdateInfo(ctx context.Context, c client.Client, id string, displayName *st
 	}
 	if env != nil {
 		if !validEnvironment(*env) {
-			return nil, &ValidationError{Problems: []string{"environment must be dev, uat or prod"}}
+			return nil, &InputError{Msg: "environment must be dev, uat or prod"}
 		}
 		cl.Spec.Environment = *env
 	}

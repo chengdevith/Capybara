@@ -6,6 +6,7 @@
 package action
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,8 +16,10 @@ import (
 	"regexp"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/capybara/capybara/api/v1alpha1"
 	"github.com/capybara/capybara/pkg/audit"
 	"github.com/capybara/capybara/pkg/cluster"
 	"github.com/capybara/capybara/pkg/httpjson"
@@ -96,6 +99,34 @@ func (t Target) op(clusterID, act string) audit.Op {
 		Cluster: clusterID, Namespace: t.Namespace, Kind: t.Kind, Name: t.Name,
 		Action: act, Sensitive: t.isSecret(),
 	}
+}
+
+// errKubeconfigSecret refuses actions on Capybara's own kubeconfig Secrets.
+var errKubeconfigSecret = fmt.Errorf("%w: this Secret holds a cluster kubeconfig; manage it from the Clusters page", audit.ErrDenied)
+
+// guardKubeconfigSecret refuses reveal, edit and delete of Secrets of the
+// kubeconfig type, on any cluster: their values never leave Capybara.
+func (h *Handlers) guardKubeconfigSecret(ctx context.Context, id string, t Target, declaredType string) error {
+	if !t.isSecret() {
+		return nil
+	}
+	if declaredType == v1alpha1.KubeconfigSecretType {
+		return errKubeconfigSecret
+	}
+	client, err := h.Clusters.Client(id)
+	if err != nil {
+		return err
+	}
+	s, err := client.CoreV1().Secrets(t.Namespace).Get(ctx, t.Name, metav1.GetOptions{})
+	switch {
+	case apierrors.IsNotFound(err):
+		return nil
+	case err != nil:
+		return err
+	case string(s.Type) == v1alpha1.KubeconfigSecretType:
+		return errKubeconfigSecret
+	}
+	return nil
 }
 
 // IsProtected reports whether namespace matches one of the patterns.
