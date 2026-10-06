@@ -6,6 +6,17 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Capybara</title>
+    <script>
+      // Apply the saved theme before first paint (the theme store takes over after).
+      try {
+        var p = localStorage.getItem('capybara.theme')
+        var dark = p === 'dark' || (p !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+      } catch (e) {}
+    </script>
+    <style>
+      html[data-theme='dark'] body { background: #101014; }
+    </style>
   </head>
   <body>
     <div id="app"></div>

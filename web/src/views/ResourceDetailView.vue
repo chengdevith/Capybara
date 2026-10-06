@@ -161,7 +161,7 @@ const status = computed(() => (object.value && props.resource.status ? props.res
   margin: 0;
 }
 .subtitle {
-  color: #6a6e73;
+  color: var(--capy-text-muted);
   margin: 4px 0 16px;
 }
 </style>

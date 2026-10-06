@@ -25,7 +25,7 @@ defineProps<{ live: boolean; loading?: boolean }>()
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #6a6e73;
+  color: var(--capy-text-muted);
 }
 .dot {
   width: 8px;

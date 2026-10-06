@@ -2,6 +2,7 @@
 import logo from '@/assets/logo.png'
 import ClusterSwitcher from './ClusterSwitcher.vue'
 import NamespaceSelector from './NamespaceSelector.vue'
+import ThemeSwitcher from './ThemeSwitcher.vue'
 </script>
 
 <template>
@@ -22,6 +23,7 @@ import NamespaceSelector from './NamespaceSelector.vue'
     <ClusterSwitcher />
     <NamespaceSelector />
     <span class="spacer" />
+    <ThemeSwitcher />
   </div>
 </template>
 

@@ -88,7 +88,7 @@ const columns: DataTableColumns<KubeObject> = [
 }
 .note {
   margin-top: 8px;
-  color: #6a6e73;
+  color: var(--capy-text-muted);
   font-size: 12px;
 }
 </style>

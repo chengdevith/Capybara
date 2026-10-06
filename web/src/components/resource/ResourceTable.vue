@@ -119,7 +119,7 @@ const columns = computed<DataTableColumns<KubeObject>>(() => {
   max-width: 280px;
 }
 .count {
-  color: #6a6e73;
+  color: var(--capy-text-muted);
   font-size: 13px;
 }
 </style>

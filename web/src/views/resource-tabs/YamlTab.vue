@@ -4,10 +4,14 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vu
 import { stringify } from 'yaml'
 import { loadMonaco } from '@/components/resource/monaco'
 import type { DetailTabProps } from '@/components/resource/types'
+import { useThemeStore } from '@/stores/theme'
 
 // Read-only in Phase 1; editing (server-side apply) arrives in Phase 2.
 const props = defineProps<DetailTabProps>()
 const message = useMessage()
+const theme = useThemeStore()
+const monacoTheme = () => (theme.isDark ? 'vs-dark' : 'vs')
+let setMonacoTheme: ((name: string) => void) | null = null
 
 const showManagedFields = ref(false)
 const failed = ref<string | null>(null)
@@ -31,9 +35,11 @@ onMounted(async () => {
   try {
     const monaco = await loadMonaco()
     if (disposed || !host.value) return
+    setMonacoTheme = (name) => monaco.editor.setTheme(name)
     editor.value = monaco.editor.create(host.value, {
       value: text.value,
       language: 'yaml',
+      theme: monacoTheme(),
       readOnly: true,
       domReadOnly: true,
       minimap: { enabled: false },
@@ -50,6 +56,11 @@ onBeforeUnmount(() => {
   disposed = true
   editor.value?.dispose()
 })
+
+watch(
+  () => theme.isDark,
+  () => setMonacoTheme?.(monacoTheme()),
+)
 
 // Live updates keep the scroll position.
 watch(text, (t) => {
@@ -111,11 +122,11 @@ async function copy() {
   margin-bottom: 8px;
 }
 .hint {
-  color: #6a6e73;
+  color: var(--capy-text-muted);
   font-size: 13px;
 }
 .editor {
   height: 60vh;
-  border: 1px solid #d2d2d2;
+  border: 1px solid var(--capy-border);
 }
 </style>

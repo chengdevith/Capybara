@@ -155,7 +155,7 @@ function onScroll() {
   margin-bottom: 8px;
 }
 .note {
-  color: #6a6e73;
+  color: var(--capy-text-muted);
   font-size: 12px;
   margin-bottom: 4px;
 }

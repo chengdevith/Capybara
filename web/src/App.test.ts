@@ -45,6 +45,7 @@ describe('App (smoke)', () => {
     expect(text).toContain('Home') // sidebar, from the registry
     expect(text).toContain('Dev 2') // home page for the cluster in the URL
     expect(text).toContain('down') // its status message
+    expect(wrapper.find('[data-test="theme-switcher"]').exists()).toBe(true)
   })
 
   it('shows "cluster not found" for an unknown cluster id', async () => {
