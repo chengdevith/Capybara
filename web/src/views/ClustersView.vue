@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NAlert, NButton, NCard, NDataTable, NEmpty, NH2, type DataTableColumns } from 'naive-ui'
+import { NAlert, NButton, NCard, NDataTable, NEmpty, NH2, NTag, type DataTableColumns } from 'naive-ui'
 import { computed, h, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { expiresInDays, type Cluster } from '@/api/clusters'
@@ -34,6 +34,19 @@ const columns = computed<DataTableColumns<Cluster>>(() => [
   { key: 'id', title: 'ID', render: (c) => c.id },
   { key: 'env', title: 'Environment', render: (c) => h(EnvironmentTag, { environment: c.environment }) },
   { key: 'status', title: 'Status', render: (c) => h('span', { 'data-test': `status-${c.id}` }, [h(ClusterStatusTag, { cluster: c })]) },
+  {
+    key: 'plugins',
+    title: 'Plugin installs',
+    render: (c) =>
+      h(
+        NTag,
+        {
+          size: 'small', bordered: false, 'data-test': `plugin-installs-${c.id}`, title: c.status.installerMessage,
+          type: c.status.pluginInstalls === 'Enabled' ? 'success' : c.status.pluginInstalls === 'Error' ? 'error' : 'default',
+        },
+        () => c.status.pluginInstalls ?? 'Disabled',
+      ),
+  },
   { key: 'version', title: 'Kubernetes', render: (c) => c.status.version ?? '—' },
   { key: 'nodes', title: 'Nodes', width: 70, render: (c) => (c.status.nodeCount ?? '—').toString() },
   { key: 'expires', title: 'Credentials expire', render: expiry },

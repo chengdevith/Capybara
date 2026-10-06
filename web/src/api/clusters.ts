@@ -15,6 +15,10 @@ export interface ClusterStatus {
   identity?: string
   credentialsExpireAt?: string
   lastChecked?: string
+  /** Enabled (installer credential works), Disabled (none) or Error. */
+  pluginInstalls?: 'Enabled' | 'Disabled' | 'Error'
+  installerMessage?: string
+  installerIdentity?: string
 }
 
 export interface Cluster {
@@ -129,4 +133,14 @@ export function expiresInDays(c: Cluster, now: number): number | null {
   const at = c.status.credentialsExpireAt
   if (!at) return null
   return Math.floor((Date.parse(at) - now) / 86_400_000)
+}
+
+/** Stores the cluster's installer credential (write-only). */
+export function setInstaller(id: string, kubeconfig: string): Promise<{ summary: KubeconfigSummary }> {
+  return apiSend('PUT', `/api/clusters/${enc(id)}/installer`, { kubeconfig })
+}
+
+/** Removes the installer credential: plugin installs are disabled there. */
+export function removeInstaller(id: string): Promise<unknown> {
+  return apiSend('DELETE', `/api/clusters/${enc(id)}/installer`)
 }

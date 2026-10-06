@@ -6,6 +6,7 @@ import {
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { projectsSource, type Condition, type ManagedResource, type Project } from '@/api/projects'
+import ExtensionCards from '@/components/extensions/ExtensionCards.vue'
 import DeleteProjectDialog from '@/components/projects/DeleteProjectDialog.vue'
 import EditProjectDialog from '@/components/projects/EditProjectDialog.vue'
 import { phaseTone } from '@/components/projects/phase'
@@ -177,6 +178,11 @@ const namespaceLink = computed(() =>
           data-test="project-conditions"
         />
       </NCard>
+
+      <ExtensionCards
+        type="project-overview-card"
+        :data="{ cluster: project.spec.cluster, project }"
+      />
 
       <NCard
         title="Resources in the cluster"

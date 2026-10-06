@@ -3,6 +3,7 @@ import { NAlert, NCheckbox, NInput, NModal, NSpin, useMessage } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { ApiError } from '@/api/client'
 import { removeCluster, type Cluster } from '@/api/clusters'
+import { listPlugins } from '@/api/plugins'
 import { listProjects } from '@/api/projects'
 import { useClustersStore } from '@/stores/clusters'
 
@@ -17,6 +18,7 @@ const id = props.cluster.id
 const typed = ref('')
 const abandon = ref(false)
 const projects = ref<string[] | null>(null)
+const pluginNames = ref<string[]>([])
 const busy = ref(false)
 const error = ref<string | null>(null)
 
@@ -31,12 +33,18 @@ onMounted(async () => {
   } catch {
     projects.value = [] // the server checks again and lists them if refused
   }
+  try {
+    pluginNames.value = (await listPlugins()).flatMap((p) => p.installations.filter((i) => i.spec.cluster === id && !i.deleting).map(() => p.name))
+  } catch {
+    pluginNames.value = []
+  }
 })
 
 const abandoned = (m: { deletionTimestamp?: string; annotations?: Record<string, string> }) =>
   !!m.deletionTimestamp && m.annotations?.['platform.capybara.io/abandon-remote'] === 'true'
 
-const ready = computed(() => typed.value === id && projects.value !== null && (projects.value.length === 0 || abandon.value))
+const blocking = computed(() => (projects.value?.length ?? 0) + pluginNames.value.length)
+const ready = computed(() => typed.value === id && projects.value !== null && (blocking.value === 0 || abandon.value))
 
 async function submit() {
   if (!ready.value) return false
@@ -48,8 +56,9 @@ async function submit() {
     message.success(`Cluster ${id} removed`)
     emit('removed')
   } catch (e) {
-    if (e instanceof ApiError && e.status === 409 && Array.isArray(e.body.projects)) {
-      projects.value = e.body.projects as string[]
+    if (e instanceof ApiError && e.status === 409) {
+      projects.value = (e.body.projects as string[] | null) ?? []
+      pluginNames.value = (e.body.plugins as string[] | null) ?? []
       abandon.value = false
     }
     error.value = e instanceof Error ? e.message : String(e)
@@ -82,8 +91,18 @@ async function submit() {
       v-if="projects === null"
       size="small"
     />
-    <template v-else-if="projects.length">
+    <template v-else-if="blocking">
       <NAlert
+        v-if="pluginNames.length"
+        type="warning"
+        :title="`Plugins installed on this cluster: ${pluginNames.join(', ')}`"
+        class="abandon"
+        data-test="remove-plugins"
+      >
+        Uninstall them first, or abandon them: they keep running in the cluster, unmanaged.
+      </NAlert>
+      <NAlert
+        v-if="projects.length"
         type="warning"
         :title="`${projects.length} Project(s) use this cluster`"
         data-test="remove-projects"
@@ -104,7 +123,7 @@ async function submit() {
         class="abandon"
         data-test="abandon"
       >
-        Abandon remote resources and remove these Projects
+        Abandon remote resources (Projects and plugins listed above)
       </NCheckbox>
     </template>
     <p>Type <strong>{{ id }}</strong> to confirm.</p>
