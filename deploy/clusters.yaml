@@ -1,0 +1,14 @@
+# Static cluster list used by the server's cluster registry (Phases 0-3).
+# Phase 4 replaces this file with the Cluster CRD + kubeconfig Secrets.
+#
+# Kubeconfig paths are relative to this file and point into .local/
+# (git-ignored), written by `make cluster-up`. No credentials live here.
+clusters:
+  - id: dev-1
+    displayName: Dev 1
+    environment: dev
+    kubeconfig: ../.local/kubeconfig/capybara-dev-1.yaml
+  - id: dev-2
+    displayName: Dev 2
+    environment: dev
+    kubeconfig: ../.local/kubeconfig/capybara-dev-2.yaml
