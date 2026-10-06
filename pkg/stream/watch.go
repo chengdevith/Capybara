@@ -96,7 +96,8 @@ func WatchHandler(clusters cluster.Provider, logger *slog.Logger) http.Handler {
 			filter = scrubSecretEvent
 		}
 		log := logger.With("cluster", id, "gvr", req.gvr.String(), "namespace", req.namespace)
-		ServeWatch(w, r, log, func(ctx context.Context) (watch.Interface, error) {
+		lifetime, _ := clusters.Context(id)
+		ServeWatch(w, r, log, lifetime, func(ctx context.Context) (watch.Interface, error) {
 			return watchFn(ctx, metav1.ListOptions{
 				ResourceVersion:     req.resourceVersion,
 				LabelSelector:       req.labels,
@@ -111,7 +112,10 @@ func WatchHandler(clusters cluster.Provider, logger *slog.Logger) http.Handler {
 // protocol described on Event. The watch stops when the browser leaves.
 // filter, if set, may scrub an event in place; returning false refuses to
 // send it and closes the socket (policy violation).
-func ServeWatch(w http.ResponseWriter, r *http.Request, log *slog.Logger,
+//
+// lifetime (optional) is the cluster's: when it ends (credentials changed,
+// cluster removed) the socket closes with that reason.
+func ServeWatch(w http.ResponseWriter, r *http.Request, log *slog.Logger, lifetime context.Context,
 	start func(context.Context) (watch.Interface, error), filter func(runtime.Object) bool) {
 	// Errors before this point are plain HTTP; after it, websocket messages.
 	conn, err := websocket.Accept(w, r, nil) // same-origin only (default)
@@ -122,7 +126,8 @@ func ServeWatch(w http.ResponseWriter, r *http.Request, log *slog.Logger,
 
 	// We never read client messages; CloseRead handles pongs/close and
 	// cancels ctx when the browser goes away, which stops the watch.
-	ctx := conn.CloseRead(r.Context())
+	ctx, stop := bindLifetime(conn.CloseRead(r.Context()), lifetime)
+	defer stop()
 
 	wi, err := start(ctx)
 	if err != nil {
@@ -137,7 +142,9 @@ func ServeWatch(w http.ResponseWriter, r *http.Request, log *slog.Logger,
 	for {
 		select {
 		case <-ctx.Done():
-			log.Debug("watch client gone")
+			if !lifetimeEnded(ctx, lifetime, conn) {
+				log.Debug("watch client gone")
+			}
 			return
 		case <-ping.C:
 			if err := pingWithTimeout(ctx, conn); err != nil {

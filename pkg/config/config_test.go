@@ -44,7 +44,7 @@ func TestLoadRejectsBadValues(t *testing.T) {
 		"addr":      {"-addr", "nonsense"},
 		"timeout":   {"-cluster-timeout", "0s"},
 		"log level": {"-log-level", "loud"},
-		"no file":   {"-clusters-file", ""},
+		"interval":  {"-cluster-check-interval", "10ms"},
 		"bad glob":  {"-protected-namespaces", "kube-[system"},
 		"idle>max":  {"-exec-idle-timeout", "9h"},
 		"no audit":  {"-audit-file", ""},

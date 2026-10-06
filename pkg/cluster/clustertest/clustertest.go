@@ -2,6 +2,8 @@
 package clustertest
 
 import (
+	"context"
+
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/metadata"
@@ -18,6 +20,8 @@ type Provider struct {
 	Clients  map[string]kubernetes.Interface
 	Dynamics map[string]dynamic.Interface
 	Metas    map[string]metadata.Interface
+	// Contexts per cluster (default: never cancelled).
+	Contexts map[string]context.Context
 	Configs  map[string]*rest.Config
 	// Unavailable is returned for known clusters missing a client (default: generic error).
 	Unavailable error
@@ -41,6 +45,19 @@ func (p *Provider) Dynamic(id string) (dynamic.Interface, error) {
 // Metadata implements cluster.Provider.
 func (p *Provider) Metadata(id string) (metadata.Interface, error) {
 	return lookup(p, id, p.Metas)
+}
+
+// Context implements cluster.Provider.
+func (p *Provider) Context(id string) (context.Context, error) {
+	if c, ok := p.Contexts[id]; ok {
+		return c, nil
+	}
+	for _, i := range p.Infos {
+		if i.ID == id {
+			return context.Background(), nil
+		}
+	}
+	return nil, cluster.ErrNotFound
 }
 
 // RESTConfig implements cluster.Provider.

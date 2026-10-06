@@ -20,6 +20,7 @@ import (
 type deps struct {
 	cfg      config.Config
 	clusters cluster.Provider
+	registry cluster.Lister
 	auditor  *audit.Auditor
 	auditLog audit.Reader
 	projects *project.API
@@ -34,7 +35,7 @@ func newHandler(d deps) http.Handler {
 	api.Handle("GET /api/audit", audit.ListHandler(d.auditLog))
 	d.projects.Register(api)
 	(&action.Handlers{Clusters: clusters, Auditor: d.auditor, Protected: cfg.Protected(), Logger: logger}).Register(api)
-	api.Handle("GET /api/clusters", cluster.ListHandler(clusters, cfg.ClusterTimeout))
+	api.Handle("GET /api/clusters", cluster.ListHandler(d.registry))
 	// Any method is routed so the proxy can answer non-GET with 405 itself.
 	api.Handle("/api/clusters/{id}/k8s/{path...}", proxy.Handler(clusters, logger))
 	api.Handle("GET /api/clusters/{id}/watch", stream.WatchHandler(clusters, logger))

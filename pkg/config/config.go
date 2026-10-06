@@ -18,9 +18,6 @@ import (
 type Config struct {
 	// Addr is the listen address. Defaults to loopback only.
 	Addr string
-	// ClustersFile is the static cluster list (id -> kubeconfig file).
-	// Replaced by the Cluster CRD in Phase 4.
-	ClustersFile string
 	// ClusterTimeout bounds each call made to check a cluster's health.
 	ClusterTimeout time.Duration
 	// LogLevel is one of debug, info, warn, error.
@@ -40,8 +37,16 @@ type Config struct {
 
 	// MgmtKubeconfig reaches capybara-mgmt, where Capybara keeps its CRDs.
 	MgmtKubeconfig string
-	// ProjectConfigFile holds the Project size presets and ingress sources.
+	// ProjectConfigFile is the built-in source of the Project size presets
+	// (the live copy is a ConfigMap in capybara-mgmt).
 	ProjectConfigFile string
+
+	// AllowInsecureKubeconfig accepts insecure-skip-tls-verify (dev only).
+	AllowInsecureKubeconfig bool
+	// ClusterCheckInterval is how often the controller checks each cluster.
+	ClusterCheckInterval time.Duration
+	// CredentialExpiryWarning flags credentials expiring within this time.
+	CredentialExpiryWarning time.Duration
 }
 
 // DefaultProtectedNamespaces are the namespaces protected out of the box.
@@ -51,7 +56,6 @@ var DefaultProtectedNamespaces = []string{"kube-system", "kube-public", "kube-no
 func Defaults() Config {
 	return Config{
 		Addr:                "127.0.0.1:8080",
-		ClustersFile:        "deploy/clusters.yaml",
 		ClusterTimeout:      3 * time.Second,
 		LogLevel:            "info",
 		AuditFile:           ".local/audit/audit.jsonl",
@@ -61,6 +65,9 @@ func Defaults() Config {
 		ExecMaxDuration:     8 * time.Hour,
 		MgmtKubeconfig:      ".local/kubeconfig/capybara-mgmt.yaml",
 		ProjectConfigFile:   "deploy/project-sizes.yaml",
+
+		ClusterCheckInterval:    30 * time.Second,
+		CredentialExpiryWarning: 7 * 24 * time.Hour,
 	}
 }
 
@@ -75,7 +82,6 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 
 	strs := map[string]*string{
 		"CAPYBARA_ADDR":                 &cfg.Addr,
-		"CAPYBARA_CLUSTERS_FILE":        &cfg.ClustersFile,
 		"CAPYBARA_LOG_LEVEL":            &cfg.LogLevel,
 		"CAPYBARA_AUDIT_FILE":           &cfg.AuditFile,
 		"CAPYBARA_PROTECTED_NAMESPACES": &protected,
@@ -89,9 +95,11 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 		}
 	}
 	durations := map[string]*time.Duration{
-		"CAPYBARA_CLUSTER_TIMEOUT":   &cfg.ClusterTimeout,
-		"CAPYBARA_EXEC_IDLE_TIMEOUT": &cfg.ExecIdleTimeout,
-		"CAPYBARA_EXEC_MAX_DURATION": &cfg.ExecMaxDuration,
+		"CAPYBARA_CLUSTER_TIMEOUT":           &cfg.ClusterTimeout,
+		"CAPYBARA_EXEC_IDLE_TIMEOUT":         &cfg.ExecIdleTimeout,
+		"CAPYBARA_EXEC_MAX_DURATION":         &cfg.ExecMaxDuration,
+		"CAPYBARA_CLUSTER_CHECK_INTERVAL":    &cfg.ClusterCheckInterval,
+		"CAPYBARA_CREDENTIAL_EXPIRY_WARNING": &cfg.CredentialExpiryWarning,
 	}
 	for env, dst := range durations {
 		if v := getenv(env); v != "" {
@@ -105,7 +113,6 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 
 	fs := flag.NewFlagSet("capybara-server", flag.ContinueOnError)
 	fs.StringVar(&cfg.Addr, "addr", cfg.Addr, "listen address (env CAPYBARA_ADDR)")
-	fs.StringVar(&cfg.ClustersFile, "clusters-file", cfg.ClustersFile, "static cluster list (env CAPYBARA_CLUSTERS_FILE)")
 	fs.DurationVar(&cfg.ClusterTimeout, "cluster-timeout", cfg.ClusterTimeout, "timeout for cluster health checks (env CAPYBARA_CLUSTER_TIMEOUT)")
 	fs.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "debug|info|warn|error (env CAPYBARA_LOG_LEVEL)")
 	fs.StringVar(&cfg.AuditFile, "audit-file", cfg.AuditFile, "append-only audit log, JSON Lines (env CAPYBARA_AUDIT_FILE)")
@@ -115,6 +122,10 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	fs.DurationVar(&cfg.ExecMaxDuration, "exec-max-duration", cfg.ExecMaxDuration, "close any terminal after this long (env CAPYBARA_EXEC_MAX_DURATION)")
 	fs.StringVar(&cfg.MgmtKubeconfig, "mgmt-kubeconfig", cfg.MgmtKubeconfig, "kubeconfig of capybara-mgmt (env CAPYBARA_MGMT_KUBECONFIG)")
 	fs.StringVar(&cfg.ProjectConfigFile, "project-config", cfg.ProjectConfigFile, "Project size presets (env CAPYBARA_PROJECT_CONFIG)")
+	cfg.AllowInsecureKubeconfig = getenv("CAPYBARA_ALLOW_INSECURE_KUBECONFIG") == "true"
+	fs.BoolVar(&cfg.AllowInsecureKubeconfig, "allow-insecure-kubeconfig", cfg.AllowInsecureKubeconfig, "DEV ONLY: accept kubeconfigs with insecure-skip-tls-verify (env CAPYBARA_ALLOW_INSECURE_KUBECONFIG=true)")
+	fs.DurationVar(&cfg.ClusterCheckInterval, "cluster-check-interval", cfg.ClusterCheckInterval, "how often each cluster's health is checked (env CAPYBARA_CLUSTER_CHECK_INTERVAL)")
+	fs.DurationVar(&cfg.CredentialExpiryWarning, "credential-expiry-warning", cfg.CredentialExpiryWarning, "warn when cluster credentials expire within this time (env CAPYBARA_CREDENTIAL_EXPIRY_WARNING)")
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
 	}
@@ -136,9 +147,6 @@ func splitList(s string) []string {
 func (c Config) Validate() error {
 	if _, _, err := net.SplitHostPort(c.Addr); err != nil {
 		return fmt.Errorf("addr %q: %w", c.Addr, err)
-	}
-	if c.ClustersFile == "" {
-		return errors.New("clusters-file must be set")
 	}
 	if c.ClusterTimeout <= 0 {
 		return errors.New("cluster-timeout must be positive")
@@ -164,6 +172,9 @@ func (c Config) Validate() error {
 	}
 	if c.MgmtKubeconfig == "" || c.ProjectConfigFile == "" {
 		return errors.New("mgmt-kubeconfig and project-config must be set")
+	}
+	if c.ClusterCheckInterval < time.Second || c.CredentialExpiryWarning <= 0 {
+		return errors.New("cluster-check-interval must be at least 1s and credential-expiry-warning positive")
 	}
 	if c.ExecIdleTimeout > c.ExecMaxDuration {
 		return errors.New("exec-idle-timeout must not exceed exec-max-duration")

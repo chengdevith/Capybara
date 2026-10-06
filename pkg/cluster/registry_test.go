@@ -1,106 +1,136 @@
 package cluster
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
-	"k8s.io/client-go/tools/clientcmd"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/capybara/capybara/api/v1alpha1"
 )
 
 var discard = slog.New(slog.NewTextHandler(io.Discard, nil))
 
-func writeFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatal(err)
+func testCluster(id, displayName string) *v1alpha1.Cluster {
+	return &v1alpha1.Cluster{
+		ObjectMeta: metav1.ObjectMeta{Name: id},
+		Spec: v1alpha1.ClusterSpec{DisplayName: displayName, Environment: v1alpha1.EnvDev,
+			KubeconfigSecret: v1alpha1.SecretRef{Name: id + "-kubeconfig"}},
 	}
 }
 
-func writeKubeconfig(t *testing.T, path, ctxName, server string) {
+func testSecret(t *testing.T, version string, raw []byte) *corev1.Secret {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := clientcmd.WriteToFile(*kubeconfig(ctxName, server), path); err != nil {
-		t.Fatal(err)
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: v1alpha1.SystemNamespace, Name: "x", ResourceVersion: version},
+		Type:       v1alpha1.KubeconfigSecretType,
+		Data:       map[string][]byte{v1alpha1.KubeconfigKey: raw},
 	}
 }
 
-func TestLoadFile(t *testing.T) {
-	dir := t.TempDir()
-	writeKubeconfig(t, filepath.Join(dir, "kc", "dev-1.yaml"), "k3d-capybara-dev-1", "https://127.0.0.1:6551")
-	writeKubeconfig(t, filepath.Join(dir, "kc", "bad.yaml"), "prod", "https://api.example.com:6443")
-	writeFile(t, filepath.Join(dir, "clusters.yaml"), `
-clusters:
-  - id: dev-1
-    displayName: Dev 1
-    environment: dev
-    kubeconfig: kc/dev-1.yaml
-  - id: dev-2
-    kubeconfig: kc/missing.yaml
-  - id: bad
-    kubeconfig: kc/bad.yaml
-`)
+type recorder struct {
+	mu  sync.Mutex
+	evs []Event
+}
 
-	r, err := LoadFile(filepath.Join(dir, "clusters.yaml"), discard)
-	if err != nil {
-		t.Fatal(err)
-	}
+func (r *recorder) add(ev Event) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.evs = append(r.evs, ev)
+}
 
-	got := r.List()
-	if len(got) != 3 || got[0].ID != "dev-1" || got[1].ID != "dev-2" {
-		t.Fatalf("List() = %+v, want file order", got)
+func (r *recorder) kinds() []EventKind {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []EventKind
+	for _, e := range r.evs {
+		out = append(out, e.Kind)
 	}
-	if got[1].DisplayName != "dev-2" {
-		t.Errorf("display name should default to id, got %q", got[1].DisplayName)
-	}
+	return out
+}
 
-	c1, err := r.Client("dev-1")
+func TestRegistryLifecycle(t *testing.T) {
+	reg := NewRegistry(ValidateOptions{}, discard)
+	rec := &recorder{}
+	reg.Subscribe(rec.add)
+
+	reg.Upsert(testCluster("dev-1", "Dev 1"), testSecret(t, "1", good(t, nil)))
+	c1, err := reg.Client("dev-1")
 	if err != nil || c1 == nil {
-		t.Fatalf("Client(dev-1): %v", err)
+		t.Fatalf("client: %v", err)
 	}
-	if again, _ := r.Client("dev-1"); again != c1 {
-		t.Error("client should be cached")
-	}
-	if d, err := r.Dynamic("dev-1"); err != nil || d == nil {
-		t.Fatalf("Dynamic(dev-1): %v", err)
-	}
-	cfg, err := r.RESTConfig("dev-1")
-	if err != nil || cfg.Host != "https://127.0.0.1:6551" {
-		t.Fatalf("RESTConfig(dev-1) = %v, %v", cfg, err)
+	ctx1, _ := reg.Context("dev-1")
+
+	// Display name change: same credentials, same clients, same lifetime.
+	reg.Upsert(testCluster("dev-1", "Development 1"), testSecret(t, "1", good(t, nil)))
+	if c, _ := reg.Client("dev-1"); c != c1 || ctx1.Err() != nil || reg.List()[0].DisplayName != "Development 1" {
+		t.Fatal("an info change must not rebuild clients")
 	}
 
-	if _, err := r.Client("dev-2"); err == nil || !strings.Contains(err.Error(), "make cluster-up") {
-		t.Errorf("missing kubeconfig: got %v", err)
+	// Rotation: new Secret version rebuilds and ends the old lifetime.
+	reg.Upsert(testCluster("dev-1", "Development 1"), testSecret(t, "2", good(t, func(c *clientcmdapi.Config) {
+		c.AuthInfos["u"].Token = "rotated-token"
+	})))
+	if c, _ := reg.Client("dev-1"); c == c1 {
+		t.Fatal("rotation must rebuild the client")
 	}
-	if _, err := r.Client("bad"); err == nil || !strings.Contains(err.Error(), "not a local Capybara k3d context") {
-		t.Errorf("non-local kubeconfig must be refused, got %v", err)
+	if !errors.Is(context.Cause(ctx1), ErrCredentialsChanged) {
+		t.Fatalf("old context cause = %v", context.Cause(ctx1))
 	}
-	if _, err := r.Client("nope"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("unknown id: got %v, want ErrNotFound", err)
+	if rc, _ := reg.RESTConfig("dev-1"); rc.BearerToken != "rotated-token" {
+		t.Fatal("rest config not rotated")
+	}
+
+	ctx2, _ := reg.Context("dev-1")
+	reg.Remove("dev-1")
+	if !errors.Is(context.Cause(ctx2), ErrClusterRemoved) {
+		t.Fatalf("removal cause = %v", context.Cause(ctx2))
+	}
+	if _, err := reg.Client("dev-1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("after removal: %v", err)
+	}
+	if got := rec.kinds(); strings.Join(kindsStr(got), ",") != "Added,InfoChanged,CredentialsChanged,Removed" {
+		t.Fatalf("events = %v", got)
 	}
 }
 
-func TestLoadFileRejectsBadConfig(t *testing.T) {
-	cases := map[string]string{
-		"bad id":        "clusters:\n  - id: Dev_1\n    kubeconfig: x\n",
-		"duplicate":     "clusters:\n  - id: a\n    kubeconfig: x\n  - id: a\n    kubeconfig: y\n",
-		"no kubeconfig": "clusters:\n  - id: a\n",
-		"unknown field": "clusters:\n  - id: a\n    kubeconfig: x\n    token: secret\n",
+func kindsStr(ks []EventKind) []string {
+	out := make([]string, len(ks))
+	for i, k := range ks {
+		out[i] = string(k)
 	}
-	for name, content := range cases {
-		path := filepath.Join(t.TempDir(), "clusters.yaml")
-		writeFile(t, path, content)
-		if _, err := LoadFile(path, discard); err == nil {
-			t.Errorf("%s: expected error", name)
-		}
+	return out
+}
+
+func TestRegistryUnusableCredentials(t *testing.T) {
+	reg := NewRegistry(ValidateOptions{}, discard)
+	reg.Upsert(testCluster("nosecret", ""), nil)
+	if _, err := reg.Client("nosecret"); err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Errorf("missing secret: %v", err)
+	}
+	if reg.List()[0].DisplayName != "nosecret" {
+		t.Error("display name should default to the id")
+	}
+
+	bad := testSecret(t, "1", good(t, func(c *clientcmdapi.Config) {
+		c.AuthInfos["u"].Exec = &clientcmdapi.ExecConfig{Command: "aws"}
+	}))
+	reg.Upsert(testCluster("bad", ""), bad)
+	if err := reg.CredentialsError("bad"); err == nil || !strings.Contains(err.Error(), "exec credential plugins") {
+		t.Errorf("invalid kubeconfig: %v", err)
+	}
+
+	wrongType := testSecret(t, "1", good(t, nil))
+	wrongType.Type = corev1.SecretTypeOpaque
+	reg.Upsert(testCluster("opaque", ""), wrongType)
+	if err := reg.CredentialsError("opaque"); err == nil || !strings.Contains(err.Error(), "type") {
+		t.Errorf("wrong secret type: %v", err)
 	}
 }

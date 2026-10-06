@@ -7,12 +7,16 @@ import (
 	"log/slog"
 	"os"
 
+	"context"
+
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/capybara/capybara/api/v1alpha1"
@@ -45,10 +49,7 @@ func run(args []string) error {
 	if err != nil {
 		return fmt.Errorf("capybara-mgmt: %w", err)
 	}
-	registry, err := cluster.LoadFile(cfg.ClustersFile, logger)
-	if err != nil {
-		return err
-	}
+	registry := cluster.NewRegistry(cluster.ValidateOptions{AllowInsecure: cfg.AllowInsecureKubeconfig}, logger)
 	projectCfg, err := project.LoadConfig(cfg.ProjectConfigFile)
 	if err != nil {
 		return err
@@ -67,11 +68,24 @@ func run(args []string) error {
 	}
 	mgr, err := ctrl.NewManager(mgmt, ctrl.Options{
 		Scheme:                 scheme,
+		Cache:                  cache.Options{ByObject: cluster.CacheOptions()},
 		Metrics:                metricsserver.Options{BindAddress: "0"},
 		HealthProbeBindAddress: "0",
 		LeaderElection:         false, // one local instance; enable with the Helm chart
 	})
 	if err != nil {
+		return err
+	}
+
+	// Fill the cluster registry from the manager's cache before the
+	// controllers need it.
+	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		if err := cluster.Sync(ctx, mgr.GetCache(), registry, logger); err != nil {
+			return err
+		}
+		<-ctx.Done()
+		return nil
+	})); err != nil {
 		return err
 	}
 
@@ -86,9 +100,9 @@ func run(args []string) error {
 	if err := r.SetupWithManager(mgr, remote); err != nil {
 		return err
 	}
-	if err := mgr.Add(&project.RemoteWatcher{Clusters: registry, Events: remote, Logger: logger}); err != nil {
+	if err := mgr.Add(&project.RemoteWatcher{Clusters: registry, Registry: registry, Events: remote, Logger: logger}); err != nil {
 		return err
 	}
-	logger.Info("starting", "mgmt", cfg.MgmtKubeconfig, "clusters", len(registry.List()), "audit", cfg.AuditFile)
+	logger.Info("starting", "mgmt", cfg.MgmtKubeconfig, "audit", cfg.AuditFile)
 	return mgr.Start(ctrl.SetupSignalHandler())
 }

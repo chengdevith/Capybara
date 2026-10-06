@@ -232,6 +232,18 @@ func (r *Reconciler) cleanup(ctx context.Context, p *v1alpha1.Project, st *v1alp
 			Message: msg, ObservedGeneration: p.Generation,
 		})
 	}
+	if p.Annotations[v1alpha1.AnnotationAbandonRemote] == "true" {
+		// The cluster is being removed: leave the remote resources alone.
+		actx := auth.WithUser(ctx, auth.User{Name: deletedBy(p)})
+		op := audit.Op{Cluster: p.Spec.Cluster, Kind: "Namespace", Name: p.Spec.Namespace, Action: "abandon-remote",
+			Ref: p.Annotations[v1alpha1.AnnotationDeleteAuditID]}
+		if err := r.Auditor.Event(actx, op, audit.ResultSuccess, fmt.Sprintf(
+			"namespace %s and its resources left in place in %s (cluster removed from Capybara); Project %s removed",
+			p.Spec.Namespace, p.Spec.Cluster, p.Name)); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, errCleanupDone
+	}
 	cs, err := r.Clusters.Client(p.Spec.Cluster)
 	if errors.Is(err, cluster.ErrNotFound) {
 		terminating(fmt.Sprintf("cluster %q is not registered; waiting to remove namespace %s", p.Spec.Cluster, p.Spec.Namespace))

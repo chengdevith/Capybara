@@ -95,6 +95,7 @@ func scanCR(data []byte, atEOF bool) (int, []byte, error) {
 }
 
 type execFixture struct {
+	provider  *clustertest.Provider
 	srv       *httptest.Server
 	shell     *fakeShell
 	auditPath string
@@ -119,12 +120,13 @@ func newExecFixture(t *testing.T, idle, maxDur time.Duration) *execFixture {
 		t.Fatal(err)
 	}
 	f.store = store
+	f.provider = &clustertest.Provider{
+		Infos:   []cluster.Info{{ID: "dev-1"}},
+		Clients: map[string]kubernetes.Interface{"dev-1": fake.NewClientset(pod)},
+		Configs: map[string]*rest.Config{"dev-1": {Host: "https://127.0.0.1:6551"}},
+	}
 	h := &ExecHandler{
-		Clusters: &clustertest.Provider{
-			Infos:   []cluster.Info{{ID: "dev-1"}},
-			Clients: map[string]kubernetes.Interface{"dev-1": fake.NewClientset(pod)},
-			Configs: map[string]*rest.Config{"dev-1": {Host: "https://127.0.0.1:6551"}},
-		},
+		Clusters:      f.provider,
 		Auditor:       audit.NewAuditor(store, slog.New(slog.DiscardHandler)),
 		IdleTimeout:   idle,
 		MaxDuration:   maxDur,
@@ -137,6 +139,10 @@ func newExecFixture(t *testing.T, idle, maxDur time.Duration) *execFixture {
 	f.srv = httptest.NewServer(auth.Middleware(mux))
 	t.Cleanup(f.srv.Close)
 	return f
+}
+
+func (f *execFixture) setLifetime(ctx context.Context) {
+	f.provider.Contexts = map[string]context.Context{"dev-1": ctx}
 }
 
 func (f *execFixture) dial(t *testing.T, container string) *websocket.Conn {

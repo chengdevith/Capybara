@@ -87,7 +87,9 @@ func LogsHandler(clusters cluster.Provider, logger *slog.Logger) http.Handler {
 			return
 		}
 		defer conn.CloseNow() //nolint:errcheck // best effort on exit
-		ctx := conn.CloseRead(r.Context())
+		lifetime, _ := clusters.Context(id)
+		ctx, stop := bindLifetime(conn.CloseRead(r.Context()), lifetime)
+		defer stop()
 		log := logger.With("cluster", id, "namespace", req.namespace, "pod", req.pod, "container", req.opts.Container)
 
 		// The stream is bound to ctx: when the browser disconnects, the
@@ -114,6 +116,8 @@ func LogsHandler(clusters cluster.Provider, logger *slog.Logger) http.Handler {
 			switch {
 			case err == nil:
 				continue
+			case lifetimeEnded(ctx, lifetime, conn):
+				return
 			case ctx.Err() != nil:
 				log.Debug("logs client gone")
 				return

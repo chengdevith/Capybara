@@ -50,6 +50,13 @@ func (c testClusters) List() []cluster.Info {
 	return out
 }
 
+func (c testClusters) Context(id string) (context.Context, error) {
+	if _, ok := c[id]; ok {
+		return context.Background(), nil
+	}
+	return nil, cluster.ErrNotFound
+}
+
 func (c testClusters) Client(id string) (kubernetes.Interface, error) {
 	if cs, ok := c[id]; ok {
 		return cs, nil

@@ -139,7 +139,7 @@ func (a *API) watch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rv := r.URL.Query().Get("resourceVersion")
-	stream.ServeWatch(w, r, a.Logger.With("watch", "projects"), func(ctx context.Context) (watch.Interface, error) {
+	stream.ServeWatch(w, r, a.Logger.With("watch", "projects"), nil, func(ctx context.Context) (watch.Interface, error) {
 		return a.Mgmt.Watch(ctx, &v1alpha1.ProjectList{}, &client.ListOptions{
 			Raw: &metav1.ListOptions{ResourceVersion: rv, AllowWatchBookmarks: true},
 		})

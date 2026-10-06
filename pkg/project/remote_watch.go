@@ -3,6 +3,7 @@ package project
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -20,6 +21,13 @@ import (
 type Clusters interface {
 	List() []cluster.Info
 	Client(id string) (kubernetes.Interface, error)
+	// Context lives as long as a cluster's current credentials.
+	Context(id string) (context.Context, error)
+}
+
+// Subscriber delivers cluster registry events (the Registry implements it).
+type Subscriber interface {
+	Subscribe(func(cluster.Event))
 }
 
 // RemoteWatcher watches Capybara-managed objects (by label) in every
@@ -28,24 +36,65 @@ type Clusters interface {
 // own informers; nothing else waits for it.
 type RemoteWatcher struct {
 	Clusters Clusters
+	// Registry, when set, restarts a cluster's watches when it is added or
+	// its credentials change. Watches always stop with the cluster's
+	// lifetime (credentials changed, cluster removed).
+	Registry Subscriber
 	Events   chan<- event.GenericEvent
 	Logger   *slog.Logger
 	// Resync of the informers themselves (0 = none; the reconciler resyncs).
 	Resync time.Duration
+
+	mu      sync.Mutex
+	watched map[string]context.Context // cluster id -> lifetime being watched
 }
 
 // Start implements manager.Runnable.
 func (w *RemoteWatcher) Start(ctx context.Context) error {
+	w.mu.Lock()
+	w.watched = map[string]context.Context{}
+	w.mu.Unlock()
+	if w.Registry != nil {
+		w.Registry.Subscribe(func(ev cluster.Event) {
+			if ev.Kind == cluster.Added || ev.Kind == cluster.CredentialsChanged {
+				go w.ensure(ctx, ev.ID)
+			}
+		})
+	}
 	for _, c := range w.Clusters.List() {
-		cs, err := w.Clusters.Client(c.ID)
-		if err != nil {
-			w.Logger.Warn("not watching cluster", "cluster", c.ID, "err", err)
-			continue
-		}
-		w.watch(ctx, c.ID, cs)
+		w.ensure(ctx, c.ID)
 	}
 	<-ctx.Done()
 	return nil
+}
+
+// ensure watches a cluster for its current lifetime, once.
+func (w *RemoteWatcher) ensure(ctx context.Context, id string) {
+	lifetime, err := w.Clusters.Context(id)
+	if err != nil {
+		return
+	}
+	w.mu.Lock()
+	if w.watched[id] == lifetime {
+		w.mu.Unlock()
+		return
+	}
+	w.watched[id] = lifetime
+	w.mu.Unlock()
+
+	cs, err := w.Clusters.Client(id)
+	if err != nil {
+		w.Logger.Warn("not watching cluster", "cluster", id, "err", err)
+		return
+	}
+	wctx, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(lifetime, cancel)
+	go func() {
+		<-wctx.Done()
+		stop()
+		w.Logger.Info("stopped watching managed objects", "cluster", id, "why", context.Cause(lifetime))
+	}()
+	w.watch(wctx, id, cs)
 }
 
 func (w *RemoteWatcher) watch(ctx context.Context, id string, cs kubernetes.Interface) {

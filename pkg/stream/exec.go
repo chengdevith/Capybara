@@ -132,7 +132,8 @@ func (h *ExecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.fail(ctx, conn, err.Error())
 		return
 	}
-	end := h.session(ctx, conn, execURL, cfg)
+	lifetime, _ := h.Clusters.Context(id)
+	end := h.session(ctx, lifetime, conn, execURL, cfg)
 
 	// Close: always recorded, with duration and why it ended. Never content.
 	closeOp := op
@@ -210,7 +211,11 @@ type sessionEnd struct {
 // is hit. All websocket I/O uses the request context (cancelling a read in
 // coder/websocket closes the connection); the session context only stops
 // the shell.
-func (h *ExecHandler) session(parent context.Context, conn *websocket.Conn, u *url.URL, cfg *rest.Config) sessionEnd {
+//
+// lifetime is the cluster's; when it ends (credentials changed, cluster
+// removed) the shell is stopped and the user told why. It never cancels
+// socket I/O, which stays on parent.
+func (h *ExecHandler) session(parent, lifetime context.Context, conn *websocket.Conn, u *url.URL, cfg *rest.Config) sessionEnd {
 	newExec := h.NewExecutor
 	if newExec == nil {
 		newExec = DefaultExecutor
@@ -220,8 +225,11 @@ func (h *ExecHandler) session(parent context.Context, conn *websocket.Conn, u *u
 		return sessionEnd{reason: "could not start", err: err}
 	}
 
-	ctx, cancel := context.WithTimeout(parent, h.MaxDuration)
-	defer cancel()
+	limited, cancelLimit := context.WithTimeout(parent, h.MaxDuration)
+	defer cancelLimit()
+	ctx, stopLifetime := bindLifetime(limited, lifetime)
+	defer stopLifetime()
+	cancel := stopLifetime
 
 	stdinR, stdinW := io.Pipe()
 	sizes := newSizeQueue()
@@ -299,6 +307,9 @@ func (h *ExecHandler) session(parent context.Context, conn *websocket.Conn, u *u
 	case idle.Load():
 		end.reason = "idle timeout"
 		end.notice = fmt.Sprintf("Session closed after %s without input.", h.IdleTimeout)
+	case lifetime != nil && lifetime.Err() != nil && parent.Err() == nil:
+		end.reason = context.Cause(lifetime).Error() // cluster credentials changed or cluster removed
+		end.notice = "Session closed: " + end.reason + "."
 	case browserLeft.Load() || parent.Err() != nil:
 		end.reason = "closed by the user"
 	case err == nil:
