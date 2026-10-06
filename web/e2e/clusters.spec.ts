@@ -1,26 +1,66 @@
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { DEMO_NS, kubectl, runningDemoPods } from './kube'
 
-// Multi-cluster: dev-2 is unregistered, registered again from a fresh
-// ServiceAccount kubeconfig through the UI, then stopped and started while
-// dev-1 keeps working. Leaves dev-2 registered and running.
+// Multi-cluster: dev-2 is unregistered, registered again through the UI
+// from a kubeconfig for a throwaway ServiceAccount (capybara-e2e, 1-hour
+// token), then stopped and started while dev-1 keeps working. Afterwards
+// dev-2's original credentials are put back and the e2e account is
+// deleted, which invalidates its token: runs leave no valid tokens behind.
 
 const repo = resolve(import.meta.dirname, '../..')
-const saKubeconfig = resolve(repo, '.local/kubeconfig/capybara-dev-2-sa.yaml')
+const sa = (...args: string[]) => execFileSync(resolve(repo, 'hack/capybara-sa.sh'), ['dev-2', '--sa', 'capybara-e2e', ...args], { stdio: 'pipe' })
+const e2eKubeconfig = resolve(repo, '.local/kubeconfig/capybara-dev-2-e2e.yaml')
 const k3d = (...args: string[]) => execFileSync('k3d', args, { encoding: 'utf8', stdio: 'pipe' })
 
+/** dev-2's registered kubeconfig, read from capybara-mgmt with the host's
+ * admin kubeconfig and held only in memory. After an interrupted run it is
+ * the e2e one; then fall back to the account file make cluster-up wrote. */
+function originalKubeconfig(): string {
+  let registered = ''
+  try {
+    const b64 = kubectl('mgmt', '-n', 'capybara-system', 'get', 'secret', 'dev-2-kubeconfig', '-o', 'jsonpath={.data.kubeconfig}')
+    registered = Buffer.from(b64, 'base64').toString('utf8')
+  } catch {
+    // not registered
+  }
+  if (registered && !registered.includes('capybara-e2e')) return registered
+  const fallback = resolve(repo, '.local/kubeconfig/capybara-dev-2-sa.yaml')
+  if (!existsSync(fallback)) throw new Error('no kubeconfig to restore dev-2 with; run make cluster-up')
+  return readFileSync(fallback, 'utf8')
+}
+
+let original = ''
+
 test.describe.configure({ mode: 'serial' })
+
+test.beforeAll(() => {
+  original = originalKubeconfig()
+})
+
+test.afterAll(async ({ playwright }, testInfo) => {
+  const api = await playwright.request.newContext({ baseURL: testInfo.project.use.baseURL })
+  try {
+    const registered = (await (await api.get('/api/clusters')).json()).some((c: { id: string }) => c.id === 'dev-2')
+    const res = registered
+      ? await api.put('/api/clusters/dev-2/kubeconfig', { data: { kubeconfig: original } })
+      : await api.post('/api/clusters', { data: { id: 'dev-2', displayName: 'Dev 2', environment: 'dev', kubeconfig: original } })
+    expect(res.ok(), `restoring dev-2: ${await res.text()}`).toBe(true)
+  } finally {
+    await api.dispose()
+    sa('--delete')
+  }
+})
 
 test('registering dev-2 from a ServiceAccount kubeconfig in the UI connects it', async ({ page, request }) => {
   // Unregister through the API, so the refusal rules apply (it must not
   // have Projects).
   const res = await request.delete('/api/clusters/dev-2?confirm=dev-2')
   expect([200, 404], await res.text()).toContain(res.status())
-  execFileSync(resolve(repo, 'hack/capybara-sa.sh'), ['dev-2', '--with-secrets'], { stdio: 'pipe' })
-  const token = /token: (\S+)/.exec(readFileSync(saKubeconfig, 'utf8'))![1]!
+  sa('--duration', '1h')
+  const token = /token: (\S+)/.exec(readFileSync(e2eKubeconfig, 'utf8'))![1]!
 
   const sent: string[] = []
   page.on('response', async (r) => {
@@ -31,10 +71,10 @@ test('registering dev-2 from a ServiceAccount kubeconfig in the UI connects it',
   await expect(page.getByTestId('status-dev-1')).toBeVisible()
   await expect(page.getByTestId('status-dev-2')).toHaveCount(0)
   await page.getByTestId('add-cluster').click()
-  await page.getByTestId('kubeconfig-file').setInputFiles(saKubeconfig)
-  await expect(page.getByTestId('kubeconfig-summary')).toContainText('system:serviceaccount:capybara-system:capybara')
+  await page.getByTestId('kubeconfig-file').setInputFiles(e2eKubeconfig)
+  await expect(page.getByTestId('kubeconfig-summary')).toContainText('system:serviceaccount:capybara-system:capybara-e2e')
   await page.getByTestId('test-connection').click()
-  await expect(page.getByTestId('test-ok')).toContainText('Connected as system:serviceaccount:capybara-system:capybara')
+  await expect(page.getByTestId('test-ok')).toContainText('Connected as system:serviceaccount:capybara-system:capybara-e2e')
   await expect(page.getByTestId('cluster-admin-warning')).toHaveCount(0)
   await page.getByTestId('cluster-id').locator('input').fill('dev-2')
   await page.getByTestId('cluster-display-name').locator('input').fill('Dev 2')

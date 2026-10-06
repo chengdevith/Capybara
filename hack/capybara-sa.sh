@@ -1,28 +1,63 @@
 #!/usr/bin/env bash
-# Creates the least-privilege "capybara" ServiceAccount in a local k3d
-# cluster and writes a kubeconfig for it with a 30-day token:
-#   .local/kubeconfig/capybara-<id>-sa.yaml
+# Creates a least-privilege ServiceAccount (default "capybara") in a local
+# k3d cluster and writes a kubeconfig for it with a short-lived token:
+#   .local/kubeconfig/capybara-<id>-sa.yaml        (--sa capybara, the default)
+#   .local/kubeconfig/capybara-<id>-<sa>.yaml      (any other --sa)
 #
-# Usage: hack/capybara-sa.sh <cluster-id> [--with-secrets]
+# Usage: hack/capybara-sa.sh <cluster-id> [--with-secrets] [--sa NAME] [--duration 720h]
+#        hack/capybara-sa.sh <cluster-id> --sa NAME --delete
 #
 # Not cluster-admin. Without --with-secrets the account has NO access to
 # Secrets (RBAC cannot grant metadata-only reads); with it, it can read and
 # change Secret values. Re-running mints a fresh token (rotation).
+# --delete removes the account, its bindings and its kubeconfig file;
+# deleting the ServiceAccount invalidates every token minted for it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-id="${1:?usage: hack/capybara-sa.sh <cluster-id> [--with-secrets]}"
+usage="usage: hack/capybara-sa.sh <cluster-id> [--with-secrets] [--sa NAME] [--duration 720h] [--delete]"
+id="${1:?$usage}"
+shift
 with_secrets=false
-[[ "${2:-}" == "--with-secrets" ]] && with_secrets=true
+sa=capybara
+duration=720h
+delete=false
+while (($#)); do
+  case "$1" in
+    --with-secrets) with_secrets=true ;;
+    --sa) sa="${2:?$usage}"; shift ;;
+    --duration) duration="${2:?$usage}"; shift ;;
+    --delete) delete=true ;;
+    *) echo "$usage" >&2; exit 1 ;;
+  esac
+  shift
+done
+[[ "$sa" =~ ^capybara(-[a-z0-9]+)*$ ]] || { echo "--sa must be capybara or capybara-<suffix>" >&2; exit 1; }
+
+# The default account keeps its original names; others get their own.
+if [[ "$sa" == capybara ]]; then
+  manager_binding=capybara-manager secrets_binding=capybara-secrets suffix=sa
+else
+  manager_binding="capybara-manager-${sa}" secrets_binding="capybara-secrets-${sa}" suffix="${sa#capybara-}"
+fi
 
 admin=".local/kubeconfig/capybara-${id}.yaml"
-out=".local/kubeconfig/capybara-${id}-sa.yaml"
+out=".local/kubeconfig/capybara-${id}-${suffix}.yaml"
 [[ -f "$admin" ]] || { echo "no admin kubeconfig for $id ($admin); run make cluster-up" >&2; exit 1; }
 git check-ignore -q "$out" || { echo "refusing to write $out: not git-ignored" >&2; exit 1; }
 
 k() { kubectl --kubeconfig "$admin" "$@"; }
 
-k apply -f - >/dev/null <<'EOF'
+if $delete; then
+  [[ "$sa" != capybara ]] || { echo "refusing to delete the registered capybara account" >&2; exit 1; }
+  k delete clusterrolebinding "$manager_binding" "$secrets_binding" --ignore-not-found >/dev/null
+  k -n capybara-system delete serviceaccount "$sa" --ignore-not-found >/dev/null
+  rm -f "$out"
+  echo "==> deleted ServiceAccount capybara-system/${sa} and its bindings in ${id}"
+  exit 0
+fi
+
+k apply -f - >/dev/null <<EOF
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -31,7 +66,7 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: capybara
+  name: ${sa}
   namespace: capybara-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -100,14 +135,14 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: capybara-manager
+  name: ${manager_binding}
   labels: { app.kubernetes.io/managed-by: capybara }
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: capybara-manager }
-subjects: [{ kind: ServiceAccount, name: capybara, namespace: capybara-system }]
+subjects: [{ kind: ServiceAccount, name: ${sa}, namespace: capybara-system }]
 EOF
 
 if $with_secrets; then
-  k apply -f - >/dev/null <<'EOF'
+  k apply -f - >/dev/null <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -122,16 +157,16 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: capybara-secrets
+  name: ${secrets_binding}
   labels: { app.kubernetes.io/managed-by: capybara }
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: capybara-secrets }
-subjects: [{ kind: ServiceAccount, name: capybara, namespace: capybara-system }]
+subjects: [{ kind: ServiceAccount, name: ${sa}, namespace: capybara-system }]
 EOF
 else
-  k delete clusterrolebinding capybara-secrets --ignore-not-found >/dev/null
+  k delete clusterrolebinding "$secrets_binding" --ignore-not-found >/dev/null
 fi
 
-token="$(k -n capybara-system create token capybara --duration=720h)"
+token="$(k -n capybara-system create token "$sa" --duration="$duration")"
 server="$(k config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
 ca="$(k config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')"
 
@@ -146,14 +181,14 @@ clusters:
       server: ${server}
       certificate-authority-data: ${ca}
 users:
-  - name: capybara
+  - name: ${sa}
     user:
       token: ${token}
 contexts:
   - name: capybara-${id}
-    context: { cluster: capybara-${id}, user: capybara }
+    context: { cluster: capybara-${id}, user: ${sa} }
 current-context: capybara-${id}
 EOF
 )
 mv "${out}.tmp" "$out"
-echo "==> ${out}: ServiceAccount capybara-system/capybara, token valid 30 days, secrets: ${with_secrets}"
+echo "==> ${out}: ServiceAccount capybara-system/${sa}, token valid ${duration}, secrets: ${with_secrets}"

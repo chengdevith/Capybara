@@ -362,6 +362,7 @@ between Namespaces and Projects (a Project stands for its namespace in
 - `make e2e`: Playwright in headless Chromium against `make dev` and the k3d
   clusters (`web/e2e/`). Resets the demo first and only changes
   `capybara-demo`, except the cluster suite: it re-registers dev-2 from a
-  fresh ServiceAccount kubeconfig and stops/starts it (health checks every
-  5s). Not part of `make test` because it needs the clusters.
+  throwaway `capybara-e2e` ServiceAccount (1-hour token) and stops/starts it
+  (health checks every 5s); afterwards it restores dev-2's original
+  credentials and deletes the e2e account, so no valid token is left behind. Not part of `make test` because it needs the clusters.
   Its server writes audit entries to `.local/audit/e2e.jsonl`.

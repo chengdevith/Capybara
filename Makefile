@@ -31,7 +31,7 @@ cluster-down: ## Delete the Capybara k3d clusters and their kubeconfigs
 	./deploy/k3d/cluster-down.sh
 
 .PHONY: sa-kubeconfig
-sa-kubeconfig: ## Least-privilege ServiceAccount kubeconfig: make sa-kubeconfig CLUSTER=dev-2 [WITH_SECRETS=1]
+sa-kubeconfig: ## Least-privilege ServiceAccount kubeconfig: make sa-kubeconfig CLUSTER=dev-2 [WITH_SECRETS=1] (more: hack/capybara-sa.sh)
 	./hack/capybara-sa.sh $(CLUSTER) $(if $(WITH_SECRETS),--with-secrets,)
 
 .PHONY: kubectl
