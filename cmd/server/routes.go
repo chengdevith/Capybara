@@ -21,6 +21,7 @@ func newHandler(cfg config.Config, clusters cluster.Provider, logger *slog.Logge
 	// Any method is routed so the proxy can answer non-GET with 405 itself.
 	api.Handle("/api/clusters/{id}/k8s/{path...}", proxy.Handler(clusters, logger))
 	api.Handle("GET /api/clusters/{id}/watch", stream.WatchHandler(clusters, logger))
+	api.Handle("GET /api/clusters/{id}/logs", stream.LogsHandler(clusters, logger))
 	api.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		httpjson.Error(w, http.StatusNotFound, "not found")
 	})
