@@ -4,41 +4,41 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.22.0
-  name: clusters.platform.capybara.io
+  name: plugininstallations.platform.capybara.io
 spec:
   group: platform.capybara.io
   names:
-    kind: Cluster
-    listKind: ClusterList
-    plural: clusters
-    singular: cluster
+    kind: PluginInstallation
+    listKind: PluginInstallationList
+    plural: plugininstallations
+    singular: plugininstallation
   scope: Cluster
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.environment
-      name: Environment
+    - jsonPath: .spec.plugin
+      name: Plugin
       type: string
+    - jsonPath: .spec.cluster
+      name: Cluster
+      type: string
+    - jsonPath: .spec.mode
+      name: Mode
+      type: string
+    - jsonPath: .spec.enabled
+      name: Enabled
+      type: boolean
     - jsonPath: .status.phase
       name: Phase
       type: string
-    - jsonPath: .status.reason
-      name: Reason
+    - jsonPath: .status.currentStep
+      name: Step
       type: string
-    - jsonPath: .status.kubernetesVersion
-      name: Version
-      type: string
-    - jsonPath: .status.nodeCount
-      name: Nodes
-      type: integer
-    - jsonPath: .metadata.creationTimestamp
-      name: Age
-      type: date
     name: v1alpha1
     schema:
       openAPIV3Schema:
         description: |-
-          Cluster is a managed cluster registered by kubeconfig. Its name is the
-          cluster id used in URLs (/c/{id}/...).
+          PluginInstallation is a plugin installed in (or connected to) a cluster.
+          Its name is "<plugin>.<cluster>".
         properties:
           apiVersion:
             description: |-
@@ -58,59 +58,56 @@ spec:
           metadata:
             type: object
           spec:
-            description: ClusterSpec is a managed cluster Capybara can reach.
+            description: PluginInstallationSpec attaches a plugin to one cluster.
             properties:
-              displayName:
-                description: DisplayName is a human-friendly name.
-                maxLength: 128
+              cluster:
                 type: string
-              environment:
-                description: Environment is dev, uat or prod.
+              config:
+                description: Config values (non-secret) validated against the plugin's
+                  schema.
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              connectSecret:
+                description: |-
+                  ConnectSecret names a Secret (type platform.capybara.io/plugin-connect,
+                  in capybara-system) with a bearer token for connect mode.
+                properties:
+                  name:
+                    maxLength: 253
+                    minLength: 1
+                    pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+                    type: string
+                required:
+                - name
+                type: object
+              enabled:
+                description: |-
+                  Enabled shows the plugin's UI for this cluster. Disabling keeps
+                  everything running.
+                type: boolean
+              mode:
+                description: InstallMode is how a plugin is attached to a cluster.
                 enum:
-                - dev
-                - uat
-                - prod
+                - install
+                - connect
                 type: string
-              installerSecret:
-                description: |-
-                  InstallerSecret optionally names a Secret (type
-                  platform.capybara.io/installer-kubeconfig, in capybara-system) with a
-                  more privileged kubeconfig used only by the plugin controller to
-                  install plugins. Without it, plugin installs are disabled here.
-                properties:
-                  name:
-                    maxLength: 253
-                    minLength: 1
-                    pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
-                    type: string
-                required:
-                - name
-                type: object
-              kubeconfigSecret:
-                description: |-
-                  KubeconfigSecret is the Secret (type platform.capybara.io/kubeconfig,
-                  in capybara-system) holding this cluster's kubeconfig.
-                properties:
-                  name:
-                    maxLength: 253
-                    minLength: 1
-                    pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
-                    type: string
-                required:
-                - name
-                type: object
+              plugin:
+                type: string
+              version:
+                description: Version of the plugin to run; changing it upgrades.
+                type: string
             required:
-            - environment
-            - kubeconfigSecret
+            - cluster
+            - enabled
+            - mode
+            - plugin
+            - version
             type: object
           status:
-            description: ClusterStatus is the cluster's health as last checked by
-              the controller.
+            description: PluginInstallationStatus is the installation's progress and
+              health.
             properties:
               conditions:
-                description: |-
-                  Conditions: Ready, Reachable, Authenticated, CredentialsExpiring,
-                  InstallerReady.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -169,53 +166,56 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              credentialsExpireAt:
-                description: CredentialsExpireAt is when the client certificate or
-                  token expires.
-                format: date-time
+              currentStep:
+                description: CurrentStep is the first step not done.
                 type: string
-              identity:
-                description: Identity is who Capybara is authenticated as.
-                type: string
-              installerIdentity:
-                description: InstallerIdentity is who the installer credential authenticates
-                  as.
-                type: string
-              kubernetesVersion:
-                description: KubernetesVersion is the cluster's git version.
-                type: string
-              lastChecked:
-                description: LastChecked is when the health check last ran.
-                format: date-time
+              installedVersion:
+                description: InstalledVersion is the plugin version last deployed
+                  successfully.
                 type: string
               message:
-                description: Message explains Reason.
                 type: string
-              nodeCount:
-                description: NodeCount is unset when nodes cannot be listed.
-                format: int32
-                type: integer
               observedGeneration:
                 format: int64
                 type: integer
               phase:
-                description: Phase is Connected, Error or Pending (not checked yet).
+                description: InstallationPhase summarises an installation.
                 enum:
                 - Pending
-                - Connected
+                - Installing
+                - Ready
                 - Error
+                - Disabled
+                - Uninstalling
                 type: string
-              reason:
-                description: Reason is the most important condition reason (e.g. Unreachable,
-                  AuthFailed).
-                type: string
+              steps:
+                items:
+                  description: StepStatus is one step's progress.
+                  properties:
+                    message:
+                      type: string
+                    name:
+                      type: string
+                    state:
+                      description: StepState is a step's progress.
+                      enum:
+                      - Pending
+                      - Running
+                      - Done
+                      - Failed
+                      type: string
+                    title:
+                      type: string
+                  required:
+                  - name
+                  - state
+                  - title
+                  type: object
+                type: array
             type: object
         required:
         - spec
         type: object
-        x-kubernetes-validations:
-        - message: name must be a DNS label of at most 63 characters
-          rule: self.metadata.name.size() <= 63 && self.metadata.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')
     served: true
     storage: true
     subresources:

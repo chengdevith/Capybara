@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -44,6 +45,18 @@ type Config struct {
 	ClusterCheckInterval time.Duration
 	// CredentialExpiryWarning flags credentials expiring within this time.
 	CredentialExpiryWarning time.Duration
+
+	// PluginsDir is the builtin plugin repository (plugins/<name>/plugin.yaml).
+	PluginsDir string
+	// PluginDevDir (DEV ONLY, loopback only) serves unpinned UI bundles from
+	// plugins/<name>/ui/dist in this directory, marked as dev bundles.
+	PluginDevDir string
+	// PluginBackends maps a plugin backend name to its loopback URL
+	// ("monitoring=http://127.0.0.1:8091").
+	PluginBackends map[string]string
+	// PluginTokenDir is where the credential issued to each host-process
+	// plugin backend is written (one file per backend, mode 600).
+	PluginTokenDir string
 }
 
 // DefaultProtectedNamespaces are the namespaces protected out of the box.
@@ -51,7 +64,7 @@ var DefaultProtectedNamespaces = []string{"kube-system", "kube-public", "kube-no
 
 // Defaults returns the configuration used when nothing is set.
 func Defaults() Config {
-	return Config{
+	return Config{ //nolint:gosec // PluginTokenDir is a directory path, not a credential
 		Addr:                "127.0.0.1:8080",
 		ClusterTimeout:      3 * time.Second,
 		LogLevel:            "info",
@@ -64,6 +77,10 @@ func Defaults() Config {
 
 		ClusterCheckInterval:    30 * time.Second,
 		CredentialExpiryWarning: 7 * 24 * time.Hour,
+
+		PluginsDir:     "plugins",
+		PluginBackends: map[string]string{},
+		PluginTokenDir: ".local/plugin-backends",
 	}
 }
 
@@ -75,6 +92,7 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	}
 	cfg := Defaults()
 	protected := strings.Join(cfg.ProtectedNamespaces, ",")
+	backends := ""
 
 	strs := map[string]*string{
 		"CAPYBARA_ADDR":                 &cfg.Addr,
@@ -83,6 +101,10 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 		"CAPYBARA_PROTECTED_NAMESPACES": &protected,
 		"CAPYBARA_NAMESPACE":            &cfg.CapybaraNamespace,
 		"CAPYBARA_MGMT_KUBECONFIG":      &cfg.MgmtKubeconfig,
+		"CAPYBARA_PLUGINS_DIR":          &cfg.PluginsDir,
+		"CAPYBARA_PLUGIN_DEV_DIR":       &cfg.PluginDevDir,
+		"CAPYBARA_PLUGIN_BACKENDS":      &backends,
+		"CAPYBARA_PLUGIN_TOKEN_DIR":     &cfg.PluginTokenDir,
 	}
 	for env, dst := range strs {
 		if v := getenv(env); v != "" {
@@ -120,10 +142,22 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	fs.BoolVar(&cfg.AllowInsecureKubeconfig, "allow-insecure-kubeconfig", cfg.AllowInsecureKubeconfig, "DEV ONLY: accept kubeconfigs with insecure-skip-tls-verify (env CAPYBARA_ALLOW_INSECURE_KUBECONFIG=true)")
 	fs.DurationVar(&cfg.ClusterCheckInterval, "cluster-check-interval", cfg.ClusterCheckInterval, "how often each cluster's health is checked (env CAPYBARA_CLUSTER_CHECK_INTERVAL)")
 	fs.DurationVar(&cfg.CredentialExpiryWarning, "credential-expiry-warning", cfg.CredentialExpiryWarning, "warn when cluster credentials expire within this time (env CAPYBARA_CREDENTIAL_EXPIRY_WARNING)")
+	fs.StringVar(&cfg.PluginsDir, "plugins-dir", cfg.PluginsDir, "builtin plugin repository (env CAPYBARA_PLUGINS_DIR)")
+	fs.StringVar(&cfg.PluginDevDir, "plugin-dev-dir", cfg.PluginDevDir, "DEV ONLY, loopback only: serve unpinned plugin UI bundles from this plugins directory (env CAPYBARA_PLUGIN_DEV_DIR)")
+	fs.StringVar(&backends, "plugin-backends", backends, "comma-separated name=http://127.0.0.1:port plugin backends (env CAPYBARA_PLUGIN_BACKENDS)")
+	fs.StringVar(&cfg.PluginTokenDir, "plugin-token-dir", cfg.PluginTokenDir, "where host-process plugin backends get their credential (env CAPYBARA_PLUGIN_TOKEN_DIR)")
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
 	}
 	cfg.ProtectedNamespaces = splitList(protected)
+	cfg.PluginBackends = map[string]string{}
+	for _, kv := range splitList(backends) {
+		name, url, ok := strings.Cut(kv, "=")
+		if !ok {
+			return Config{}, fmt.Errorf("plugin-backends: %q is not name=url", kv)
+		}
+		cfg.PluginBackends[name] = url
+	}
 	return cfg, cfg.Validate()
 }
 
@@ -173,7 +207,27 @@ func (c Config) Validate() error {
 	if c.ExecIdleTimeout > c.ExecMaxDuration {
 		return errors.New("exec-idle-timeout must not exceed exec-max-duration")
 	}
+	if c.PluginsDir == "" || c.PluginTokenDir == "" {
+		return errors.New("plugins-dir and plugin-token-dir must be set")
+	}
+	if c.PluginDevDir != "" && !c.IsLoopback() {
+		return errors.New("plugin-dev-dir is for development only and needs a loopback addr")
+	}
+	for name, raw := range c.PluginBackends {
+		u, err := url.Parse(raw)
+		if err != nil || u.Scheme != "http" || u.Path != "" && u.Path != "/" || !isLoopbackHost(u.Hostname()) {
+			return fmt.Errorf("plugin backend %s: want http://127.0.0.1:<port> (host processes only for now)", name)
+		}
+	}
 	return nil
+}
+
+func isLoopbackHost(h string) bool {
+	if h == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
 }
 
 // Protected returns the full protected-namespace pattern list, including

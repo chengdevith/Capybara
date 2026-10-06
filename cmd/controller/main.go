@@ -26,6 +26,7 @@ import (
 	"github.com/capybara/capybara/pkg/audit"
 	"github.com/capybara/capybara/pkg/cluster"
 	"github.com/capybara/capybara/pkg/config"
+	"github.com/capybara/capybara/pkg/plugin"
 	"github.com/capybara/capybara/pkg/project"
 )
 
@@ -108,6 +109,12 @@ func run(args []string) error {
 	if err := (&cluster.HealthReconciler{
 		Client: mgr.GetClient(), Registry: registry,
 		Interval: cfg.ClusterCheckInterval, ExpiryWarning: cfg.CredentialExpiryWarning,
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+
+	if err := (&plugin.CatalogReconciler{
+		Client: mgr.GetClient(), PluginsDir: cfg.PluginsDir, DevUI: cfg.PluginDevDir != "", Logger: logger,
 	}).SetupWithManager(mgr); err != nil {
 		return err
 	}

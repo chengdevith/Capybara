@@ -1,0 +1,9 @@
+# Capybara's builtin plugin repository: the plugins/ directory shipped with
+# Capybara. Trusted: its plugins can be installed and their UI bundles served.
+apiVersion: platform.capybara.io/v1alpha1
+kind: PluginRepository
+metadata:
+  name: builtin
+spec:
+  type: builtin
+  trusted: true

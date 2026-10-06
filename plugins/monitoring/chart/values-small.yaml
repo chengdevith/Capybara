@@ -5,6 +5,9 @@
 #   grafana."grafana.ini".server      root_url for Capybara's Grafana proxy path
 # Images are imported into k3d beforehand (plugins/monitoring/images.txt).
 
+# Short, stable object names: capybara-monitoring-prometheus, -grafana, -operator.
+fullnameOverride: capybara-monitoring
+
 # k3s runs the control plane in one process: there are no separate etcd,
 # scheduler, controller-manager or kube-proxy endpoints to scrape.
 kubeEtcd:

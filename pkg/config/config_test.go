@@ -100,3 +100,23 @@ func TestExecTimeoutsFromEnv(t *testing.T) {
 		t.Fatalf("got %v / %v", cfg.ExecIdleTimeout, cfg.ExecMaxDuration)
 	}
 }
+
+func TestPluginSettings(t *testing.T) {
+	cfg, err := Load([]string{"-plugin-backends", "monitoring=http://127.0.0.1:8091", "-plugin-dev-dir", "plugins"}, func(string) string { return "" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PluginBackends["monitoring"] != "http://127.0.0.1:8091" || cfg.PluginDevDir != "plugins" {
+		t.Fatalf("cfg = %+v", cfg)
+	}
+	for _, args := range [][]string{
+		{"-plugin-backends", "monitoring=http://10.0.0.5:8091"},
+		{"-plugin-backends", "monitoring=https://127.0.0.1:8091"},
+		{"-plugin-backends", "monitoring"},
+		{"-plugin-dev-dir", "plugins", "-addr", "0.0.0.0:8080"},
+	} {
+		if _, err := Load(args, func(string) string { return "" }); err == nil {
+			t.Errorf("%v: accepted", args)
+		}
+	}
+}

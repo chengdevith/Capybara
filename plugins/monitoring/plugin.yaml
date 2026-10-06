@@ -1,0 +1,197 @@
+# Monitoring: Prometheus + Grafana (kube-prometheus-stack), or a connection
+# to a Prometheus already running in the cluster.
+name: monitoring
+displayName: Monitoring
+version: 0.1.0
+description: >-
+  Metrics for clusters, workloads and Projects from Prometheus, with alerts
+  and a Grafana link. Installs kube-prometheus-stack (small preset), or
+  connects to a Prometheus already in the cluster (on OpenShift: Thanos
+  Querier; never install a second stack there).
+icon: icon.svg
+extensionApi: 1
+scope: per-cluster
+modes: [install, connect]
+extensionPoints: [nav-section, nav-item, route, resource-detail-tab, cluster-overview-card, project-overview-card, settings-page]
+backend: monitoring
+
+chart:
+  archive: chart/kube-prometheus-stack-91.9.0.tgz
+  sha256: 75ee7cf15ee9492faf1babc0682237caf6ba706700370cd34b1ea261cee737fe
+  values: chart/values-small.yaml
+  releaseName: capybara-monitoring
+  namespace: capybara-monitoring
+  version: 91.9.0
+
+ui:
+  bundle: ui/dist/monitoring.js
+  sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+
+config:
+  schema:
+    type: object
+    properties:
+      target:
+        type: string
+        title: Connect to
+        enum: [service, thanos-querier]
+        default: service
+        description: "A Prometheus Service in this cluster (via the Kubernetes service proxy), or OpenShift's Thanos Querier."
+      namespace:
+        type: string
+        title: Namespace
+        description: Namespace of the Prometheus Service.
+        default: monitoring
+        pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+      service:
+        type: string
+        title: Service
+        description: Name of the Prometheus Service.
+        default: prometheus
+        pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+      port:
+        type: string
+        title: Port
+        description: "Service port number or name; prefix https: for TLS."
+        default: "9090"
+        pattern: "^(https:)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+      thanosURL:
+        type: string
+        title: Thanos Querier URL
+        description: "OpenShift: the thanos-querier route in openshift-monitoring (https://…). Needs a bearer token with cluster-monitoring-view, or view on the tenancy namespace."
+      tenancyNamespace:
+        type: string
+        title: Tenancy namespace
+        description: "OpenShift: query only this namespace through the tenancy port (9092)."
+        pattern: "^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+
+# The connect-mode backend account lives in the connected service's namespace.
+connectNamespaceKey: namespace
+
+permissions:
+  # Installer credential, install mode: everything the chart creates
+  # (checked against a render before installing), Helm's release Secrets,
+  # and the backend's account. escalate/bind are needed because the chart's
+  # own ClusterRoles grant permissions the installer may not hold itself.
+  install:
+    clusterRules:
+      - apiGroups: [""]
+        resources: [namespaces]
+        verbs: [get, list, watch, create, patch]
+      - apiGroups: [""]
+        resources: [services, configmaps, secrets, serviceaccounts]
+        verbs: [get, list, watch, create, update, patch, delete]
+      - apiGroups: [""]
+        resources: [serviceaccounts/token]
+        verbs: [create]
+      - apiGroups: [""]
+        resources: [pods, persistentvolumeclaims]
+        verbs: [get, list, watch, delete]
+      - apiGroups: [""]
+        resources: [services/proxy]
+        verbs: [get]
+      - apiGroups: [apps]
+        resources: [deployments, daemonsets, statefulsets]
+        verbs: [get, list, watch, create, update, patch, delete]
+      - apiGroups: [apps]
+        resources: [replicasets]
+        verbs: [get, list, watch]
+      - apiGroups: [batch]
+        resources: [jobs]
+        verbs: [get, list, watch, create, update, patch, delete]
+      - apiGroups: [monitoring.coreos.com]
+        resources: ["*"]
+        verbs: [get, list, watch, create, update, patch, delete]
+      - apiGroups: [apiextensions.k8s.io]
+        resources: [customresourcedefinitions]
+        verbs: [get, list, watch, create, update, patch, delete]
+      - apiGroups: [admissionregistration.k8s.io]
+        resources: [validatingwebhookconfigurations, mutatingwebhookconfigurations]
+        verbs: [get, list, watch, create, update, patch, delete]
+      - apiGroups: [rbac.authorization.k8s.io]
+        resources: [clusterroles, clusterrolebindings, roles, rolebindings]
+        verbs: [get, list, watch, create, update, patch, delete]
+      - apiGroups: [rbac.authorization.k8s.io]
+        resources: [clusterroles, roles]
+        verbs: [escalate, bind]
+  # Installer credential, connect mode: only the backend's account in the
+  # connected service's namespace. Capybara adds `get services/proxy` for
+  # exactly the connected service (below), which RBAC requires the
+  # installer to hold before it may grant it.
+  connect:
+    namespaceRules:
+      - apiGroups: [""]
+        resources: [serviceaccounts]
+        verbs: [create]
+      - apiGroups: [""]
+        resources: [serviceaccounts]
+        resourceNames: [capybara-plugin-monitoring]
+        verbs: [get, patch, delete]
+      - apiGroups: [""]
+        resources: [serviceaccounts/token]
+        resourceNames: [capybara-plugin-monitoring]
+        verbs: [create]
+      - apiGroups: [rbac.authorization.k8s.io]
+        resources: [roles, rolebindings]
+        verbs: [create]
+      - apiGroups: [rbac.authorization.k8s.io]
+        resources: [roles, rolebindings]
+        resourceNames: [capybara-plugin-monitoring]
+        verbs: [get, patch, delete]
+  # What the backend may reach, only in clusters where the plugin is
+  # installed and enabled. Each becomes `get services/proxy` on exactly that
+  # service:port for the backend's own account.
+  services:
+    - name: prometheus
+      namespace: capybara-monitoring
+      service: capybara-monitoring-prometheus
+      port: "9090"
+      namespaceKey: namespace
+      serviceKey: service
+      portKey: port
+      methods: [GET]
+      paths: [/api/v1/query, /api/v1/query_range, /api/v1/alerts, /api/v1/rules, /api/v1/targets, /api/v1/status/buildinfo, /-/ready]
+    - name: grafana
+      namespace: capybara-monitoring
+      service: capybara-monitoring-grafana
+      port: "80"
+      # Grafana's own UI as an anonymous Viewer (dashboards POST queries).
+      methods: [GET, POST]
+      paths: [/]
+      modes: [install]
+
+steps:
+  - name: chart
+    title: Chart installing
+    modes: [install]
+    check:
+      type: helm
+  - name: prometheus
+    title: Prometheus ready
+    modes: [install]
+    check:
+      type: workload
+      kind: StatefulSet
+      name: prometheus-capybara-monitoring-prometheus
+  - name: connected
+    title: Prometheus reachable
+    modes: [connect]
+    check:
+      type: service
+      service: prometheus
+      path: /api/v1/status/buildinfo
+      contains: '"status":"success"'
+  - name: targets
+    title: Targets scraped
+    check:
+      type: service
+      service: prometheus
+      path: /api/v1/targets?state=active
+      contains: '"health":"up"'
+  - name: grafana
+    title: Grafana ready
+    modes: [install]
+    check:
+      type: workload
+      kind: Deployment
+      name: capybara-monitoring-grafana

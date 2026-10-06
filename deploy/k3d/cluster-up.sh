@@ -70,7 +70,10 @@ done
 mgmt_kc="$(kubeconfig_path capybara-mgmt)"
 kubectl --kubeconfig "${mgmt_kc}" apply --server-side -f "${REPO_ROOT}/deploy/crds" >/dev/null
 kubectl --kubeconfig "${mgmt_kc}" wait --for condition=established --timeout=60s \
-  crd/clusters.platform.capybara.io crd/projects.platform.capybara.io >/dev/null
+  crd/clusters.platform.capybara.io crd/projects.platform.capybara.io \
+  crd/pluginrepositories.platform.capybara.io crd/plugins.platform.capybara.io \
+  crd/plugininstallations.platform.capybara.io >/dev/null
+kubectl --kubeconfig "${mgmt_kc}" apply --server-side -f "${REPO_ROOT}/deploy/plugin-repositories.yaml" >/dev/null
 
 # Project size presets: created from the repo file if missing; later edits
 # (kubectl or make project-sizes) are kept.

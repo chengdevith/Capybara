@@ -20,6 +20,9 @@ go build -o .local/bin/capybara-controller ./cmd/controller
 # The controller needs its CRDs in capybara-mgmt.
 if [[ -f .local/kubeconfig/capybara-mgmt.yaml ]]; then
   kubectl --kubeconfig .local/kubeconfig/capybara-mgmt.yaml apply --server-side -f deploy/crds >/dev/null
+  kubectl --kubeconfig .local/kubeconfig/capybara-mgmt.yaml wait --for condition=established --timeout=60s \
+    crd/pluginrepositories.platform.capybara.io >/dev/null
+  kubectl --kubeconfig .local/kubeconfig/capybara-mgmt.yaml apply --server-side -f deploy/plugin-repositories.yaml >/dev/null
 fi
 
 pids=()

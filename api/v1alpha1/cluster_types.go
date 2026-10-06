@@ -53,6 +53,13 @@ type ClusterSpec struct {
 	// KubeconfigSecret is the Secret (type platform.capybara.io/kubeconfig,
 	// in capybara-system) holding this cluster's kubeconfig.
 	KubeconfigSecret SecretRef `json:"kubeconfigSecret"`
+
+	// InstallerSecret optionally names a Secret (type
+	// platform.capybara.io/installer-kubeconfig, in capybara-system) with a
+	// more privileged kubeconfig used only by the plugin controller to
+	// install plugins. Without it, plugin installs are disabled here.
+	// +optional
+	InstallerSecret *SecretRef `json:"installerSecret,omitempty"`
 }
 
 // ClusterPhase summarises a cluster's health.
@@ -113,7 +120,12 @@ type ClusterStatus struct {
 
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-	// Conditions: Ready, Reachable, Authenticated, CredentialsExpiring.
+	// InstallerIdentity is who the installer credential authenticates as.
+	// +optional
+	InstallerIdentity string `json:"installerIdentity,omitempty"`
+
+	// Conditions: Ready, Reachable, Authenticated, CredentialsExpiring,
+	// InstallerReady.
 	// +listType=map
 	// +listMapKey=type
 	// +optional

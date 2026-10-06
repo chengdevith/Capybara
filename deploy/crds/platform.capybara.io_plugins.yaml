@@ -1,0 +1,407 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.22.0
+  name: plugins.platform.capybara.io
+spec:
+  group: platform.capybara.io
+  names:
+    kind: Plugin
+    listKind: PluginList
+    plural: plugins
+    singular: plugin
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.version
+      name: Version
+      type: string
+    - jsonPath: .spec.repository
+      name: Repository
+      type: string
+    - jsonPath: .status.available
+      name: Available
+      type: boolean
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Plugin is an entry in the plugin catalog.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              PluginSpec is a catalog entry, written by the catalog sync from the
+              plugin's manifest (plugins/<name>/plugin.yaml).
+            properties:
+              backend:
+                description: Backend is the plugin backend's name, if it has one.
+                type: string
+              chart:
+                description: ChartRef is a plugin's Helm chart.
+                properties:
+                  archive:
+                    description: Archive path inside the plugin directory.
+                    type: string
+                  namespace:
+                    type: string
+                  releaseName:
+                    type: string
+                  sha256:
+                    description: SHA256 of the archive (hex). Verified before every
+                      use.
+                    type: string
+                  values:
+                    description: Values file inside the plugin directory (the preset).
+                    type: string
+                  version:
+                    description: Version of the chart, for display and upgrades.
+                    type: string
+                required:
+                - archive
+                - namespace
+                - releaseName
+                - sha256
+                - version
+                type: object
+              configSchema:
+                description: ConfigSchema is a JSON Schema (subset) for the installation's
+                  config.
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              connectNamespaceKey:
+                description: |-
+                  Namespace for connect mode's backend account when the config does not
+                  name one (the namespace of the connected service).
+                type: string
+              dependencies:
+                items:
+                  type: string
+                type: array
+              description:
+                type: string
+              displayName:
+                type: string
+              extensionApi:
+                description: ExtensionAPI the UI bundle was written for.
+                type: integer
+              extensionPoints:
+                items:
+                  type: string
+                type: array
+              icon:
+                description: Icon is a small SVG (data URI).
+                type: string
+              modes:
+                items:
+                  description: InstallMode is how a plugin is attached to a cluster.
+                  enum:
+                  - install
+                  - connect
+                  type: string
+                minItems: 1
+                type: array
+              permissions:
+                description: PluginPermissions are everything a plugin may do, shown
+                  before install.
+                properties:
+                  connect:
+                    description: Installer credential, connect mode (only the backend's
+                      account).
+                    properties:
+                      clusterRules:
+                        description: Cluster-wide rules (a ClusterRole).
+                        items:
+                          description: |-
+                            PolicyRule mirrors an RBAC rule (kept here so this package depends only
+                            on apimachinery).
+                          properties:
+                            apiGroups:
+                              items:
+                                type: string
+                              type: array
+                            resourceNames:
+                              items:
+                                type: string
+                              type: array
+                            resources:
+                              items:
+                                type: string
+                              type: array
+                            verbs:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - verbs
+                          type: object
+                        type: array
+                      namespaceRules:
+                        description: Rules in the plugin's namespace (a Role there).
+                        items:
+                          description: |-
+                            PolicyRule mirrors an RBAC rule (kept here so this package depends only
+                            on apimachinery).
+                          properties:
+                            apiGroups:
+                              items:
+                                type: string
+                              type: array
+                            resourceNames:
+                              items:
+                                type: string
+                              type: array
+                            resources:
+                              items:
+                                type: string
+                              type: array
+                            verbs:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - verbs
+                          type: object
+                        type: array
+                    type: object
+                  install:
+                    description: Installer credential, install mode (deploying the
+                      chart).
+                    properties:
+                      clusterRules:
+                        description: Cluster-wide rules (a ClusterRole).
+                        items:
+                          description: |-
+                            PolicyRule mirrors an RBAC rule (kept here so this package depends only
+                            on apimachinery).
+                          properties:
+                            apiGroups:
+                              items:
+                                type: string
+                              type: array
+                            resourceNames:
+                              items:
+                                type: string
+                              type: array
+                            resources:
+                              items:
+                                type: string
+                              type: array
+                            verbs:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - verbs
+                          type: object
+                        type: array
+                      namespaceRules:
+                        description: Rules in the plugin's namespace (a Role there).
+                        items:
+                          description: |-
+                            PolicyRule mirrors an RBAC rule (kept here so this package depends only
+                            on apimachinery).
+                          properties:
+                            apiGroups:
+                              items:
+                                type: string
+                              type: array
+                            resourceNames:
+                              items:
+                                type: string
+                              type: array
+                            resources:
+                              items:
+                                type: string
+                              type: array
+                            verbs:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - verbs
+                          type: object
+                        type: array
+                    type: object
+                  services:
+                    description: |-
+                      What the plugin backend may reach in a cluster where the plugin is
+                      installed and enabled.
+                    items:
+                      description: |-
+                        ServiceAccess is one cluster service a plugin's backend (or its UI,
+                        through the backend) may reach via the Kubernetes service proxy.
+                      properties:
+                        methods:
+                          description: HTTP methods allowed.
+                          items:
+                            type: string
+                          type: array
+                        modes:
+                          description: 'Modes this access applies to (default: all).'
+                          items:
+                            description: InstallMode is how a plugin is attached to
+                              a cluster.
+                            enum:
+                            - install
+                            - connect
+                            type: string
+                          type: array
+                        name:
+                          description: Name the backend uses for it, e.g. "prometheus".
+                          type: string
+                        namespace:
+                          description: |-
+                            Namespace and Service in install mode. In connect mode they come from
+                            the installation's config (keys namespaceKey/serviceKey).
+                          type: string
+                        namespaceKey:
+                          description: Config keys holding namespace, service and
+                            port in connect mode.
+                          type: string
+                        paths:
+                          description: Path prefixes allowed (after the service proxy
+                            prefix).
+                          items:
+                            type: string
+                          type: array
+                        port:
+                          description: Port name or number ("http-web", "9090"); "https:<port>"
+                            for TLS.
+                          type: string
+                        portKey:
+                          type: string
+                        service:
+                          type: string
+                        serviceKey:
+                          type: string
+                      required:
+                      - methods
+                      - name
+                      - paths
+                      type: object
+                    type: array
+                type: object
+              repository:
+                type: string
+              scope:
+                enum:
+                - per-cluster
+                - global
+                type: string
+              steps:
+                items:
+                  description: InstallStep is one stage shown while installing.
+                  properties:
+                    check:
+                      description: StepCheck is how the controller decides a step
+                        is done.
+                      properties:
+                        contains:
+                          type: string
+                        kind:
+                          description: 'workload: kind and name (in the plugin namespace).'
+                          type: string
+                        name:
+                          type: string
+                        path:
+                          type: string
+                        service:
+                          description: |-
+                            service: the ServiceAccess name, a GET path, and a substring the
+                            response must contain.
+                          type: string
+                        type:
+                          description: |-
+                            helm (the release is deployed), workload (a Deployment/StatefulSet/
+                            DaemonSet is ready), service (a declared service answers a path).
+                          enum:
+                          - helm
+                          - workload
+                          - service
+                          type: string
+                      required:
+                      - type
+                      type: object
+                    modes:
+                      description: 'Modes the step applies to (default: all).'
+                      items:
+                        description: InstallMode is how a plugin is attached to a
+                          cluster.
+                        enum:
+                        - install
+                        - connect
+                        type: string
+                      type: array
+                    name:
+                      type: string
+                    title:
+                      type: string
+                  required:
+                  - check
+                  - name
+                  - title
+                  type: object
+                type: array
+              ui:
+                description: UIBundle is a plugin's browser code.
+                properties:
+                  bundle:
+                    description: Bundle path inside the plugin directory (an ES module).
+                    type: string
+                  sha256:
+                    description: SHA256 of the bundle (hex). Bundles are served only
+                      when it matches.
+                    type: string
+                required:
+                - bundle
+                - sha256
+                type: object
+              version:
+                type: string
+            required:
+            - displayName
+            - extensionApi
+            - modes
+            - repository
+            - scope
+            - version
+            type: object
+          status:
+            description: PluginStatus says whether the entry can be installed.
+            properties:
+              available:
+                description: |-
+                  Available is false when the manifest, an archive or a hash is wrong,
+                  or the repository is untrusted; Problem says why.
+                type: boolean
+              problem:
+                type: string
+              syncedAt:
+                format: date-time
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
