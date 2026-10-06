@@ -15,11 +15,13 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/util/exec"
+	"k8s.io/klog/v2"
 	"k8s.io/streaming/pkg/httpstream"
 
 	"github.com/capybara/capybara/pkg/audit"
@@ -277,7 +279,9 @@ func (h *ExecHandler) session(parent context.Context, conn *websocket.Conn, u *u
 		}
 	}()
 
-	err = ex.StreamWithContext(ctx, remotecommand.StreamOptions{
+	// client-go takes its logger from the context; see execlog.go.
+	streamCtx := klog.NewContext(ctx, logr.FromSlogHandler(quietCloseHandler{h.Logger.Handler()}))
+	err = ex.StreamWithContext(streamCtx, remotecommand.StreamOptions{
 		Stdin:             stdinR,
 		Stdout:            &wsWriter{ctx: parent, conn: conn},
 		Tty:               true,
