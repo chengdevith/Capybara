@@ -23,6 +23,7 @@ import (
 	"github.com/capybara/capybara/pkg/audit"
 	"github.com/capybara/capybara/pkg/cluster"
 	"github.com/capybara/capybara/pkg/config"
+	"github.com/capybara/capybara/pkg/plugin"
 	"github.com/capybara/capybara/pkg/project"
 )
 
@@ -77,11 +78,27 @@ func run(args []string) error {
 		logger.Warn("listening on a non-loopback address; there is no authentication yet", "addr", cfg.Addr)
 	}
 
+	var backendNames []string
+	for name := range cfg.PluginBackends {
+		backendNames = append(backendNames, name)
+	}
+	creds, err := plugin.IssueBackendCredentials(cfg.PluginTokenDir, backendNames)
+	if err != nil {
+		return fmt.Errorf("plugin backend credentials: %w", err)
+	}
+	if cfg.PluginDevDir != "" {
+		logger.Warn("serving unpinned plugin UI bundles (dev only)", "dir", cfg.PluginDevDir)
+	}
+
 	srv := &http.Server{
 		Addr: cfg.Addr,
 		Handler: newHandler(deps{
 			cfg: cfg, clusters: registry, auditor: auditor, auditLog: auditStore, logger: logger,
 			sizes: projectCfg,
+			plugins: &plugin.API{Mgmt: mgmt, MgmtErr: mgmtErr, Clusters: registry, Auditor: auditor, Logger: logger,
+				Bundles: &plugin.Bundles{Mgmt: mgmt, PluginsDir: cfg.PluginsDir, DevDir: cfg.PluginDevDir}},
+			backends: &plugin.BackendProxy{Backends: cfg.PluginBackends, Logger: logger},
+			scoped:   &plugin.ScopedProxy{Mgmt: mgmt, Credentials: creds, Clusters: registry, Logger: logger},
 			clusterAPI: &cluster.API{
 				Mgmt: mgmt, MgmtErr: mgmtErr, Registry: registry, Auditor: auditor, Logger: logger,
 				Opts: cluster.ValidateOptions{AllowInsecure: cfg.AllowInsecureKubeconfig},

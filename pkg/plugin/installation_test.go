@@ -186,6 +186,16 @@ func TestConnectModeLifecycle(t *testing.T) {
 		t.Fatal("refused pre-flight must not create anything")
 	}
 
+	// A refused installation that never applied anything goes away at once.
+	refused := in
+	if err := f.c.Delete(ctx, &refused); err != nil {
+		t.Fatal(err)
+	}
+	f.reconcile(t, "monitoring.dev-x")
+	if err := f.c.Get(ctx, types.NamespacedName{Name: "monitoring.dev-x"}, &refused); !apierrors.IsNotFound(err) {
+		t.Fatalf("refused installation kept: %v", err)
+	}
+
 	// With a working installer: the backend's account, its exact Role and
 	// a token Secret in mgmt.
 	f.setInstaller(t, "dev-1", nil)

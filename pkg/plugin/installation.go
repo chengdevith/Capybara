@@ -601,6 +601,10 @@ func (r *InstallationReconciler) uninstall(ctx context.Context, in *v1alpha1.Plu
 		}
 		return done()
 	}
+	if st.AppliedHash == "" && st.InstalledVersion == "" {
+		// Never applied (e.g. refused by pre-flight): nothing to remove.
+		return done()
+	}
 	if pluginErr != nil {
 		return r.blocked(ctx, in, st, "plugin "+in.Spec.Plugin+" is no longer in the catalog; cannot uninstall cleanly")
 	}

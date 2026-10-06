@@ -75,6 +75,7 @@ func (a *API) ready(w http.ResponseWriter) bool {
 type conflictError struct {
 	msg      string
 	projects []string
+	plugins  []string
 }
 
 func (e *conflictError) Error() string { return e.msg }
@@ -96,7 +97,7 @@ func writeErr(w http.ResponseWriter, err error) {
 	case errors.As(err, &in):
 		httpjson.Error(w, http.StatusBadRequest, in.Msg)
 	case errors.As(err, &c):
-		httpjson.Write(w, http.StatusConflict, map[string]any{"error": c.msg, "projects": c.projects})
+		httpjson.Write(w, http.StatusConflict, map[string]any{"error": c.msg, "projects": c.projects, "plugins": c.plugins})
 	case errors.Is(err, ErrExists):
 		httpjson.Error(w, http.StatusConflict, err.Error())
 	case errors.Is(err, ErrNotFound):
@@ -394,6 +395,24 @@ func (a *API) projectsOn(ctx context.Context, id string) ([]v1alpha1.Project, er
 	return out, nil
 }
 
+// pluginsOn lists plugin installations on a cluster, except those already
+// being removed with their remote resources abandoned.
+func (a *API) pluginsOn(ctx context.Context, id string) ([]v1alpha1.PluginInstallation, error) {
+	var l v1alpha1.PluginInstallationList
+	if err := a.Mgmt.List(ctx, &l); err != nil {
+		return nil, err
+	}
+	var out []v1alpha1.PluginInstallation
+	for _, in := range l.Items {
+		abandoned := in.DeletionTimestamp != nil && in.Annotations[v1alpha1.AnnotationAbandonRemote] == "true"
+		if in.Spec.Cluster == id && !abandoned {
+			out = append(out, in)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
 // remove unregisters a cluster. ?confirm must repeat the id. While Projects
 // use it, removal is refused unless ?abandon=true: their remote resources
 // are then left in place and the Projects removed (each linked to this
@@ -423,10 +442,19 @@ func (a *API) remove(w http.ResponseWriter, r *http.Request) {
 		for _, p := range projects {
 			names = append(names, p.Name)
 		}
-		if len(projects) > 0 && !abandon {
+		installs, err := a.pluginsOn(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		var pluginNames []string
+		for _, in := range installs {
+			pluginNames = append(pluginNames, in.Spec.Plugin)
+		}
+		if (len(projects) > 0 || len(installs) > 0) && !abandon {
 			return "", &conflictError{
-				msg:      fmt.Sprintf("%d Project(s) use this cluster; remove them first or choose to abandon their remote resources", len(projects)),
-				projects: names,
+				msg: fmt.Sprintf("%d Project(s) and %d plugin installation(s) use this cluster; remove them first or choose to abandon their remote resources",
+					len(projects), len(installs)),
+				projects: names, plugins: pluginNames,
 			}
 		}
 		user := "unknown"
@@ -449,11 +477,34 @@ func (a *API) remove(w http.ResponseWriter, r *http.Request) {
 				return "", fmt.Errorf("delete Project %s: %w", p.Name, err)
 			}
 		}
+		for i := range installs {
+			in := &installs[i]
+			patch := client.MergeFrom(in.DeepCopy())
+			if in.Annotations == nil {
+				in.Annotations = map[string]string{}
+			}
+			in.Annotations[v1alpha1.AnnotationAbandonRemote] = "true"
+			in.Annotations[v1alpha1.AnnotationRequestAuditID] = audit.IDFrom(ctx)
+			in.Annotations[v1alpha1.AnnotationRequestedBy] = user
+			if err := a.Mgmt.Patch(ctx, in, patch); err != nil {
+				return "", fmt.Errorf("mark plugin installation %s: %w", in.Name, err)
+			}
+			if err := a.Mgmt.Delete(ctx, in); err != nil && !apierrors.IsNotFound(err) {
+				return "", fmt.Errorf("delete plugin installation %s: %w", in.Name, err)
+			}
+		}
 		if err := Unregister(ctx, a.Mgmt, id); err != nil {
 			return "", err
 		}
+		var parts []string
 		if len(names) > 0 {
-			return "removed; remote resources abandoned for Projects " + strings.Join(names, ", "), nil
+			parts = append(parts, "Projects "+strings.Join(names, ", "))
+		}
+		if len(pluginNames) > 0 {
+			parts = append(parts, "plugins "+strings.Join(pluginNames, ", "))
+		}
+		if len(parts) > 0 {
+			return "removed; remote resources abandoned for " + strings.Join(parts, " and "), nil
 		}
 		return "removed", nil
 	})

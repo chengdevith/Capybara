@@ -75,8 +75,8 @@ func ParseManifest(raw []byte) (*Manifest, error) {
 	}
 	var problems []string
 	add := func(format string, args ...any) { problems = append(problems, fmt.Sprintf(format, args...)) }
-	if !nameRE.MatchString(m.Name) {
-		add("name must be a short DNS label")
+	if !nameRE.MatchString(m.Name) || m.Name == "installations" {
+		add("name must be a short DNS label (not \"installations\")")
 	}
 	if m.DisplayName == "" {
 		add("displayName is required")

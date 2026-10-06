@@ -261,14 +261,16 @@ func TestAPIRemove(t *testing.T) {
 		return &v1alpha1.Project{ObjectMeta: metav1.ObjectMeta{Name: name, Finalizers: []string{"platform.capybara.io/cleanup"}},
 			Spec: v1alpha1.ProjectSpec{Cluster: clusterID, Namespace: name, Owner: "o", Size: "S"}}
 	}
-	f := newAPIFixture(t, cl, secret, project("shop", "dev-9"), project("blog", "dev-9"), project("other", "dev-1"))
+	inst := &v1alpha1.PluginInstallation{ObjectMeta: metav1.ObjectMeta{Name: "monitoring.dev-9", Finalizers: []string{v1alpha1.FinalizerPluginUninstall}},
+		Spec: v1alpha1.PluginInstallationSpec{Plugin: "monitoring", Cluster: "dev-9", Mode: v1alpha1.ModeInstall, Version: "0.1.0"}}
+	f := newAPIFixture(t, cl, secret, project("shop", "dev-9"), project("blog", "dev-9"), project("other", "dev-1"), inst)
 	ctx := context.Background()
 
 	if code, _ := f.do(t, http.MethodDelete, "/api/clusters/dev-9?confirm=dev-1", nil); code != http.StatusBadRequest {
 		t.Fatalf("confirm mismatch: status %d", code)
 	}
 	code, body := f.do(t, http.MethodDelete, "/api/clusters/dev-9?confirm=dev-9", nil)
-	if code != http.StatusConflict || !strings.Contains(body, `"projects":["blog","shop"]`) {
+	if code != http.StatusConflict || !strings.Contains(body, `"projects":["blog","shop"]`) || !strings.Contains(body, `"plugins":["monitoring"]`) {
 		t.Fatalf("refusal: status %d: %s", code, body)
 	}
 	if err := f.mgmt.Get(ctx, types.NamespacedName{Name: "dev-9"}, &v1alpha1.Cluster{}); err != nil {
@@ -280,7 +282,7 @@ func TestAPIRemove(t *testing.T) {
 	}
 	recs := f.records(t)
 	removed := recs[0]
-	if removed.Action != "remove" || removed.Result != audit.ResultSuccess || !strings.Contains(removed.Detail, "blog, shop") {
+	if removed.Action != "remove" || removed.Result != audit.ResultSuccess || !strings.Contains(removed.Detail, "blog, shop") || !strings.Contains(removed.Detail, "plugins monitoring") {
 		t.Fatalf("audit = %+v", removed)
 	}
 	for _, name := range []string{"shop", "blog"} {
@@ -292,6 +294,11 @@ func TestAPIRemove(t *testing.T) {
 			p.Annotations[v1alpha1.AnnotationDeleteAuditID] != removed.ID || p.Annotations[v1alpha1.AnnotationDeletedBy] != "dev" {
 			t.Errorf("project %s = %+v (deleting %v)", name, p.Annotations, p.DeletionTimestamp)
 		}
+	}
+	var pi v1alpha1.PluginInstallation
+	_ = f.mgmt.Get(ctx, types.NamespacedName{Name: "monitoring.dev-9"}, &pi)
+	if pi.DeletionTimestamp == nil || pi.Annotations[v1alpha1.AnnotationAbandonRemote] != "true" || pi.Annotations[v1alpha1.AnnotationRequestAuditID] != removed.ID {
+		t.Errorf("plugin installation = %+v", pi.Annotations)
 	}
 	var other v1alpha1.Project
 	_ = f.mgmt.Get(ctx, types.NamespacedName{Name: "other"}, &other)

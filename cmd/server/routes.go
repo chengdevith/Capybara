@@ -11,6 +11,7 @@ import (
 	"github.com/capybara/capybara/pkg/cluster"
 	"github.com/capybara/capybara/pkg/config"
 	"github.com/capybara/capybara/pkg/httpjson"
+	"github.com/capybara/capybara/pkg/plugin"
 	"github.com/capybara/capybara/pkg/project"
 	"github.com/capybara/capybara/pkg/proxy"
 	"github.com/capybara/capybara/pkg/resource"
@@ -21,6 +22,9 @@ type deps struct {
 	cfg        config.Config
 	clusters   cluster.Provider
 	clusterAPI *cluster.API
+	plugins    *plugin.API
+	backends   *plugin.BackendProxy
+	scoped     *plugin.ScopedProxy
 	auditor    *audit.Auditor
 	auditLog   audit.Reader
 	projects   *project.API
@@ -37,6 +41,8 @@ func newHandler(d deps) http.Handler {
 	d.projects.Register(api)
 	(&action.Handlers{Clusters: clusters, Auditor: d.auditor, Protected: cfg.Protected(), Logger: logger}).Register(api)
 	d.clusterAPI.Register(api)
+	d.plugins.Register(api)
+	d.backends.Register(api)
 	// Any method is routed so the proxy can answer non-GET with 405 itself.
 	api.Handle("/api/clusters/{id}/k8s/{path...}", proxy.Handler(clusters, logger))
 	api.Handle("GET /api/clusters/{id}/watch", stream.WatchHandler(clusters, logger))
@@ -70,6 +76,9 @@ func newHandler(d deps) http.Handler {
 		httpjson.Write(w, http.StatusOK, map[string]string{"status": "ok", "audit": auditState, "projectConfig": sizes})
 	})
 	root.Handle("/api/", auth.Middleware(api))
+	// Plugin backends reach their declared services here with the
+	// credential Capybara issued them; no user identity applies.
+	d.scoped.Register(root)
 
 	return logRequests(logger, root)
 }
