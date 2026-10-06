@@ -35,7 +35,7 @@ const conditionColumns: DataTableColumns<Condition> = [
   { key: 'type', title: 'Condition', width: 150 },
   { key: 'status', title: 'Status', width: 80, render: (c) => statusTag(c.status, c.status === 'True' ? 'success' : 'error') },
   { key: 'reason', title: 'Reason', width: 170 },
-  { key: 'message', title: 'Message', render: (c) => c.message || '—' },
+  { key: 'message', title: 'Message', minWidth: 280, render: (c) => c.message || '—' },
   { key: 'since', title: 'Since', width: 80, render: (c) => age(c.lastTransitionTime, now.value) },
 ]
 
@@ -167,6 +167,7 @@ const namespaceLink = computed(() =>
       <NCard
         title="Conditions"
         size="small"
+        class="wide"
       >
         <NDataTable
           size="small"

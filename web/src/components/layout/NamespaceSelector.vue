@@ -91,7 +91,7 @@ const modeOptions = [
   gap: 4px;
 }
 .mode {
-  width: 120px;
+  width: 140px;
 }
 .ns-selector {
   width: 240px;
