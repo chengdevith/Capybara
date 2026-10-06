@@ -70,6 +70,9 @@ clusters:
 	if again, _ := r.Client("dev-1"); again != c1 {
 		t.Error("client should be cached")
 	}
+	if d, err := r.Dynamic("dev-1"); err != nil || d == nil {
+		t.Fatalf("Dynamic(dev-1): %v", err)
+	}
 	cfg, err := r.RESTConfig("dev-1")
 	if err != nil || cfg.Host != "https://127.0.0.1:6551" {
 		t.Fatalf("RESTConfig(dev-1) = %v, %v", cfg, err)

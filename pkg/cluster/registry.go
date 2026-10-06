@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"sync"
 
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -33,7 +34,12 @@ type Info struct {
 // Provider is what handlers need from the registry. Tests use fakes.
 type Provider interface {
 	List() []Info
+	// Client is the typed clientset for a cluster.
 	Client(id string) (kubernetes.Interface, error)
+	// Dynamic is the dynamic client, for any resource by GroupVersionResource.
+	Dynamic(id string) (dynamic.Interface, error)
+	// RESTConfig is a copy of the cluster's REST config (for the passthrough proxy).
+	RESTConfig(id string) (*rest.Config, error)
 }
 
 // fileConfig is the format of the static clusters file.
@@ -50,9 +56,10 @@ type entry struct {
 	info           Info
 	kubeconfigPath string
 
-	mu     sync.Mutex
-	config *rest.Config
-	client kubernetes.Interface
+	mu      sync.Mutex
+	config  *rest.Config
+	client  kubernetes.Interface
+	dynamic dynamic.Interface
 }
 
 // Registry holds the known clusters in file order.
@@ -119,6 +126,15 @@ func (r *Registry) Client(id string) (kubernetes.Interface, error) {
 	return e.client, nil
 }
 
+// Dynamic returns the cached dynamic client for id, building it on first use.
+func (r *Registry) Dynamic(id string) (dynamic.Interface, error) {
+	e, err := r.load(id)
+	if err != nil {
+		return nil, err
+	}
+	return e.dynamic, nil
+}
+
 // RESTConfig returns a copy of the REST config for id.
 func (r *Registry) RESTConfig(id string) (*rest.Config, error) {
 	e, err := r.load(id)
@@ -148,7 +164,11 @@ func (r *Registry) load(id string) (*entry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cluster %q: %w", id, err)
 	}
-	e.config, e.client = cfg, client
+	dyn, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("cluster %q: %w", id, err)
+	}
+	e.config, e.client, e.dynamic = cfg, client, dyn
 	return e, nil
 }
 

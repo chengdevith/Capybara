@@ -9,7 +9,7 @@ import (
 	"github.com/capybara/capybara/pkg/cluster"
 	"github.com/capybara/capybara/pkg/config"
 	"github.com/capybara/capybara/pkg/httpjson"
-	"github.com/capybara/capybara/pkg/resource"
+	"github.com/capybara/capybara/pkg/proxy"
 )
 
 // newHandler wires every route. All /api routes pass through the auth
@@ -17,8 +17,8 @@ import (
 func newHandler(cfg config.Config, clusters cluster.Provider, logger *slog.Logger) http.Handler {
 	api := http.NewServeMux()
 	api.Handle("GET /api/clusters", cluster.ListHandler(clusters, cfg.ClusterTimeout))
-	// TEMPORARY: removed in Phase 1 (replaced by the passthrough proxy).
-	api.Handle("GET /api/clusters/{id}/pods", resource.PodsHandler(clusters))
+	// Any method is routed so the proxy can answer non-GET with 405 itself.
+	api.Handle("/api/clusters/{id}/k8s/{path...}", proxy.Handler(clusters, logger))
 	api.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		httpjson.Error(w, http.StatusNotFound, "not found")
 	})
