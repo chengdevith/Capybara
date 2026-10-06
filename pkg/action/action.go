@@ -102,15 +102,16 @@ func (t Target) op(clusterID, act string) audit.Op {
 }
 
 // errKubeconfigSecret refuses actions on Capybara's own kubeconfig Secrets.
-var errKubeconfigSecret = fmt.Errorf("%w: this Secret holds a cluster kubeconfig; manage it from the Clusters page", audit.ErrDenied)
+var errKubeconfigSecret = fmt.Errorf("%w: this Secret holds a Capybara credential (cluster kubeconfig, installer or plugin credential); manage it from the Clusters or Marketplace pages", audit.ErrDenied)
 
-// guardKubeconfigSecret refuses reveal, edit and delete of Secrets of the
-// kubeconfig type, on any cluster: their values never leave Capybara.
+// guardKubeconfigSecret refuses reveal, edit and delete of Secrets of
+// Capybara's credential types, on any cluster: their values never leave
+// Capybara.
 func (h *Handlers) guardKubeconfigSecret(ctx context.Context, id string, t Target, declaredType string) error {
 	if !t.isSecret() {
 		return nil
 	}
-	if declaredType == v1alpha1.KubeconfigSecretType {
+	if v1alpha1.IsCredentialSecretType(declaredType) {
 		return errKubeconfigSecret
 	}
 	client, err := h.Clusters.Client(id)
@@ -123,7 +124,7 @@ func (h *Handlers) guardKubeconfigSecret(ctx context.Context, id string, t Targe
 		return nil
 	case err != nil:
 		return err
-	case string(s.Type) == v1alpha1.KubeconfigSecretType:
+	case v1alpha1.IsCredentialSecretType(string(s.Type)):
 		return errKubeconfigSecret
 	}
 	return nil

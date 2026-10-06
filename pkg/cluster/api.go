@@ -47,6 +47,8 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/clusters", a.register)
 	mux.HandleFunc("PATCH /api/clusters/{id}", a.update)
 	mux.HandleFunc("PUT /api/clusters/{id}/kubeconfig", a.rotate)
+	mux.HandleFunc("PUT /api/clusters/{id}/installer", a.setInstaller)
+	mux.HandleFunc("DELETE /api/clusters/{id}/installer", a.removeInstaller)
 	mux.HandleFunc("DELETE /api/clusters/{id}", a.remove)
 	mux.HandleFunc("GET /api/clusters/{id}/overview", a.overview)
 }
@@ -327,6 +329,51 @@ func (a *API) rotate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpjson.Write(w, http.StatusOK, map[string]any{"summary": summary})
+}
+
+// setInstaller stores the cluster's installer credential (write-only).
+func (a *API) setInstaller(w http.ResponseWriter, r *http.Request) {
+	if !a.ready(w) {
+		return
+	}
+	var b kubeconfigBody
+	if err := decode(w, r, &b); err != nil {
+		writeErr(w, err)
+		return
+	}
+	id := r.PathValue("id")
+	op := audit.Op{Cluster: id, Kind: "Cluster", Name: id, Action: "set-installer"}
+	var summary *Summary
+	err := a.Auditor.Do(r.Context(), op, func(ctx context.Context) (string, error) {
+		s, err := SetInstaller(ctx, a.Mgmt, id, []byte(b.Kubeconfig), a.Opts)
+		if err != nil {
+			return "", err
+		}
+		summary = s
+		return fmt.Sprintf("installer: %s auth as %s", s.AuthMethod, nonEmpty(s.Identity)), nil
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"summary": summary})
+}
+
+// removeInstaller drops the installer credential; plugin installs are then
+// disabled on the cluster.
+func (a *API) removeInstaller(w http.ResponseWriter, r *http.Request) {
+	if !a.ready(w) {
+		return
+	}
+	id := r.PathValue("id")
+	op := audit.Op{Cluster: id, Kind: "Cluster", Name: id, Action: "remove-installer"}
+	if err := a.Auditor.Do(r.Context(), op, func(ctx context.Context) (string, error) {
+		return "plugin installs disabled", RemoveInstaller(ctx, a.Mgmt, id)
+	}); err != nil {
+		writeErr(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"removed": true})
 }
 
 // projectsOn lists the Projects on a cluster, except those already being

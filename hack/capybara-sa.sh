@@ -6,6 +6,14 @@
 #
 # Usage: hack/capybara-sa.sh <cluster-id> [--with-secrets] [--sa NAME] [--duration 720h]
 #        hack/capybara-sa.sh <cluster-id> --sa NAME --delete
+#        hack/capybara-sa.sh <cluster-id> --installer PLUGIN [--connect --set key=value ...]
+#
+# --installer creates the separate installer account (capybara-installer)
+# used only by the plugin controller, with the plugin's declared installer
+# permissions for one mode (from plugins/PLUGIN/plugin.yaml, via
+# cmd/plugin-rbac). Install mode is broad (what the chart creates);
+# --connect binds only a Role in the connected service's namespace.
+# Writes .local/kubeconfig/capybara-<id>-installer.yaml.
 #
 # Not cluster-admin. Without --with-secrets the account has NO access to
 # Secrets (RBAC cannot grant metadata-only reads); with it, it can read and
@@ -15,19 +23,25 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-usage="usage: hack/capybara-sa.sh <cluster-id> [--with-secrets] [--sa NAME] [--duration 720h] [--delete]"
+usage="usage: hack/capybara-sa.sh <cluster-id> [--with-secrets] [--sa NAME] [--duration 720h] [--delete] [--installer PLUGIN [--connect] [--set k=v ...]]"
 id="${1:?$usage}"
 shift
 with_secrets=false
 sa=capybara
 duration=720h
 delete=false
+installer=""
+mode=install
+sets=()
 while (($#)); do
   case "$1" in
     --with-secrets) with_secrets=true ;;
     --sa) sa="${2:?$usage}"; shift ;;
     --duration) duration="${2:?$usage}"; shift ;;
     --delete) delete=true ;;
+    --installer) installer="${2:?$usage}"; sa=capybara-installer; shift ;;
+    --connect) mode=connect ;;
+    --set) sets+=(-set "${2:?$usage}"); shift ;;
     *) echo "$usage" >&2; exit 1 ;;
   esac
   shift
@@ -37,6 +51,8 @@ done
 # The default account keeps its original names; others get their own.
 if [[ "$sa" == capybara ]]; then
   manager_binding=capybara-manager secrets_binding=capybara-secrets suffix=sa
+elif [[ -n "$installer" || "$sa" == capybara-installer ]]; then
+  manager_binding="" secrets_binding="" suffix=installer
 else
   manager_binding="capybara-manager-${sa}" secrets_binding="capybara-secrets-${sa}" suffix="${sa#capybara-}"
 fi
@@ -50,13 +66,30 @@ k() { kubectl --kubeconfig "$admin" "$@"; }
 
 if $delete; then
   [[ "$sa" != capybara ]] || { echo "refusing to delete the registered capybara account" >&2; exit 1; }
-  k delete clusterrolebinding "$manager_binding" "$secrets_binding" --ignore-not-found >/dev/null
+  if [[ -n "$manager_binding" ]]; then
+    k delete clusterrolebinding "$manager_binding" "$secrets_binding" --ignore-not-found >/dev/null
+  else
+    k delete clusterrolebinding,rolebinding,clusterrole,role -A -l platform.capybara.io/installer=true --ignore-not-found >/dev/null
+  fi
   k -n capybara-system delete serviceaccount "$sa" --ignore-not-found >/dev/null
   rm -f "$out"
   echo "==> deleted ServiceAccount capybara-system/${sa} and its bindings in ${id}"
   exit 0
 fi
 
+if [[ -n "$installer" ]]; then
+  rbac="$(go run ./cmd/plugin-rbac -plugin "$installer" -mode "$mode" -account "$sa" ${sets[@]+"${sets[@]}"})"
+  k create namespace capybara-system --dry-run=client -o yaml | k apply -f - >/dev/null
+  k -n capybara-system create serviceaccount "$sa" --dry-run=client -o yaml | k apply -f - >/dev/null
+  # One mode at a time: drop this plugin's earlier installer bindings.
+  k delete clusterrolebinding,rolebinding -A -l "platform.capybara.io/installer=true,platform.capybara.io/plugin=${installer}" \
+    --ignore-not-found >/dev/null
+  if [[ "$mode" == connect ]]; then
+    ns="$(sed -n 's/^  namespace: //p' <<<"$rbac" | head -1)"
+    k create namespace "$ns" --dry-run=client -o yaml | k apply -f - >/dev/null
+  fi
+  k apply -f - >/dev/null <<<"$rbac"
+else
 k apply -f - >/dev/null <<EOF
 apiVersion: v1
 kind: Namespace
@@ -141,7 +174,11 @@ roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: capybar
 subjects: [{ kind: ServiceAccount, name: ${sa}, namespace: capybara-system }]
 EOF
 
-if $with_secrets; then
+fi
+
+if [[ -n "$installer" ]]; then
+  :
+elif $with_secrets; then
   k apply -f - >/dev/null <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -191,4 +228,8 @@ current-context: capybara-${id}
 EOF
 )
 mv "${out}.tmp" "$out"
-echo "==> ${out}: ServiceAccount capybara-system/${sa}, token valid ${duration}, secrets: ${with_secrets}"
+if [[ -n "$installer" ]]; then
+  echo "==> ${out}: installer ServiceAccount capybara-system/${sa} for plugin ${installer} (${mode} mode), token valid ${duration}"
+else
+  echo "==> ${out}: ServiceAccount capybara-system/${sa}, token valid ${duration}, secrets: ${with_secrets}"
+fi

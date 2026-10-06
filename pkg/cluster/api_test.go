@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -178,6 +179,78 @@ func TestAPIRegisterUpdateRotate(t *testing.T) {
 		t.Errorf("audit = %v, want %s", actions, want)
 	}
 	f.noLeak(t, body, body2)
+}
+
+func TestAPIInstallerCredential(t *testing.T) {
+	cl := &v1alpha1.Cluster{ObjectMeta: metav1.ObjectMeta{Name: "dev-9", UID: "u9"},
+		Spec: v1alpha1.ClusterSpec{Environment: v1alpha1.EnvDev, KubeconfigSecret: v1alpha1.SecretRef{Name: "dev-9-kubeconfig"}}}
+	f := newAPIFixture(t, cl)
+	ctx := context.Background()
+	raw := good(t, func(c *clientcmdapi.Config) {
+		c.AuthInfos["u"].Token = jwt("system:serviceaccount:capybara-system:capybara-installer", time.Now().Add(time.Hour))
+	})
+
+	code, body := f.do(t, http.MethodPut, "/api/clusters/dev-9/installer", map[string]string{"kubeconfig": string(raw)})
+	if code != http.StatusOK || !strings.Contains(body, "capybara-installer") {
+		t.Fatalf("set: %d %s", code, body)
+	}
+	var secret corev1.Secret
+	if err := f.mgmt.Get(ctx, types.NamespacedName{Namespace: v1alpha1.SystemNamespace, Name: "dev-9-installer"}, &secret); err != nil {
+		t.Fatal(err)
+	}
+	if secret.Type != v1alpha1.InstallerSecretType || !bytes.Equal(secret.Data[v1alpha1.KubeconfigKey], raw) || len(secret.OwnerReferences) != 1 {
+		t.Errorf("secret = %s %v", secret.Type, secret.OwnerReferences)
+	}
+	_ = f.mgmt.Get(ctx, types.NamespacedName{Name: "dev-9"}, cl)
+	if cl.Spec.InstallerSecret == nil || cl.Spec.InstallerSecret.Name != "dev-9-installer" {
+		t.Fatalf("cluster ref = %+v", cl.Spec.InstallerSecret)
+	}
+	// Replacing keeps one Secret.
+	if code, _ := f.do(t, http.MethodPut, "/api/clusters/dev-9/installer", map[string]string{"kubeconfig": string(raw)}); code != http.StatusOK {
+		t.Fatalf("replace: %d", code)
+	}
+	bad := good(t, func(c *clientcmdapi.Config) { c.AuthInfos["u"].Exec = &clientcmdapi.ExecConfig{Command: "sh"} })
+	if code, _ := f.do(t, http.MethodPut, "/api/clusters/dev-9/installer", map[string]string{"kubeconfig": string(bad)}); code != http.StatusBadRequest {
+		t.Errorf("exec plugin accepted: %d", code)
+	}
+
+	if code, _ := f.do(t, http.MethodDelete, "/api/clusters/dev-9/installer", nil); code != http.StatusOK {
+		t.Fatalf("remove: %d", code)
+	}
+	_ = f.mgmt.Get(ctx, types.NamespacedName{Name: "dev-9"}, cl)
+	if cl.Spec.InstallerSecret != nil {
+		t.Error("reference kept")
+	}
+	if err := f.mgmt.Get(ctx, client.ObjectKeyFromObject(&secret), &corev1.Secret{}); !apierrors.IsNotFound(err) {
+		t.Errorf("secret kept: %v", err)
+	}
+	var actions []string
+	for _, r := range f.records(t) {
+		actions = append(actions, r.Action+"="+string(r.Result))
+	}
+	if strings.Join(actions, " ") != "remove-installer=success set-installer=failure set-installer=success set-installer=success" {
+		t.Errorf("audit = %v", actions)
+	}
+	f.noLeak(t, body)
+}
+
+func TestViewPluginInstalls(t *testing.T) {
+	cond := func(status metav1.ConditionStatus, reason string) v1alpha1.ClusterStatus {
+		return v1alpha1.ClusterStatus{InstallerIdentity: "inst", Conditions: []metav1.Condition{{Type: v1alpha1.ConditionInstallerReady, Status: status, Reason: reason, Message: "m"}}}
+	}
+	for _, c := range []struct {
+		st   v1alpha1.ClusterStatus
+		want string
+	}{
+		{v1alpha1.ClusterStatus{}, "Disabled"},
+		{cond(metav1.ConditionFalse, "NotConfigured"), "Disabled"},
+		{cond(metav1.ConditionFalse, "AuthFailed"), "Error"},
+		{cond(metav1.ConditionTrue, "Ready"), "Enabled"},
+	} {
+		if got := ToView(Info{ID: "x"}, c.st).Status.PluginInstalls; got != c.want {
+			t.Errorf("%+v: %s, want %s", c.st.Conditions, got, c.want)
+		}
+	}
 }
 
 func TestAPIRemove(t *testing.T) {

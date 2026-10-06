@@ -87,8 +87,9 @@ func TestHealthReasons(t *testing.T) {
 	if clock.Before(time.Now()) {
 		clock = time.Now()
 	}
+	installers := NewInstallers(ValidateOptions{}, discard)
 	h := &HealthReconciler{Client: mgmt, Registry: reg, Interval: time.Hour, Timeout: 3 * time.Second,
-		ExpiryWarning: 7 * 24 * time.Hour, Now: func() time.Time { return clock }}
+		ExpiryWarning: 7 * 24 * time.Hour, Now: func() time.Time { return clock }, Installers: installers}
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{Scheme: scheme, Metrics: metricsserver.Options{BindAddress: "0"}})
 	if err != nil {
 		t.Fatal(err)
@@ -101,6 +102,13 @@ func TestHealthReasons(t *testing.T) {
 	register := func(id string, raw []byte) {
 		t.Helper()
 		cl := testCluster(id, "")
+		if id == "healthy" {
+			// The same credentials double as its installer credential.
+			cl.Spec.InstallerSecret = &v1alpha1.SecretRef{Name: InstallerSecretName(id)}
+			inst := testSecret(t, "1", raw)
+			inst.Type = v1alpha1.InstallerSecretType
+			installers.Set(id, inst)
+		}
 		if err := mgmt.Create(ctx, cl); err != nil {
 			t.Fatal(err)
 		}
@@ -145,7 +153,14 @@ func TestHealthReasons(t *testing.T) {
 		t.Errorf("expiry condition = %+v (cert expires %s, clock %s)", c, notAfter, clock)
 	}
 
+	if c := meta.FindStatusCondition(ok.Conditions, v1alpha1.ConditionInstallerReady); c == nil || c.Status != "True" || ok.InstallerIdentity != "capybara-test" {
+		t.Errorf("installer condition = %+v (identity %q)", c, ok.InstallerIdentity)
+	}
+
 	bad := waitReason("badtoken", v1alpha1.ReasonAuthFailed)
+	if c := meta.FindStatusCondition(bad.Conditions, v1alpha1.ConditionInstallerReady); c == nil || c.Reason != "NotConfigured" {
+		t.Errorf("no installer: condition = %+v", c)
+	}
 	if c := meta.FindStatusCondition(bad.Conditions, v1alpha1.ConditionReachable); c == nil || c.Status != "True" {
 		t.Errorf("auth failure must still count as reachable: %+v", c)
 	}

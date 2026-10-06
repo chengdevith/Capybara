@@ -106,8 +106,24 @@ func run(args []string) error {
 		return err
 	}
 
+	// Installer credentials come through a separate cache that only this
+	// controller builds; the API server never sees them.
+	installers := cluster.NewInstallers(cluster.ValidateOptions{AllowInsecure: cfg.AllowInsecureKubeconfig}, logger)
+	installerCache, err := cluster.NewInstallerCache(mgmt, scheme)
+	if err != nil {
+		return err
+	}
+	if err := mgr.Add(installerCache); err != nil {
+		return err
+	}
+	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		return cluster.SyncInstallers(ctx, installerCache, installers)
+	})); err != nil {
+		return err
+	}
+
 	if err := (&cluster.HealthReconciler{
-		Client: mgr.GetClient(), Registry: registry,
+		Client: mgr.GetClient(), Registry: registry, Installers: installers,
 		Interval: cfg.ClusterCheckInterval, ExpiryWarning: cfg.CredentialExpiryWarning,
 	}).SetupWithManager(mgr); err != nil {
 		return err

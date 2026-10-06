@@ -141,6 +141,83 @@ func UpdateInfo(ctx context.Context, c client.Client, id string, displayName *st
 	return &cl, c.Update(ctx, &cl)
 }
 
+// SetInstaller validates an installer kubeconfig and stores it as the
+// cluster's installer Secret (created or replaced), referenced from the
+// Cluster. Only the plugin controller ever reads it.
+func SetInstaller(ctx context.Context, c client.Client, id string, raw []byte, opts ValidateOptions) (*Summary, error) {
+	_, summary, err := ParseKubeconfig(raw, opts)
+	if err != nil {
+		return nil, err
+	}
+	var cl v1alpha1.Cluster
+	if err := c.Get(ctx, types.NamespacedName{Name: id}, &cl); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	name := InstallerSecretName(id)
+	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: v1alpha1.SystemNamespace, Name: name}}
+	err = c.Get(ctx, client.ObjectKeyFromObject(secret), secret)
+	switch {
+	case apierrors.IsNotFound(err):
+		secret = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: v1alpha1.SystemNamespace, Name: name,
+				Labels: map[string]string{v1alpha1.LabelCluster: id, v1alpha1.LabelManagedBy: v1alpha1.ManagedByValue},
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: v1alpha1.GroupVersion.String(), Kind: "Cluster", Name: cl.Name, UID: cl.UID,
+					BlockOwnerDeletion: ptr.To(true),
+				}},
+			},
+			Type: v1alpha1.InstallerSecretType,
+			Data: map[string][]byte{v1alpha1.KubeconfigKey: raw},
+		}
+		if err := c.Create(ctx, secret); err != nil {
+			return nil, fmt.Errorf("store installer kubeconfig: %w", err)
+		}
+	case err != nil:
+		return nil, err
+	case secret.Type != v1alpha1.InstallerSecretType:
+		return nil, fmt.Errorf("secret %s is not an installer secret", name)
+	default:
+		secret.Data = map[string][]byte{v1alpha1.KubeconfigKey: raw}
+		if err := c.Update(ctx, secret); err != nil {
+			return nil, err
+		}
+	}
+	if cl.Spec.InstallerSecret == nil || cl.Spec.InstallerSecret.Name != name {
+		cl.Spec.InstallerSecret = &v1alpha1.SecretRef{Name: name}
+		if err := c.Update(ctx, &cl); err != nil {
+			return nil, err
+		}
+	}
+	return summary, nil
+}
+
+// RemoveInstaller drops a cluster's installer credential: plugin installs
+// are disabled there afterwards (installed plugins keep running).
+func RemoveInstaller(ctx context.Context, c client.Client, id string) error {
+	var cl v1alpha1.Cluster
+	if err := c.Get(ctx, types.NamespacedName{Name: id}, &cl); err != nil {
+		if apierrors.IsNotFound(err) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if cl.Spec.InstallerSecret != nil {
+		cl.Spec.InstallerSecret = nil
+		if err := c.Update(ctx, &cl); err != nil {
+			return err
+		}
+	}
+	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: v1alpha1.SystemNamespace, Name: InstallerSecretName(id)}}
+	if err := c.Delete(ctx, secret); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	return nil
+}
+
 // Unregister deletes the Cluster and its kubeconfig Secret.
 func Unregister(ctx context.Context, c client.Client, id string) error {
 	var cl v1alpha1.Cluster
@@ -155,9 +232,11 @@ func Unregister(ctx context.Context, c client.Client, id string) error {
 	}
 	// Owned by the Cluster, so garbage collection would remove it too;
 	// delete it now rather than wait.
-	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: v1alpha1.SystemNamespace, Name: cl.Spec.KubeconfigSecret.Name}}
-	if err := c.Delete(ctx, secret); err != nil && !apierrors.IsNotFound(err) {
-		return err
+	for _, name := range []string{cl.Spec.KubeconfigSecret.Name, InstallerSecretName(id)} {
+		secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: v1alpha1.SystemNamespace, Name: name}}
+		if err := c.Delete(ctx, secret); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
 	}
 	return nil
 }

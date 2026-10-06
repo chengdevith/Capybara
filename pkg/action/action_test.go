@@ -461,6 +461,10 @@ func TestKubeconfigSecretsAreUntouchable(t *testing.T) {
 	if code, _ := f.post(t, "/api/clusters/dev-1/apply", map[string]any{"target": other, "object": declared}); code != http.StatusForbidden {
 		t.Fatalf("apply declaring the type: status %d", code)
 	}
+	declared["type"] = "platform.capybara.io/installer-kubeconfig"
+	if code, _ := f.post(t, "/api/clusters/dev-1/apply", map[string]any{"target": other, "object": declared}); code != http.StatusForbidden {
+		t.Fatalf("apply declaring the installer type: status %d", code)
+	}
 	if len(f.patches()) != 0 {
 		t.Fatal("a kubeconfig Secret change reached the cluster")
 	}

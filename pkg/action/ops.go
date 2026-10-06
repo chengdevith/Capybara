@@ -192,7 +192,7 @@ func (h *Handlers) revealSecret(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return "", err
 		}
-		if string(s.Type) == v1alpha1.KubeconfigSecretType {
+		if v1alpha1.IsCredentialSecretType(string(s.Type)) {
 			return "", errKubeconfigSecret // never returned, not even on reveal
 		}
 		secret = s

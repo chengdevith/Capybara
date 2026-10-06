@@ -40,6 +40,17 @@ const (
 	FinalizerPluginUninstall = "platform.capybara.io/plugin-uninstall"
 )
 
+// IsCredentialSecretType reports whether a Secret type is one of
+// Capybara's own credential types. Reveal, edit and delete refuse them on
+// every cluster, and summaries hide their keys.
+func IsCredentialSecretType(t string) bool {
+	switch t {
+	case KubeconfigSecretType, InstallerSecretType, PluginTokenSecretType, PluginBackendSecretType, PluginConnectSecretType:
+		return true
+	}
+	return false
+}
+
 // RepositoryType is where a catalog comes from.
 // +kubebuilder:validation:Enum=builtin;helm;oci
 type RepositoryType string

@@ -56,7 +56,7 @@ func SecretSummaryHandler(clusters cluster.Provider) http.Handler {
 		out := make([]SecretSummary, 0, len(list.Items))
 		for i := range list.Items {
 			s := &list.Items[i]
-			protected := string(s.Type) == v1alpha1.KubeconfigSecretType
+			protected := v1alpha1.IsCredentialSecretType(string(s.Type))
 			keys := make([]string, 0, len(s.Data))
 			for k := range s.Data {
 				if !protected {

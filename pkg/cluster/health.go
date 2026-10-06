@@ -38,6 +38,9 @@ type HealthReconciler struct {
 	// Timeout bounds one check (never longer than Interval).
 	Timeout time.Duration
 	Now     func() time.Time
+	// Installers, when set, adds the InstallerReady condition (plugin
+	// installs enabled on this cluster) and the installer's identity.
+	Installers *Installers
 }
 
 // SetupWithManager registers the controller. Status writes do not trigger
@@ -61,6 +64,11 @@ func (h *HealthReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			changes <- event.GenericEvent{Object: &v1alpha1.Cluster{ObjectMeta: metav1.ObjectMeta{Name: ev.ID}}}
 		}
 	})
+	if h.Installers != nil {
+		h.Installers.Subscribe(func(id string) {
+			changes <- event.GenericEvent{Object: &v1alpha1.Cluster{ObjectMeta: metav1.ObjectMeta{Name: id}}}
+		})
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.Cluster{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		WatchesRawSource(source.Channel(changes, &handler.EnqueueRequestForObject{})).
@@ -83,6 +91,7 @@ func (h *HealthReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
 	}
 	st := h.check(ctx, cl.Name)
+	h.checkInstaller(ctx, &cl, &st)
 	st.ObservedGeneration = cl.Generation
 	if !equality.Semantic.DeepEqual(cl.Status, st) {
 		patch := client.MergeFrom(cl.DeepCopy())
@@ -151,6 +160,42 @@ func (h *HealthReconciler) check(ctx context.Context, id string) v1alpha1.Cluste
 	h.set(&st, v1alpha1.ConditionAuthenticated, metav1.ConditionTrue, v1alpha1.ReasonConnected, "as "+identity)
 	h.set(&st, v1alpha1.ConditionReady, metav1.ConditionTrue, st.Reason, st.Message)
 	return st
+}
+
+// checkInstaller records whether plugin installs are possible here. It
+// only proves the installer credential authenticates; each install checks
+// the permissions its plugin and mode need (pre-flight).
+func (h *HealthReconciler) checkInstaller(ctx context.Context, cl *v1alpha1.Cluster, st *v1alpha1.ClusterStatus) {
+	if h.Installers == nil {
+		return
+	}
+	if cl.Spec.InstallerSecret == nil {
+		h.set(st, v1alpha1.ConditionInstallerReady, metav1.ConditionFalse, "NotConfigured", "no installer credential: plugin installs are disabled")
+		return
+	}
+	cfg, _, err := h.Installers.Get(cl.Name)
+	if err != nil {
+		h.set(st, v1alpha1.ConditionInstallerReady, metav1.ConditionFalse, "Invalid", err.Error())
+		return
+	}
+	cfg.Timeout = h.Timeout
+	cs, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		h.set(st, v1alpha1.ConditionInstallerReady, metav1.ConditionFalse, "Invalid", "installer kubeconfig cannot be used")
+		return
+	}
+	cctx, cancel := context.WithTimeout(ctx, h.Timeout)
+	defer cancel()
+	identity, err := whoAmI(cctx, cs)
+	switch {
+	case apierrors.IsUnauthorized(err):
+		h.set(st, v1alpha1.ConditionInstallerReady, metav1.ConditionFalse, v1alpha1.ReasonAuthFailed, "the cluster rejected the installer credential")
+	case err != nil:
+		h.set(st, v1alpha1.ConditionInstallerReady, metav1.ConditionFalse, v1alpha1.ReasonUnreachable, unreachableMessage(err))
+	default:
+		st.InstallerIdentity = identity
+		h.set(st, v1alpha1.ConditionInstallerReady, metav1.ConditionTrue, "Ready", "plugin installs enabled, as "+identity)
+	}
 }
 
 func (h *HealthReconciler) expiry(st *v1alpha1.ClusterStatus, s *Summary) {
