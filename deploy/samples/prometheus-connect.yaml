@@ -1,0 +1,97 @@
+# A Prometheus installed by hand (not by Capybara), for testing the
+# Monitoring plugin's "Connect existing" mode: namespace monitoring,
+# Service prometheus:9090. It scrapes the kubelets' cAdvisor endpoints
+# through the API server with the same labels kube-prometheus-stack uses
+# (namespace, pod, container, node). The image is imported by
+# make plugin-images.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sample-prometheus
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [nodes/proxy, nodes/metrics]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: sample-prometheus
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: sample-prometheus }
+subjects: [{ kind: ServiceAccount, name: prometheus, namespace: monitoring }]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+    scrape_configs:
+      - job_name: prometheus
+        static_configs: [{ targets: ["localhost:9090"] }]
+      - job_name: cadvisor
+        scheme: https
+        tls_config: { ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt }
+        authorization: { credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token }
+        kubernetes_sd_configs: [{ role: node }]
+        relabel_configs:
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+          - source_labels: [__meta_kubernetes_node_name]
+            target_label: node
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: prometheus } }
+  template:
+    metadata: { labels: { app: prometheus } }
+    spec:
+      serviceAccountName: prometheus
+      containers:
+        - name: prometheus
+          image: quay.io/prometheus/prometheus:v3.15.0-distroless
+          imagePullPolicy: IfNotPresent
+          args: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.path=/prometheus, --storage.tsdb.retention.time=1d]
+          ports: [{ name: web, containerPort: 9090 }]
+          readinessProbe: { httpGet: { path: /-/ready, port: web } }
+          resources: { requests: { cpu: 20m, memory: 96Mi } }
+          volumeMounts:
+            - { name: config, mountPath: /etc/prometheus }
+            - { name: data, mountPath: /prometheus }
+      volumes:
+        - { name: config, configMap: { name: prometheus } }
+        - { name: data, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  selector: { app: prometheus }
+  ports: [{ name: web, port: 9090, targetPort: web }]

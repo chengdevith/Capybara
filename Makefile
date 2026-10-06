@@ -69,6 +69,10 @@ generate: ## Regenerate deepcopy code and CRD manifests from api/
 	$(CONTROLLER_GEN) object paths=./api/...
 	$(CONTROLLER_GEN) crd paths=./api/... output:crd:dir=deploy/crds
 
+.PHONY: plugin-ui
+plugin-ui: ## Build a plugin's UI bundle and pin its sha256: make plugin-ui [PLUGIN=monitoring] (needs the Node in plugins/<p>/ui/.nvmrc)
+	./hack/plugin-ui.sh build $(or $(PLUGIN),monitoring)
+
 .PHONY: plugin-images
 plugin-images: ## Pull a plugin's pinned images and import them into k3d: make plugin-images [PLUGIN=monitoring] [CLUSTERS="dev-1 dev-2"]
 	./hack/plugin-images.sh $(or $(PLUGIN),monitoring) $(CLUSTERS)
@@ -107,11 +111,12 @@ test-web: web/node_modules
 e2e: web/node_modules ## Browser end-to-end tests (needs make cluster-up; resets the demo)
 	@test -f $(KUBECONFIGS)/capybara-dev-1.yaml || { echo "run make cluster-up first" >&2; exit 1; }
 	./deploy/samples/demo.sh up
+	./hack/plugin-images.sh monitoring dev-1 dev-2
 	cd web && npx playwright install chromium-headless-shell
 	cd web && npx playwright test
 
 .PHONY: lint
-lint: lint-make lint-go lint-web ## Run all linters and type checks
+lint: lint-make lint-go lint-web lint-plugin-ui ## Run all linters and type checks
 
 .PHONY: lint-make
 lint-make:
@@ -121,6 +126,12 @@ lint-make:
 lint-go: lint-generated lint-plugin-images
 	$(GOLANGCI) run $(GO_PKGS)
 	cd plugins/monitoring/backend && go tool -modfile=$(CURDIR)/tools/golangci-lint/go.mod golangci-lint run ./...
+
+# Fails unless the committed plugin UI bundle rebuilds byte for byte to its pin.
+.PHONY: lint-plugin-ui
+lint-plugin-ui:
+	./hack/plugin-ui.sh check monitoring
+	npm --prefix plugins/monitoring/ui run --silent typecheck
 
 # Fails if a plugin's pinned image list no longer matches its chart and preset.
 .PHONY: lint-plugin-images

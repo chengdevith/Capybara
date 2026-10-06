@@ -22,6 +22,21 @@ platform="$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')"
 mkdir -p .local/images
 tar=".local/images/plugin-${plugin}-${platform//\//-}.tar"
 
+# Skip clusters that already have every image.
+missing=()
+for id in "${clusters[@]}"; do
+  have="$(docker exec "k3d-capybara-${id}-server-0" crictl images -o json 2>/dev/null || true)"
+  while read -r tag _; do
+    [[ -z "$tag" || "$tag" == \#* ]] && continue
+    if ! grep -q "\"${tag}\"" <<<"$have"; then missing+=("$id"); break; fi
+  done <"$list"
+done
+if ((${#missing[@]} == 0)); then
+  echo "==> ${plugin} images already in ${clusters[*]}"
+  exit 0
+fi
+clusters=("${missing[@]}")
+
 tags=()
 while read -r tag digest; do
   [[ -z "$tag" || "$tag" == \#* ]] && continue

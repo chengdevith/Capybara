@@ -25,3 +25,4 @@ web/coverage/
 .vscode/
 /server
 /controller
+plugins/*/ui/node_modules/

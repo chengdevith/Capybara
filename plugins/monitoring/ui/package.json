@@ -1,0 +1,25 @@
+{
+  "name": "capybara-plugin-monitoring-ui",
+  "private": true,
+  "type": "module",
+  "description": "Monitoring plugin UI bundle. Built reproducibly (pinned Node, lockfile, exact versions); dist/monitoring.js is committed and its sha256 pinned in ../plugin.yaml.",
+  "engines": {
+    "node": "26.8.1"
+  },
+  "scripts": {
+    "build": "node scripts/check-node.mjs && vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "echarts": "6.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "6.0.9",
+    "naive-ui": "2.45.3",
+    "typescript": "6.0.3",
+    "vite": "8.3.3",
+    "vue": "3.5.43",
+    "vue-router": "5.3.1",
+    "vue-tsc": "3.3.12"
+  }
+}
