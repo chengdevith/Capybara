@@ -28,6 +28,14 @@ kubectl: ## kubectl against one local cluster: make kubectl CLUSTER=dev-1 ARGS="
 	@test -f $(KUBECONFIGS)/capybara-$(CLUSTER).yaml || { echo "no kubeconfig for $(CLUSTER); run make cluster-up" >&2; exit 1; }
 	kubectl --kubeconfig $(KUBECONFIGS)/capybara-$(CLUSTER).yaml $(ARGS)
 
+.PHONY: demo
+demo: ## Deploy the demo workload (namespace capybara-demo) into dev-1 and dev-2
+	./deploy/samples/demo.sh up
+
+.PHONY: demo-clean
+demo-clean: ## Remove the demo workload from dev-1 and dev-2
+	./deploy/samples/demo.sh clean
+
 ## --- development ------------------------------------------------------------
 
 .PHONY: dev
