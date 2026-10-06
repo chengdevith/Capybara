@@ -23,3 +23,5 @@ web/coverage/
 .DS_Store
 .idea/
 .vscode/
+/server
+/controller
