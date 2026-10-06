@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import logo from '@/assets/logo.png'
 import ClusterSwitcher from './ClusterSwitcher.vue'
 import NamespaceSelector from './NamespaceSelector.vue'
 </script>
@@ -9,7 +10,14 @@ import NamespaceSelector from './NamespaceSelector.vue'
       to="/"
       class="brand"
     >
-      Capybara
+      <img
+        :src="logo"
+        alt=""
+        class="logo"
+        width="32"
+        height="32"
+      >
+      <span>Capybara</span>
     </RouterLink>
     <ClusterSwitcher />
     <NamespaceSelector />
@@ -26,11 +34,17 @@ import NamespaceSelector from './NamespaceSelector.vue'
   padding: 0 16px;
 }
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: #fff;
   font-weight: 600;
   font-size: 18px;
   text-decoration: none;
   margin-right: 8px;
+}
+.logo {
+  display: block;
 }
 .spacer {
   flex: 1;
