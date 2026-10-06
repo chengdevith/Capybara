@@ -1,0 +1,80 @@
+# Small preset of kube-prometheus-stack for the local k3d clusters.
+#
+# Capybara adds, per installation (never inline secrets):
+#   grafana.admin.existingSecret      the generated admin password Secret
+#   grafana."grafana.ini".server      root_url for Capybara's Grafana proxy path
+# Images are imported into k3d beforehand (plugins/monitoring/images.txt).
+
+# k3s runs the control plane in one process: there are no separate etcd,
+# scheduler, controller-manager or kube-proxy endpoints to scrape.
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+windowsMonitoring:
+  enabled: false
+
+# The Alerts page reads Prometheus' own alerts and rules APIs.
+alertmanager:
+  enabled: false
+
+prometheusOperator:
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+  admissionWebhooks:
+    patch:
+      resources:
+        requests: { cpu: 10m, memory: 32Mi }
+
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    retentionSize: 1800MB
+    scrapeInterval: 30s
+    resources:
+      requests: { cpu: 50m, memory: 256Mi }
+    # Pick up ServiceMonitors/PodMonitors/rules from any release.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 2Gi
+
+grafana:
+  adminUser: admin
+  admin:
+    existingSecret: capybara-grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  persistence:
+    enabled: false
+  resources:
+    requests: { cpu: 20m, memory: 96Mi }
+  grafana.ini:
+    server:
+      serve_from_sub_path: true
+    # Phase 4.5: anonymous Viewer through Capybara's proxy. Phase 5 moves
+    # this to auth proxy mode with the Capybara user in a header.
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer
+    analytics:
+      check_for_updates: false
+      reporting_enabled: false
+
+kube-state-metrics:
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+
+prometheus-node-exporter:
+  resources:
+    requests: { cpu: 10m, memory: 16Mi }

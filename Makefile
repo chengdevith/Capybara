@@ -69,6 +69,10 @@ generate: ## Regenerate deepcopy code and CRD manifests from api/
 	$(CONTROLLER_GEN) object paths=./api/...
 	$(CONTROLLER_GEN) crd paths=./api/... output:crd:dir=deploy/crds
 
+.PHONY: plugin-images
+plugin-images: ## Pull a plugin's pinned images and import them into k3d: make plugin-images [PLUGIN=monitoring] [CLUSTERS="dev-1 dev-2"]
+	./hack/plugin-images.sh $(or $(PLUGIN),monitoring) $(CLUSTERS)
+
 .PHONY: project-sizes
 project-sizes: ## Push deploy/project-sizes.yaml to the capybara-project-sizes ConfigMap in mgmt
 	kubectl --kubeconfig $(KUBECONFIGS)/capybara-mgmt.yaml -n capybara-system create configmap capybara-project-sizes \
@@ -113,8 +117,17 @@ lint-make:
 	@if (false | true); then echo "Makefile recipes are not running with pipefail" >&2; exit 1; fi
 
 .PHONY: lint-go
-lint-go: lint-generated
+lint-go: lint-generated lint-plugin-images
 	$(GOLANGCI) run $(GO_PKGS)
+
+# Fails if a plugin's pinned image list no longer matches its chart and preset.
+.PHONY: lint-plugin-images
+lint-plugin-images:
+	@want=$$(go run ./cmd/plugin-images -chart plugins/monitoring/chart/kube-prometheus-stack-91.9.0.tgz \
+	  -values plugins/monitoring/chart/values-small.yaml) && \
+	have=$$(grep -v '^#' plugins/monitoring/images.txt | awk '{print $$1}') && \
+	if [ "$$want" != "$$have" ]; then echo "plugins/monitoring/images.txt does not match the chart's images:" >&2; \
+	  diff <(echo "$$want") <(echo "$$have") >&2; exit 1; fi
 
 # Fails if the committed generated files do not match api/ (and regenerates them).
 .PHONY: lint-generated
