@@ -92,6 +92,7 @@ test: test-go test-web ## Run all tests
 test-go: envtest
 	KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST) use $(ENVTEST_K8S) --bin-dir $(CURDIR)/.local/envtest -p path)" \
 	  go test $(GO_PKGS)
+	cd plugins/monitoring/backend && go test ./...
 
 # Controller tests run real kube-apiservers (envtest); binaries go to .local.
 .PHONY: envtest
@@ -119,6 +120,7 @@ lint-make:
 .PHONY: lint-go
 lint-go: lint-generated lint-plugin-images
 	$(GOLANGCI) run $(GO_PKGS)
+	cd plugins/monitoring/backend && go tool -modfile=$(CURDIR)/tools/golangci-lint/go.mod golangci-lint run ./...
 
 # Fails if a plugin's pinned image list no longer matches its chart and preset.
 .PHONY: lint-plugin-images

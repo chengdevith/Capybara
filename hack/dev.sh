@@ -16,6 +16,9 @@ fi
 mkdir -p .local/bin
 go build -o .local/bin/capybara-server ./cmd/server
 go build -o .local/bin/capybara-controller ./cmd/controller
+# Plugin backends are separate processes, never part of the server.
+(cd plugins/monitoring/backend && go build -o ../../../.local/bin/monitoring-backend .)
+export CAPYBARA_PLUGIN_BACKENDS="${CAPYBARA_PLUGIN_BACKENDS:-monitoring=http://127.0.0.1:8091}"
 
 # The controller needs its CRDs in capybara-mgmt.
 if [[ -f .local/kubeconfig/capybara-mgmt.yaml ]]; then
@@ -34,6 +37,11 @@ cleanup() {
 trap cleanup INT TERM EXIT
 
 .local/bin/capybara-server &
+pids+=($!)
+
+# The backend reads the credential the server issues at startup.
+for _ in $(seq 1 50); do [[ -f .local/plugin-backends/monitoring.token ]] && break; sleep 0.1; done
+.local/bin/monitoring-backend &
 pids+=($!)
 
 if [[ -f .local/kubeconfig/capybara-mgmt.yaml ]]; then
