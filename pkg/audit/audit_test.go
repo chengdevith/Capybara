@@ -261,3 +261,48 @@ func TestListHandler(t *testing.T) {
 		}
 	}
 }
+
+func TestDoExposesIDAndRefLinksEntries(t *testing.T) {
+	s, _ := newStore(t)
+	a := NewAuditor(s, slog.New(slog.DiscardHandler))
+	var requestID string
+	_ = a.Do(devCtx(), Op{Cluster: "dev-1", Kind: "Project", Name: "shop", Action: "delete"}, func(ctx context.Context) (string, error) {
+		requestID = IDFrom(ctx)
+		return "", nil
+	})
+	if requestID == "" {
+		t.Fatal("IDFrom returned nothing inside Do")
+	}
+	_ = a.Event(devCtx(), Op{Cluster: "dev-1", Kind: "Namespace", Name: "shop", Action: "delete-namespace", Ref: requestID}, ResultSuccess, "deleted")
+
+	recs, _ := s.List(context.Background(), Filter{})
+	if len(recs) != 2 || recs[0].Ref != requestID || recs[1].ID != requestID {
+		t.Fatalf("records = %+v (want the namespace entry to reference %s)", recs, requestID)
+	}
+	if IDFrom(context.Background()) != "" {
+		t.Fatal("IDFrom outside Do should be empty")
+	}
+}
+
+func TestConcurrentWritersKeepLinesWhole(t *testing.T) {
+	s1, path := newStore(t)
+	s2, err := NewFileStore(path) // a second "process" on the same file
+	if err != nil {
+		t.Fatal(err)
+	}
+	long := strings.Repeat("x", 4000)
+	done := make(chan struct{})
+	for _, s := range []*FileStore{s1, s2} {
+		go func() {
+			for i := 0; i < 200; i++ {
+				_ = s.Record(context.Background(), Entry{ID: newID(time.Now()), Phase: PhaseCompleted, Detail: long})
+			}
+			done <- struct{}{}
+		}()
+	}
+	<-done
+	<-done
+	if got := lines(t, path); len(got) != 400 {
+		t.Fatalf("got %d whole lines, want 400", len(got))
+	}
+}

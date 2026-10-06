@@ -167,7 +167,7 @@ func (r *Registry) load(id string) (*entry, error) {
 	if e.client != nil {
 		return e, nil
 	}
-	cfg, err := restConfigFromFile(e.kubeconfigPath)
+	cfg, err := RESTConfigFromFile(e.kubeconfigPath)
 	if err != nil {
 		// The path is fine to log; the file content never is.
 		r.logger.Warn("cluster unavailable", "cluster", id, "kubeconfig", e.kubeconfigPath, "err", err)
@@ -189,9 +189,10 @@ func (r *Registry) load(id string) (*entry, error) {
 	return e, nil
 }
 
-// restConfigFromFile builds a REST config from exactly one kubeconfig file.
-// It never consults KUBECONFIG, ~/.kube/config or in-cluster config.
-func restConfigFromFile(path string) (*rest.Config, error) {
+// RESTConfigFromFile builds a REST config from exactly one kubeconfig file,
+// refusing anything that is not a local Capybara k3d cluster. It never
+// consults KUBECONFIG, ~/.kube/config or in-cluster config.
+func RESTConfigFromFile(path string) (*rest.Config, error) {
 	kc, err := clientcmd.LoadFromFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {

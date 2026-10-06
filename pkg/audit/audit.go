@@ -51,6 +51,9 @@ type Entry struct {
 	Action    string    `json:"action"`
 	Result    Result    `json:"result,omitempty"`
 	Detail    string    `json:"detail,omitempty"`
+	// Ref is the ID of a related entry, e.g. the user's delete request
+	// that a controller's cleanup carries out.
+	Ref string `json:"ref,omitempty"`
 }
 
 // Record is one action as shown to users: its attempt merged with its outcome.
@@ -66,6 +69,7 @@ type Record struct {
 	Action      string     `json:"action"`
 	Result      Result     `json:"result"`
 	Detail      string     `json:"detail,omitempty"`
+	Ref         string     `json:"ref,omitempty"`
 }
 
 // Filter narrows a listing. Empty fields match everything.

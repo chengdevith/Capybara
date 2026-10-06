@@ -37,6 +37,11 @@ type Config struct {
 	ExecIdleTimeout time.Duration
 	// ExecMaxDuration closes any terminal session after this long.
 	ExecMaxDuration time.Duration
+
+	// MgmtKubeconfig reaches capybara-mgmt, where Capybara keeps its CRDs.
+	MgmtKubeconfig string
+	// ProjectConfigFile holds the Project size presets and ingress sources.
+	ProjectConfigFile string
 }
 
 // DefaultProtectedNamespaces are the namespaces protected out of the box.
@@ -54,6 +59,8 @@ func Defaults() Config {
 		CapybaraNamespace:   "capybara-system",
 		ExecIdleTimeout:     15 * time.Minute,
 		ExecMaxDuration:     8 * time.Hour,
+		MgmtKubeconfig:      ".local/kubeconfig/capybara-mgmt.yaml",
+		ProjectConfigFile:   "deploy/project-sizes.yaml",
 	}
 }
 
@@ -73,6 +80,8 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 		"CAPYBARA_AUDIT_FILE":           &cfg.AuditFile,
 		"CAPYBARA_PROTECTED_NAMESPACES": &protected,
 		"CAPYBARA_NAMESPACE":            &cfg.CapybaraNamespace,
+		"CAPYBARA_MGMT_KUBECONFIG":      &cfg.MgmtKubeconfig,
+		"CAPYBARA_PROJECT_CONFIG":       &cfg.ProjectConfigFile,
 	}
 	for env, dst := range strs {
 		if v := getenv(env); v != "" {
@@ -104,6 +113,8 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	fs.StringVar(&cfg.CapybaraNamespace, "capybara-namespace", cfg.CapybaraNamespace, "Capybara's own namespace, always protected (env CAPYBARA_NAMESPACE)")
 	fs.DurationVar(&cfg.ExecIdleTimeout, "exec-idle-timeout", cfg.ExecIdleTimeout, "close a terminal after this long without input (env CAPYBARA_EXEC_IDLE_TIMEOUT)")
 	fs.DurationVar(&cfg.ExecMaxDuration, "exec-max-duration", cfg.ExecMaxDuration, "close any terminal after this long (env CAPYBARA_EXEC_MAX_DURATION)")
+	fs.StringVar(&cfg.MgmtKubeconfig, "mgmt-kubeconfig", cfg.MgmtKubeconfig, "kubeconfig of capybara-mgmt (env CAPYBARA_MGMT_KUBECONFIG)")
+	fs.StringVar(&cfg.ProjectConfigFile, "project-config", cfg.ProjectConfigFile, "Project size presets (env CAPYBARA_PROJECT_CONFIG)")
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
 	}
@@ -150,6 +161,9 @@ func (c Config) Validate() error {
 	}
 	if c.ExecIdleTimeout <= 0 || c.ExecMaxDuration <= 0 {
 		return errors.New("exec timeouts must be positive")
+	}
+	if c.MgmtKubeconfig == "" || c.ProjectConfigFile == "" {
+		return errors.New("mgmt-kubeconfig and project-config must be set")
 	}
 	if c.ExecIdleTimeout > c.ExecMaxDuration {
 		return errors.New("exec-idle-timeout must not exceed exec-max-duration")

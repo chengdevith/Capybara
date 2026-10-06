@@ -50,6 +50,17 @@ type Op struct {
 	// Sensitive (e.g. Secrets): quoted values are removed from details,
 	// because Kubernetes error messages can echo submitted values.
 	Sensitive bool
+	// Ref links this entry to a related one (see Entry.Ref).
+	Ref string
+}
+
+type idKey struct{}
+
+// IDFrom returns the ID of the audit entry whose action is running in ctx
+// (inside Do), so the action can reference it (e.g. store it on an object).
+func IDFrom(ctx context.Context) string {
+	id, _ := ctx.Value(idKey{}).(string)
+	return id
 }
 
 // Auditor wraps actions with attempted/completed entries.
@@ -94,7 +105,7 @@ func (a *Auditor) Do(ctx context.Context, op Op, fn func(context.Context) (strin
 		return fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 
-	detail, actionErr := fn(ctx)
+	detail, actionErr := fn(context.WithValue(ctx, idKey{}, e.ID))
 
 	done := e
 	done.Phase = PhaseCompleted
@@ -131,6 +142,7 @@ func (a *Auditor) entry(ctx context.Context, op Op) Entry {
 	return Entry{
 		ID: newID(now), Time: now, User: user,
 		Cluster: op.Cluster, Namespace: op.Namespace, Kind: op.Kind, Name: op.Name, Action: op.Action,
+		Ref: op.Ref,
 	}
 }
 

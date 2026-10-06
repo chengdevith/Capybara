@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"syscall"
 )
 
 const (
@@ -18,8 +19,9 @@ const (
 )
 
 // FileStore is an append-only JSON Lines file. Each Record opens the file
-// in append mode, writes one line and syncs it, so a broken disk or a
-// removed directory surfaces as an error on the very next action.
+// in append mode, locks it (several processes may write), writes one line
+// and syncs it, so a broken disk or a removed directory surfaces as an
+// error on the very next action. The lock is released on close.
 type FileStore struct {
 	path string
 	mu   sync.Mutex
@@ -56,6 +58,12 @@ func (s *FileStore) Record(_ context.Context, e Entry) error {
 	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600) //nolint:gosec // path is the server's own --audit-file setting
 	if err != nil {
 		return fmt.Errorf("open audit log: %w", err)
+	}
+	// The API server and the controller append to the same file: take an
+	// exclusive lock so lines from two processes never interleave.
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil { //nolint:gosec // fd fits in int
+		_ = f.Close()
+		return fmt.Errorf("lock audit log: %w", err)
 	}
 	if _, err := f.Write(line); err != nil {
 		_ = f.Close()
@@ -129,7 +137,7 @@ func merge(r *Record, e Entry) {
 	if r.Time.IsZero() || e.Phase == PhaseAttempted {
 		r.Time = e.Time
 		r.User, r.Cluster, r.Namespace = e.User, e.Cluster, e.Namespace
-		r.Kind, r.Name, r.Action = e.Kind, e.Name, e.Action
+		r.Kind, r.Name, r.Action, r.Ref = e.Kind, e.Name, e.Action, e.Ref
 	}
 	if e.Phase == PhaseCompleted {
 		t := e.Time
