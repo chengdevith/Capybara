@@ -55,11 +55,15 @@ type ClusterSpec struct {
 	KubeconfigSecret SecretRef `json:"kubeconfigSecret"`
 }
 
+// ClusterPhase summarises a cluster's health.
+// +kubebuilder:validation:Enum=Pending;Connected;Error
+type ClusterPhase string
+
 // Cluster phases.
 const (
-	ClusterPending   Phase = "Pending"
-	ClusterConnected Phase = "Connected"
-	ClusterError     Phase = "Error"
+	ClusterPending   ClusterPhase = "Pending"
+	ClusterConnected ClusterPhase = "Connected"
+	ClusterError     ClusterPhase = "Error"
 )
 
 // Cluster condition types and reasons.
@@ -82,9 +86,8 @@ const (
 // ClusterStatus is the cluster's health as last checked by the controller.
 type ClusterStatus struct {
 	// Phase is Connected, Error or Pending (not checked yet).
-	// +kubebuilder:validation:Enum=Pending;Connected;Error
 	// +optional
-	Phase Phase `json:"phase,omitempty"`
+	Phase ClusterPhase `json:"phase,omitempty"`
 	// Reason is the most important condition reason (e.g. Unreachable, AuthFailed).
 	// +optional
 	Reason string `json:"reason,omitempty"`

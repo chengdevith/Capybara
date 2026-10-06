@@ -181,9 +181,8 @@ spec:
                 description: Phase is Connected, Error or Pending (not checked yet).
                 enum:
                 - Pending
-                - Ready
+                - Connected
                 - Error
-                - Terminating
                 type: string
               reason:
                 description: Reason is the most important condition reason (e.g. Unreachable,

@@ -30,6 +30,9 @@ import (
 // ErrNotFound is returned for an unknown cluster id.
 var ErrNotFound = errors.New("cluster not found")
 
+// ErrSecretMissing means a Cluster's kubeconfig Secret does not exist.
+var ErrSecretMissing = errors.New("kubeconfig Secret not found")
+
 // Causes of a cluster lifetime context ending.
 var (
 	ErrCredentialsChanged = errors.New("cluster credentials changed")
@@ -83,6 +86,7 @@ type entry struct {
 	secretVersion string // resourceVersion of the Secret the clients were built from
 	err           error  // why there are no clients (missing Secret, invalid kubeconfig)
 
+	summary *Summary
 	config  *rest.Config
 	client  kubernetes.Interface
 	dynamic dynamic.Interface
@@ -156,7 +160,7 @@ func (r *Registry) Upsert(c *v1alpha1.Cluster, secret *corev1.Secret) {
 	next.ctx, next.cancel = context.WithCancelCause(context.Background())
 	switch {
 	case secret == nil:
-		next.err = fmt.Errorf("kubeconfig Secret %s/%s not found", v1alpha1.SystemNamespace, c.Spec.KubeconfigSecret.Name)
+		next.err = fmt.Errorf("%w: %s/%s", ErrSecretMissing, v1alpha1.SystemNamespace, c.Spec.KubeconfigSecret.Name)
 	case secret.Type != v1alpha1.KubeconfigSecretType:
 		next.err = fmt.Errorf("kubeconfig secret %s is not of type %s", secret.Name, v1alpha1.KubeconfigSecretType)
 	default:
@@ -181,10 +185,11 @@ func (r *Registry) Upsert(c *v1alpha1.Cluster, secret *corev1.Secret) {
 }
 
 func (e *entry) build(raw []byte, opts ValidateOptions) error {
-	cfg, _, err := RESTConfigFromKubeconfig(raw, opts)
+	cfg, summary, err := RESTConfigFromKubeconfig(raw, opts)
 	if err != nil {
 		return err
 	}
+	e.summary = summary
 	cfg.UserAgent = "capybara"
 	if e.client, err = kubernetes.NewForConfig(cfg); err != nil {
 		return err
@@ -253,6 +258,15 @@ func (r *Registry) get(id string) (*entry, error) {
 		return nil, fmt.Errorf("cluster %q unavailable: %w", id, e.err)
 	}
 	return e, nil
+}
+
+// Summary describes the cluster's current credentials (no secrets).
+func (r *Registry) Summary(id string) (*Summary, error) {
+	e, err := r.get(id)
+	if err != nil {
+		return nil, err
+	}
+	return e.summary, nil
 }
 
 // Client returns the cluster's typed clientset.

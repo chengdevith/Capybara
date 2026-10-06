@@ -89,6 +89,13 @@ func run(args []string) error {
 		return err
 	}
 
+	if err := (&cluster.HealthReconciler{
+		Client: mgr.GetClient(), Registry: registry,
+		Interval: cfg.ClusterCheckInterval, ExpiryWarning: cfg.CredentialExpiryWarning,
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+
 	remote := make(chan event.GenericEvent, 1024)
 	r := &project.Reconciler{
 		Client:    mgr.GetClient(),
