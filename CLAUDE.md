@@ -89,8 +89,9 @@ logging, policy, backup) are plugins that users install and enable themselves.
 
 ## Frontend structure
 - Layout: top bar (cluster switcher, namespace/project selector);
-  left sidebar: Home, Workloads, Networking, Storage, Config, Projects,
-  Marketplace, Clusters, Audit, plus entries contributed by enabled plugins.
+  left sidebar: Home, Projects, Workloads, Networking, Storage, Config,
+  Marketplace, Clusters, Administration (Namespaces), Audit, plus entries
+  contributed by enabled plugins.
 - URLs include the cluster: /c/{cluster}/workloads/pods
 - web/src/api, stores, composables, router, views, components, extensions
 - One generic resource table and one generic detail page
