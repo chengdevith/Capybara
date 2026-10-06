@@ -174,4 +174,22 @@ describe('useLiveList', () => {
     expect(fetch).not.toHaveBeenCalled()
     expect(list.loading.value).toBe(false)
   })
+
+  it('works with a custom list/watch source and restarts only when its key changes', async () => {
+    const list = vi.fn(async () => ({ metadata: { resourceVersion: '42' }, items: [pod('p1', '40')] }))
+    const key = ref('projects')
+    const src = () => ({ key: key.value, list, watchUrl: (rv: string) => `ws://x/api/projects/_watch?resourceVersion=${rv}` })
+    const { names } = run(src)
+    await settle()
+    expect(names()).toEqual(['p1'])
+    expect(FakeSocket.all[0]!.url).toBe('ws://x/api/projects/_watch?resourceVersion=42')
+
+    // A new function identity with the same key does not restart.
+    key.value = 'projects'
+    await settle()
+    expect(list).toHaveBeenCalledOnce()
+    key.value = 'projects-2'
+    await settle()
+    expect(list).toHaveBeenCalledTimes(2)
+  })
 })

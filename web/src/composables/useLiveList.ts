@@ -1,13 +1,35 @@
 import { onScopeDispose, ref, shallowRef, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
-import { listAll, watchUrl, type KubeObject, type ResourceType, type Selectors, type WatchMessage } from '@/api/k8s'
+import { listAll, watchUrl, type KubeList, type KubeObject, type ResourceType, type Selectors, type WatchMessage } from '@/api/k8s'
 
-/** What to list and keep live. `null` means "nothing yet" (e.g. no cluster). */
-export interface LiveListSource extends Selectors {
+/** A Kubernetes resource in a managed cluster. */
+export interface ResourceSource extends Selectors {
   cluster: string
   type: ResourceType
   /** Namespace for namespaced types; empty/null = all namespaces. */
   namespace?: string | null
 }
+
+/** Any other list + watch endpoint with the same protocol (e.g. Projects). */
+export interface CustomSource {
+  /** Identifies the source; a new key restarts the list. */
+  key: string
+  list: (signal: AbortSignal) => Promise<KubeList>
+  watchUrl: (resourceVersion: string) => string
+}
+
+/** What to list and keep live. `null` means "nothing yet" (e.g. no cluster). */
+export type LiveListSource = ResourceSource | CustomSource
+
+function normalize(src: LiveListSource): CustomSource {
+  if ('list' in src) return src
+  return {
+    key: JSON.stringify(src),
+    list: (signal) => listAll(src.cluster, src.type, src, signal),
+    watchUrl: (resourceVersion) => watchUrl(src.cluster, src.type, { ...src, resourceVersion }),
+  }
+}
+
+const keyOf = (src: LiveListSource | null) => (src ? normalize(src).key : null)
 
 /** Minimal WebSocket surface, so tests can inject a fake. */
 export interface SocketLike {
@@ -104,7 +126,7 @@ export function useLiveList(source: MaybeRefOrGetter<LiveListSource | null>, opt
     live.value = false
   }
 
-  function retry(src: LiveListSource, fn: (src: LiveListSource) => void) {
+  function retry(src: CustomSource, fn: (src: CustomSource) => void) {
     const id = session
     const delay = BACKOFF_MS[Math.min(attempts, BACKOFF_MS.length - 1)]!
     attempts++
@@ -113,11 +135,11 @@ export function useLiveList(source: MaybeRefOrGetter<LiveListSource | null>, opt
     }, delay)
   }
 
-  async function list(src: LiveListSource) {
+  async function list(src: CustomSource) {
     const id = session
     abort = new AbortController()
     try {
-      const result = await listAll(src.cluster, src.type, src, abort.signal)
+      const result = await src.list(abort.signal)
       if (id !== session) return
       objects = new Map(result.items.map((o) => [o.metadata.uid, o]))
       resourceVersion = result.metadata.resourceVersion
@@ -133,9 +155,9 @@ export function useLiveList(source: MaybeRefOrGetter<LiveListSource | null>, opt
     }
   }
 
-  function connect(src: LiveListSource) {
+  function connect(src: CustomSource) {
     const id = session
-    const ws = createSocket(watchUrl(src.cluster, src.type, { ...src, resourceVersion }))
+    const ws = createSocket(src.watchUrl(resourceVersion))
     socket = ws
     let relisting = false
 
@@ -190,13 +212,18 @@ export function useLiveList(source: MaybeRefOrGetter<LiveListSource | null>, opt
     items.value = []
     error.value = null
     loading.value = src !== null
-    if (src) void list(src)
+    if (src) void list(normalize(src))
   }
 
+  let currentKey: string | null | undefined
   watch(
     () => toValue(source),
-    (src, old) => {
-      if (JSON.stringify(src) !== JSON.stringify(old)) start(src)
+    (src) => {
+      const key = keyOf(src)
+      if (key !== currentKey) {
+        currentKey = key
+        start(src)
+      }
     },
     { immediate: true },
   )

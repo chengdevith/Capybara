@@ -25,5 +25,11 @@ export const namespaces: ResourceDef = {
       },
       width: 120,
     },
+    {
+      key: 'project',
+      title: 'Project',
+      render: (o) => o.metadata.labels?.['platform.capybara.io/project'] ?? '—',
+      sortValue: (o) => o.metadata.labels?.['platform.capybara.io/project'] ?? '',
+    },
   ],
 }

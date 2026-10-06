@@ -6,6 +6,7 @@ export const CoreSections = {
   networking: 'core.section.networking',
   storage: 'core.section.storage',
   config: 'core.section.config',
+  admin: 'core.section.admin',
 } as const
 
 export function registerNavSections(registry: ExtensionRegistry): void {
@@ -13,4 +14,5 @@ export function registerNavSections(registry: ExtensionRegistry): void {
   registry.register({ type: 'nav-section', id: CoreSections.networking, label: 'Networking', order: 20 })
   registry.register({ type: 'nav-section', id: CoreSections.storage, label: 'Storage', order: 30 })
   registry.register({ type: 'nav-section', id: CoreSections.config, label: 'Config', order: 40 })
+  registry.register({ type: 'nav-section', id: CoreSections.admin, label: 'Administration', order: 900 })
 }

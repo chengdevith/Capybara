@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NBreadcrumb, NBreadcrumbItem, NCard, NH2, NResult, NSpin, NTabPane, NTabs, NTag } from 'naive-ui'
+import { NAlert, NBreadcrumb, NBreadcrumbItem, NCard, NH2, NResult, NSpin, NTabPane, NTabs, NTag } from 'naive-ui'
 import { computed, defineAsyncComponent, ref, watch, type Component } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import LiveIndicator from '@/components/resource/LiveIndicator.vue'
@@ -70,6 +70,11 @@ const listLink = computed(() => ({
   params: { cluster: ctx.value.cluster },
   query: route.query.ns ? { ns: route.query.ns } : {},
 }))
+// Objects a Project created carry its label and Capybara's managed-by label.
+const managedBy = computed(() => {
+  const labels = object.value?.metadata.labels
+  return labels?.['app.kubernetes.io/managed-by'] === 'capybara' ? (labels['platform.capybara.io/project'] ?? null) : null
+})
 const status = computed(() => (object.value && props.resource.status ? props.resource.status(object.value) : null))
 </script>
 
@@ -118,6 +123,17 @@ const status = computed(() => (object.value && props.resource.status ? props.res
       Namespace: {{ namespace }}
     </div>
 
+    <NAlert
+      v-if="managedBy"
+      type="info"
+      class="managed"
+      data-test="managed-by-project"
+    >
+      Managed by Project
+      <RouterLink :to="{ name: 'core.projects.detail', params: { cluster: ctx.cluster, name: managedBy } }">
+        {{ managedBy }}
+      </RouterLink>. The Capybara controller restores the fields it manages if they are changed or removed.
+    </NAlert>
     <NSpin v-if="loading && !object" />
     <NResult
       v-else-if="!object && error"
@@ -169,6 +185,9 @@ const status = computed(() => (object.value && props.resource.status ? props.res
 }
 .spacer {
   flex: 1;
+}
+.managed {
+  margin-bottom: 12px;
 }
 .subtitle {
   color: var(--capy-text-muted);

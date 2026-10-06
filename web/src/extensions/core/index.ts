@@ -3,6 +3,7 @@ import { registerActions } from './actions'
 import { registerAudit } from './audit'
 import { registerDetailTabs } from './detail-tabs'
 import { registerHome } from './home'
+import { registerProjects } from './projects'
 import { registerCoreResources } from './resources'
 import { registerNavSections } from './sections'
 
@@ -11,6 +12,7 @@ import { registerNavSections } from './sections'
 export function registerCoreExtensions(registry: ExtensionRegistry): void {
   registerNavSections(registry)
   registerHome(registry)
+  registerProjects(registry)
   registerCoreResources(registry)
   registerDetailTabs(registry)
   registerActions(registry)

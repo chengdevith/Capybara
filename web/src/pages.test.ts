@@ -98,7 +98,7 @@ describe('resource pages (integration)', () => {
   it('builds the sidebar from the registry in the agreed order', async () => {
     const { wrapper } = await boot('/c/dev-1/workloads/pods')
     const labels = wrapper.findAll('.n-menu-item-content, .n-submenu > .n-menu-item-content').map((n) => n.text().trim())
-    expect(labels.slice(0, 2)).toEqual(['Home', 'Namespaces'])
+    expect(labels.slice(0, 2)).toEqual(['Home', 'Projects'])
     const text = wrapper.text()
     expect(text.indexOf('Workloads')).toBeLessThan(text.indexOf('Networking'))
   })
