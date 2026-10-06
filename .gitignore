@@ -1,0 +1,25 @@
+# Local state: kubeconfigs, built binaries, audit files. Never commit.
+.local/
+
+# Any stray kubeconfig or credential file, wherever it lands.
+*.kubeconfig
+kubeconfig*.yaml
+*.pem
+*.key
+
+# Go
+/bin/
+*.test
+*.out
+coverage.*
+
+# Web
+web/node_modules/
+web/dist/
+web/coverage/
+*.tsbuildinfo
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
