@@ -191,10 +191,12 @@ func reverseProxy(cfg *rest.Config, kubePath string, secrets *secretMode, logger
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			logger.Warn("passthrough failed", "path", kubePath, "err", err)
 			if r.Context().Err() != nil {
-				return // client went away
+				// The browser went away (e.g. navigated); nothing is wrong.
+				logger.Debug("passthrough cancelled by the client", "path", kubePath)
+				return
 			}
+			logger.Warn("passthrough failed", "path", kubePath, "err", err)
 			httpjson.Error(w, http.StatusBadGateway, "cluster request failed: "+err.Error())
 		},
 	}, nil
