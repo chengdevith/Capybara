@@ -37,9 +37,6 @@ type Config struct {
 
 	// MgmtKubeconfig reaches capybara-mgmt, where Capybara keeps its CRDs.
 	MgmtKubeconfig string
-	// ProjectConfigFile is the built-in source of the Project size presets
-	// (the live copy is a ConfigMap in capybara-mgmt).
-	ProjectConfigFile string
 
 	// AllowInsecureKubeconfig accepts insecure-skip-tls-verify (dev only).
 	AllowInsecureKubeconfig bool
@@ -64,7 +61,6 @@ func Defaults() Config {
 		ExecIdleTimeout:     15 * time.Minute,
 		ExecMaxDuration:     8 * time.Hour,
 		MgmtKubeconfig:      ".local/kubeconfig/capybara-mgmt.yaml",
-		ProjectConfigFile:   "deploy/project-sizes.yaml",
 
 		ClusterCheckInterval:    30 * time.Second,
 		CredentialExpiryWarning: 7 * 24 * time.Hour,
@@ -87,7 +83,6 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 		"CAPYBARA_PROTECTED_NAMESPACES": &protected,
 		"CAPYBARA_NAMESPACE":            &cfg.CapybaraNamespace,
 		"CAPYBARA_MGMT_KUBECONFIG":      &cfg.MgmtKubeconfig,
-		"CAPYBARA_PROJECT_CONFIG":       &cfg.ProjectConfigFile,
 	}
 	for env, dst := range strs {
 		if v := getenv(env); v != "" {
@@ -121,7 +116,6 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	fs.DurationVar(&cfg.ExecIdleTimeout, "exec-idle-timeout", cfg.ExecIdleTimeout, "close a terminal after this long without input (env CAPYBARA_EXEC_IDLE_TIMEOUT)")
 	fs.DurationVar(&cfg.ExecMaxDuration, "exec-max-duration", cfg.ExecMaxDuration, "close any terminal after this long (env CAPYBARA_EXEC_MAX_DURATION)")
 	fs.StringVar(&cfg.MgmtKubeconfig, "mgmt-kubeconfig", cfg.MgmtKubeconfig, "kubeconfig of capybara-mgmt (env CAPYBARA_MGMT_KUBECONFIG)")
-	fs.StringVar(&cfg.ProjectConfigFile, "project-config", cfg.ProjectConfigFile, "Project size presets (env CAPYBARA_PROJECT_CONFIG)")
 	cfg.AllowInsecureKubeconfig = getenv("CAPYBARA_ALLOW_INSECURE_KUBECONFIG") == "true"
 	fs.BoolVar(&cfg.AllowInsecureKubeconfig, "allow-insecure-kubeconfig", cfg.AllowInsecureKubeconfig, "DEV ONLY: accept kubeconfigs with insecure-skip-tls-verify (env CAPYBARA_ALLOW_INSECURE_KUBECONFIG=true)")
 	fs.DurationVar(&cfg.ClusterCheckInterval, "cluster-check-interval", cfg.ClusterCheckInterval, "how often each cluster's health is checked (env CAPYBARA_CLUSTER_CHECK_INTERVAL)")
@@ -170,8 +164,8 @@ func (c Config) Validate() error {
 	if c.ExecIdleTimeout <= 0 || c.ExecMaxDuration <= 0 {
 		return errors.New("exec timeouts must be positive")
 	}
-	if c.MgmtKubeconfig == "" || c.ProjectConfigFile == "" {
-		return errors.New("mgmt-kubeconfig and project-config must be set")
+	if c.MgmtKubeconfig == "" {
+		return errors.New("mgmt-kubeconfig must be set")
 	}
 	if c.ClusterCheckInterval < time.Second || c.CredentialExpiryWarning <= 0 {
 		return errors.New("cluster-check-interval must be at least 1s and credential-expiry-warning positive")

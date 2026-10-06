@@ -35,6 +35,7 @@ import (
 // cluster. "dead" is a cluster nobody answers for.
 var env struct {
 	mgmt      client.Client
+	mgmtCfg   *rest.Config
 	managed   kubernetes.Interface
 	auditFile string
 	store     *audit.FileStore
@@ -106,7 +107,7 @@ func runWithEnvtest(m *testing.M) int {
 	clusters := testClusters{"dev-1": env.managed, "dead": kubernetes.NewForConfigOrDie(dead)}
 	remote := make(chan event.GenericEvent, 1024)
 	r := &Reconciler{
-		Client: mgr.GetClient(), Clusters: clusters, Config: cfg,
+		Client: mgr.GetClient(), Clusters: clusters, Config: StaticConfig(cfg),
 		Protected: []string{"kube-system", "default", "openshift-*", "capybara-system"},
 		Auditor:   audit.NewAuditor(env.store, slog.New(slog.DiscardHandler)),
 		Timeout:   2 * time.Second, Retry: time.Second,
@@ -119,6 +120,7 @@ func runWithEnvtest(m *testing.M) int {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() { must(mgr.Start(ctx)) }()
+	env.mgmtCfg = mgmtCfg
 	env.mgmt, err = client.New(mgmtCfg, client.Options{Scheme: scheme})
 	must(err)
 	return m.Run()

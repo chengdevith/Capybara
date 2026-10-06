@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/capybara/capybara/api/v1alpha1"
+	"github.com/capybara/capybara/deploy"
 	"github.com/capybara/capybara/pkg/audit"
 	"github.com/capybara/capybara/pkg/cluster"
 	"github.com/capybara/capybara/pkg/config"
@@ -42,12 +43,17 @@ func run(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	projectCfg, err := project.NewConfigSource(deploy.ProjectSizes, logger)
+	if err != nil {
+		return err
+	}
+
 	// Clusters are Cluster resources in capybara-mgmt. The registry fills in
 	// the background, so the server starts even while mgmt is still coming up.
 	registry := cluster.NewRegistry(cluster.ValidateOptions{AllowInsecure: cfg.AllowInsecureKubeconfig}, logger)
 	mgmtCfg, mgmtErr := cluster.RESTConfigFromFile(cfg.MgmtKubeconfig)
 	if mgmtErr == nil {
-		go syncClusters(ctx, mgmtCfg, registry, logger)
+		go syncMgmt(ctx, mgmtCfg, registry, projectCfg, logger)
 	} else {
 		logger.Warn("capybara-mgmt unavailable; no clusters and no Projects", "err", mgmtErr)
 	}
@@ -60,10 +66,6 @@ func run(args []string) error {
 	auditor := audit.NewAuditor(auditStore, logger)
 	logger.Info("audit log", "file", cfg.AuditFile)
 
-	projectCfg, err := project.LoadConfig(cfg.ProjectConfigFile)
-	if err != nil {
-		return err
-	}
 	// Projects live in capybara-mgmt. Without it the server still runs;
 	// the Projects endpoints answer 503 with the reason.
 	var mgmt client.WithWatch
@@ -79,6 +81,7 @@ func run(args []string) error {
 		Addr: cfg.Addr,
 		Handler: newHandler(deps{
 			cfg: cfg, clusters: registry, registry: registry, auditor: auditor, auditLog: auditStore, logger: logger,
+			sizes: projectCfg,
 			projects: &project.API{
 				Mgmt: mgmt, MgmtErr: mgmtErr, Clusters: registry, Config: projectCfg,
 				Protected: cfg.Protected(), Auditor: auditor, Logger: logger,
@@ -118,10 +121,14 @@ func mgmtScheme() *runtime.Scheme {
 	return scheme
 }
 
-// syncClusters keeps the registry in step with capybara-mgmt, retrying
-// until mgmt answers.
-func syncClusters(ctx context.Context, cfg *rest.Config, reg *cluster.Registry, logger *slog.Logger) {
-	c, err := cache.New(cfg, cache.Options{Scheme: mgmtScheme(), ByObject: cluster.CacheOptions()})
+// syncMgmt keeps the cluster registry and the Project size presets in step
+// with capybara-mgmt.
+func syncMgmt(ctx context.Context, cfg *rest.Config, reg *cluster.Registry, sizes *project.ConfigSource, logger *slog.Logger) {
+	byObject := cluster.CacheOptions()
+	for k, v := range project.CacheOptions() {
+		byObject[k] = v
+	}
+	c, err := cache.New(cfg, cache.Options{Scheme: mgmtScheme(), ByObject: byObject})
 	if err != nil {
 		logger.Error("capybara-mgmt cache", "err", err)
 		return
@@ -131,6 +138,9 @@ func syncClusters(ctx context.Context, cfg *rest.Config, reg *cluster.Registry, 
 			logger.Error("capybara-mgmt cache stopped", "err", err)
 		}
 	}()
+	if err := sizes.Watch(ctx, c); err != nil {
+		logger.Error("project size presets watch", "err", err)
+	}
 	if err := cluster.Sync(ctx, c, reg, logger); err != nil {
 		logger.Error("cluster registry sync", "err", err)
 		return

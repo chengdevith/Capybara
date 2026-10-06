@@ -6,7 +6,7 @@ SHELL := /bin/bash -o pipefail
 
 # Explicit package trees: `./...` would also pick up Go files that npm
 # packages ship inside web/node_modules.
-GO_PKGS      := ./api/... ./cmd/... ./pkg/...
+GO_PKGS      := ./api/... ./cmd/... ./deploy/... ./pkg/...
 GOLANGCI     := go tool -modfile=tools/golangci-lint/go.mod golangci-lint
 CONTROLLER_GEN := go tool -modfile=tools/controller-gen/go.mod controller-gen
 SETUP_ENVTEST := go tool -modfile=tools/setup-envtest/go.mod setup-envtest
@@ -68,6 +68,12 @@ web/node_modules: web/package.json web/package-lock.json
 generate: ## Regenerate deepcopy code and CRD manifests from api/
 	$(CONTROLLER_GEN) object paths=./api/...
 	$(CONTROLLER_GEN) crd paths=./api/... output:crd:dir=deploy/crds
+
+.PHONY: project-sizes
+project-sizes: ## Push deploy/project-sizes.yaml to the capybara-project-sizes ConfigMap in mgmt
+	kubectl --kubeconfig $(KUBECONFIGS)/capybara-mgmt.yaml -n capybara-system create configmap capybara-project-sizes \
+	  --from-file=sizes.yaml=deploy/project-sizes.yaml --dry-run=client -o yaml | \
+	  kubectl --kubeconfig $(KUBECONFIGS)/capybara-mgmt.yaml apply -f -
 
 .PHONY: crds
 crds: ## Install the CRDs into capybara-mgmt

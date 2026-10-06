@@ -31,7 +31,7 @@ type API struct {
 	Mgmt      client.WithWatch
 	MgmtErr   error
 	Clusters  Clusters
-	Config    *Config
+	Config    *ConfigSource
 	Protected []string
 	Auditor   *audit.Auditor
 	Logger    *slog.Logger
@@ -151,6 +151,7 @@ type ConfigView struct {
 	Sizes     map[v1alpha1.Size]SizeSpec `json:"sizes"`
 	Protected []string                   `json:"protected"`
 	Clusters  []string                   `json:"clusters"`
+	Status    ConfigStatus               `json:"status"`
 }
 
 func (a *API) config(w http.ResponseWriter, _ *http.Request) {
@@ -158,7 +159,7 @@ func (a *API) config(w http.ResponseWriter, _ *http.Request) {
 	for _, c := range a.Clusters.List() {
 		ids = append(ids, c.ID)
 	}
-	httpjson.Write(w, http.StatusOK, ConfigView{Sizes: a.Config.Sizes, Protected: a.Protected, Clusters: ids})
+	httpjson.Write(w, http.StatusOK, ConfigView{Sizes: a.Config.Get().Sizes, Protected: a.Protected, Clusters: ids, Status: a.Config.Status()})
 }
 
 // CreateRequest is the body of POST /api/projects.
@@ -176,7 +177,7 @@ func (a *API) validateCommon(owner string, size v1alpha1.Size, displayName, desc
 	switch {
 	case !ownerName.MatchString(owner) || len(owner) > 253:
 		return badRequest("owner must be a group name (letters, digits, . _ : @ / -)")
-	case a.Config.Sizes[size].Quota == nil:
+	case a.Config.Get().Sizes[size].Quota == nil:
 		return badRequest(fmt.Sprintf("size must be S, M or L (got %q)", size))
 	case len(displayName) > 128:
 		return badRequest("displayName is too long (max 128)")

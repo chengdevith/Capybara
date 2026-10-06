@@ -24,6 +24,7 @@ type deps struct {
 	auditor  *audit.Auditor
 	auditLog audit.Reader
 	projects *project.API
+	sizes    *project.ConfigSource
 	logger   *slog.Logger
 }
 
@@ -57,7 +58,16 @@ func newHandler(d deps) http.Handler {
 		if err := d.auditor.Healthy(); err != nil {
 			auditState = "failing: " + err.Error()
 		}
-		httpjson.Write(w, http.StatusOK, map[string]string{"status": "ok", "audit": auditState})
+		// "projectConfig" says where the size presets come from, or what is
+		// wrong with the ConfigMap (the last good presets stay in use).
+		sizes := "ok"
+		switch st := d.sizes.Status(); {
+		case st.Problem != "":
+			sizes = st.Problem
+		case st.Builtin:
+			sizes = "using built-in size defaults"
+		}
+		httpjson.Write(w, http.StatusOK, map[string]string{"status": "ok", "audit": auditState, "projectConfig": sizes})
 	})
 	root.Handle("/api/", auth.Middleware(api))
 

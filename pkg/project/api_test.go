@@ -46,7 +46,7 @@ func newAPIFixture(t *testing.T, objs ...client.Object) *apiFixture {
 	a := &API{
 		Mgmt:      mgmt,
 		Clusters:  testClusters{"dev-1": devCluster},
-		Config:    repoConfig(t),
+		Config:    StaticConfig(repoConfig(t)),
 		Protected: []string{"kube-system", "default", "openshift-*", "capybara-system"},
 		Auditor:   audit.NewAuditor(store, slog.New(slog.DiscardHandler)),
 		Logger:    slog.New(slog.DiscardHandler),
@@ -194,7 +194,7 @@ func TestAPIDeleteLinksTheAuditEntry(t *testing.T) {
 }
 
 func TestAPIWithoutMgmt(t *testing.T) {
-	a := &API{MgmtErr: errors.New("kubeconfig not found"), Clusters: testClusters{}, Config: &Config{}, Logger: slog.New(slog.DiscardHandler)}
+	a := &API{MgmtErr: errors.New("kubeconfig not found"), Clusters: testClusters{}, Config: StaticConfig(&Config{}), Logger: slog.New(slog.DiscardHandler)}
 	mux := http.NewServeMux()
 	a.Register(mux)
 	rec := httptest.NewRecorder()

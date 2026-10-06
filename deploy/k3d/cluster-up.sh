@@ -72,6 +72,15 @@ kubectl --kubeconfig "${mgmt_kc}" apply --server-side -f "${REPO_ROOT}/deploy/cr
 kubectl --kubeconfig "${mgmt_kc}" wait --for condition=established --timeout=60s \
   crd/clusters.platform.capybara.io crd/projects.platform.capybara.io >/dev/null
 
+# Project size presets: created from the repo file if missing; later edits
+# (kubectl or make project-sizes) are kept.
+if ! kubectl --kubeconfig "${mgmt_kc}" -n capybara-system get configmap capybara-project-sizes >/dev/null 2>&1; then
+  kubectl --kubeconfig "${mgmt_kc}" create namespace capybara-system --dry-run=client -o yaml | kubectl --kubeconfig "${mgmt_kc}" apply -f - >/dev/null
+  kubectl --kubeconfig "${mgmt_kc}" -n capybara-system create configmap capybara-project-sizes \
+    --from-file=sizes.yaml="${REPO_ROOT}/deploy/project-sizes.yaml" >/dev/null
+  echo "==> project size presets ConfigMap created"
+fi
+
 register=()
 for id in dev-1 dev-2; do
   if kubectl --kubeconfig "${mgmt_kc}" get cluster.platform.capybara.io "${id}" >/dev/null 2>&1; then

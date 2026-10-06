@@ -43,7 +43,7 @@ type RemoteClients interface {
 type Reconciler struct {
 	Client    client.Client // capybara-mgmt
 	Clusters  RemoteClients
-	Config    *Config
+	Config    *ConfigSource
 	Protected []string
 	Auditor   *audit.Auditor
 	// Timeout bounds the calls to a managed cluster in one reconcile.
@@ -114,7 +114,8 @@ func (r *Reconciler) ensure(ctx context.Context, p *v1alpha1.Project, st *v1alph
 		fail(st, v1alpha1.ReasonProtectedNamespace, fmt.Sprintf("namespace %q is protected and cannot belong to a Project", p.Spec.Namespace))
 		return ctrl.Result{}, nil // namespace is immutable: nothing will change
 	}
-	size, ok := r.Config.Sizes[p.Spec.Size]
+	cfg := r.Config.Get()
+	size, ok := cfg.Sizes[p.Spec.Size]
 	if !ok {
 		fail(st, v1alpha1.ReasonUnknownSize, fmt.Sprintf("size %q is not configured", p.Spec.Size))
 		return ctrl.Result{RequeueAfter: r.Retry}, nil
@@ -147,7 +148,7 @@ func (r *Reconciler) ensure(ctx context.Context, p *v1alpha1.Project, st *v1alph
 		return ctrl.Result{RequeueAfter: r.Retry}, nil
 	}
 
-	d := Build(p, size, r.Config.IngressSources)
+	d := Build(p, size, cfg.IngressSources)
 	if err := apply(rctx, cs, d, ns == nil); err != nil {
 		if apierrors.IsAlreadyExists(err) {
 			// Created by someone else between our check and our create.
