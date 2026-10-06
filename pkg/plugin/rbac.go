@@ -83,19 +83,48 @@ func Namespace(spec *v1alpha1.PluginSpec, mode v1alpha1.InstallMode, cfg map[str
 	return "", fmt.Errorf("connect mode needs config %q (the namespace of the connected service)", spec.ConnectNamespaceKey)
 }
 
+// proxyVerb is the RBAC verb Kubernetes checks for an HTTP method sent
+// through the service proxy.
+func proxyVerb(method string) string {
+	switch method {
+	case "POST":
+		return "create"
+	case "PUT":
+		return "update"
+	case "PATCH":
+		return "patch"
+	case "DELETE":
+		return "delete"
+	default: // GET, HEAD
+		return "get"
+	}
+}
+
 // BackendRole is the Role given to the backend's account in namespace:
-// `get services/proxy` on exactly the resolved services there.
+// services/proxy on exactly the resolved services there, with only the
+// verbs their declared methods need.
 func BackendRole(services []Service, namespace string) []rbacv1.PolicyRule {
-	var names []string
+	byVerb := map[string][]string{}
+	var verbs []string
 	for _, s := range services {
-		if s.Namespace == namespace {
-			names = append(names, s.ProxyName())
+		if s.Namespace != namespace {
+			continue
+		}
+		for _, m := range s.Methods {
+			v := proxyVerb(m)
+			if !slices.Contains(byVerb[v], s.ProxyName()) {
+				if byVerb[v] == nil {
+					verbs = append(verbs, v)
+				}
+				byVerb[v] = append(byVerb[v], s.ProxyName())
+			}
 		}
 	}
-	if len(names) == 0 {
-		return nil
+	var rules []rbacv1.PolicyRule
+	for _, v := range verbs {
+		rules = append(rules, rbacv1.PolicyRule{APIGroups: []string{""}, Resources: []string{"services/proxy"}, ResourceNames: byVerb[v], Verbs: []string{v}})
 	}
-	return []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"services/proxy"}, ResourceNames: names, Verbs: []string{"get"}}}
+	return rules
 }
 
 // InstallerRules is what the installer credential needs for an

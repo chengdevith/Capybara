@@ -22,6 +22,23 @@ chart:
   releaseName: capybara-monitoring
   namespace: capybara-monitoring
   version: 91.9.0
+  # OpenShift ships its own monitoring: connect to Thanos Querier instead.
+  refuseInstallOn: [openshift]
+  # The Grafana admin password never appears in values, the installation,
+  # audit entries or API responses (grafana.admin.existingSecret).
+  generatedSecrets:
+    - name: capybara-grafana-admin
+      keys:
+        - name: admin-user
+          value: admin
+        - name: admin-password
+          random: true
+  # Grafana is served through Capybara's proxy under this path.
+  installValues:
+    grafana:
+      grafana.ini:
+        server:
+          root_url: "http://localhost/api/plugins/monitoring/grafana/{{cluster}}/"
 
 ui:
   bundle: ui/dist/monitoring.js
@@ -89,7 +106,7 @@ permissions:
         verbs: [get, list, watch, delete]
       - apiGroups: [""]
         resources: [services/proxy]
-        verbs: [get]
+        verbs: [get, create]
       - apiGroups: [apps]
         resources: [deployments, daemonsets, statefulsets]
         verbs: [get, list, watch, create, update, patch, delete]

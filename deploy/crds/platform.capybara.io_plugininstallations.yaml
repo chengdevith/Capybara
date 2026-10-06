@@ -107,6 +107,11 @@ spec:
             description: PluginInstallationStatus is the installation's progress and
               health.
             properties:
+              appliedHash:
+                description: |-
+                  AppliedHash identifies the version, mode and config last applied;
+                  enabling or disabling never re-applies.
+                type: string
               conditions:
                 items:
                   description: Condition contains details for one aspect of the current
@@ -166,6 +171,35 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              crdScan:
+                description: CRDScan answers the last CRD scan request (for uninstall
+                  with CRD cleanup).
+                properties:
+                  crds:
+                    items:
+                      type: string
+                    type: array
+                  error:
+                    type: string
+                  foreign:
+                    description: Foreign objects as "<kind> <namespace>/<name>".
+                    items:
+                      type: string
+                    type: array
+                  hash:
+                    description: Hash of Foreign (sha256 hex); the user confirms exactly
+                      this list.
+                    type: string
+                  request:
+                    type: string
+                  scannedAt:
+                    format: date-time
+                    type: string
+                required:
+                - hash
+                - request
+                - scannedAt
+                type: object
               currentStep:
                 description: CurrentStep is the first step not done.
                 type: string

@@ -115,6 +115,21 @@ func ParseManifest(raw []byte) (*Manifest, error) {
 				add("chart files must be relative paths inside the plugin directory")
 			}
 		}
+		for _, p := range c.RefuseInstallOn {
+			if p != "openshift" {
+				add("chart.refuseInstallOn: unknown platform %q", p)
+			}
+		}
+		for _, g := range c.GeneratedSecrets {
+			if !dnsRE.MatchString(g.Name) || len(g.Keys) == 0 {
+				add("generated secret %q: needs a DNS name and keys", g.Name)
+			}
+			for _, k := range g.Keys {
+				if k.Name == "" || (k.Value == "") == !k.Random {
+					add("generated secret %q: each key needs a name and exactly one of value or random", g.Name)
+				}
+			}
+		}
 	}
 	if u := m.UI; u != nil {
 		if !sha256RE.MatchString(u.SHA256) {

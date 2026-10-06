@@ -27,6 +27,9 @@ const (
 	// Uninstall options, set by the API on a PluginInstallation before it is deleted.
 	AnnotationUninstallKeepData   = "platform.capybara.io/uninstall-keep-data"
 	AnnotationUninstallRemoveCRDs = "platform.capybara.io/uninstall-remove-crds"
+	// AnnotationCRDScanRequest asks the controller to list objects of the
+	// plugin's CRDs that do not belong to its release (value: a request id).
+	AnnotationCRDScanRequest = "platform.capybara.io/crd-scan-request"
 	// AnnotationRequestAuditID links controller work to the user's request.
 	AnnotationRequestAuditID = "platform.capybara.io/request-audit-id"
 	// AnnotationRequestedBy is the user who made that request.
@@ -189,6 +192,24 @@ const (
 	ModeConnect InstallMode = "connect"
 )
 
+// GeneratedSecret is a Secret Capybara creates in the plugin's namespace
+// before installing (e.g. an admin password), so secrets never appear in
+// chart values, the installation, audit entries or API responses.
+type GeneratedSecret struct {
+	Name string         `json:"name"`
+	Keys []GeneratedKey `json:"keys"`
+}
+
+// GeneratedKey is one key of a generated Secret: a literal value, or a
+// random one (32 bytes, base64url) created once and kept.
+type GeneratedKey struct {
+	Name string `json:"name"`
+	// +optional
+	Value string `json:"value,omitempty"`
+	// +optional
+	Random bool `json:"random,omitempty"`
+}
+
 // ChartRef is a plugin's Helm chart.
 type ChartRef struct {
 	// Archive path inside the plugin directory.
@@ -202,6 +223,20 @@ type ChartRef struct {
 	Namespace   string `json:"namespace"`
 	// Version of the chart, for display and upgrades.
 	Version string `json:"version"`
+	// InstallValues are merged over the preset per installation; the
+	// string "{{cluster}}" is replaced by the cluster id.
+	// +optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:validation:Type=object
+	InstallValues *runtime.RawExtension `json:"installValues,omitempty"`
+	// GeneratedSecrets are created before the chart is installed.
+	// +optional
+	GeneratedSecrets []GeneratedSecret `json:"generatedSecrets,omitempty"`
+	// RefuseInstallOn lists platforms where install mode is refused
+	// (connect instead), e.g. openshift.
+	// +optional
+	RefuseInstallOn []string `json:"refuseInstallOn,omitempty"`
 }
 
 // UIBundle is a plugin's browser code.
@@ -395,12 +430,35 @@ type PluginInstallationStatus struct {
 	// InstalledVersion is the plugin version last deployed successfully.
 	// +optional
 	InstalledVersion string `json:"installedVersion,omitempty"`
+	// AppliedHash identifies the version, mode and config last applied;
+	// enabling or disabling never re-applies.
+	// +optional
+	AppliedHash string `json:"appliedHash,omitempty"`
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	// CRDScan answers the last CRD scan request (for uninstall with CRD cleanup).
+	// +optional
+	CRDScan *CRDScan `json:"crdScan,omitempty"`
 	// +listType=map
 	// +listMapKey=type
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+// CRDScan lists the plugin's CRDs and the objects of those kinds that do
+// not belong to its release (removing the CRDs would delete them too).
+type CRDScan struct {
+	Request   string      `json:"request"`
+	ScannedAt metav1.Time `json:"scannedAt"`
+	// +optional
+	CRDs []string `json:"crds,omitempty"`
+	// Foreign objects as "<kind> <namespace>/<name>".
+	// +optional
+	Foreign []string `json:"foreign,omitempty"`
+	// Hash of Foreign (sha256 hex); the user confirms exactly this list.
+	Hash string `json:"hash"`
+	// +optional
+	Error string `json:"error,omitempty"`
 }
 
 // PluginInstallation is a plugin installed in (or connected to) a cluster.

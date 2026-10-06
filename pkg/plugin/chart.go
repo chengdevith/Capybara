@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -19,6 +21,7 @@ import (
 	releasev1 "helm.sh/helm/v4/pkg/release/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
+	"sigs.k8s.io/yaml"
 )
 
 // MaxChartBytes bounds a chart archive.
@@ -197,4 +200,19 @@ func containerArgs(o *unstructured.Unstructured) []string {
 		args = append(args, as...)
 	}
 	return args
+}
+
+func readPluginFile(dir, rel string) ([]byte, error) {
+	if !localPath(rel) {
+		return nil, fmt.Errorf("%s: not a path inside the plugin directory", rel)
+	}
+	return os.ReadFile(filepath.Join(dir, filepath.FromSlash(rel))) //nolint:gosec // checked above
+}
+
+func parseYAMLMap(raw []byte) (map[string]any, error) {
+	out := map[string]any{}
+	if err := yaml.Unmarshal(raw, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }

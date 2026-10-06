@@ -60,8 +60,53 @@ spec:
                   archive:
                     description: Archive path inside the plugin directory.
                     type: string
+                  generatedSecrets:
+                    description: GeneratedSecrets are created before the chart is
+                      installed.
+                    items:
+                      description: |-
+                        GeneratedSecret is a Secret Capybara creates in the plugin's namespace
+                        before installing (e.g. an admin password), so secrets never appear in
+                        chart values, the installation, audit entries or API responses.
+                      properties:
+                        keys:
+                          items:
+                            description: |-
+                              GeneratedKey is one key of a generated Secret: a literal value, or a
+                              random one (32 bytes, base64url) created once and kept.
+                            properties:
+                              name:
+                                type: string
+                              random:
+                                type: boolean
+                              value:
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          type: array
+                        name:
+                          type: string
+                      required:
+                      - keys
+                      - name
+                      type: object
+                    type: array
+                  installValues:
+                    description: |-
+                      InstallValues are merged over the preset per installation; the
+                      string "{{cluster}}" is replaced by the cluster id.
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
                   namespace:
                     type: string
+                  refuseInstallOn:
+                    description: |-
+                      RefuseInstallOn lists platforms where install mode is refused
+                      (connect instead), e.g. openshift.
+                    items:
+                      type: string
+                    type: array
                   releaseName:
                     type: string
                   sha256:

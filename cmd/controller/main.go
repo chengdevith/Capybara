@@ -135,6 +135,13 @@ func run(args []string) error {
 		return err
 	}
 
+	if err := (&plugin.InstallationReconciler{
+		Client: mgr.GetClient(), Reader: mgr.GetAPIReader(), Clusters: registry, Installers: installers, PluginsDir: cfg.PluginsDir,
+		Auditor: audit.NewAuditor(store, logger), Logger: logger,
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+
 	remote := make(chan event.GenericEvent, 1024)
 
 	// New size presets apply to every Project; an invalid ConfigMap is
