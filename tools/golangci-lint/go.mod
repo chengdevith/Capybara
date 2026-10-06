@@ -1,4 +1,4 @@
-module github.com/capybara/capybara/tools
+module github.com/capybara/capybara/tools/golangci-lint
 
 go 1.27.0
 

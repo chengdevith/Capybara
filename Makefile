@@ -6,8 +6,11 @@ SHELL := /bin/bash -o pipefail
 
 # Explicit package trees: `./...` would also pick up Go files that npm
 # packages ship inside web/node_modules.
-GO_PKGS      := ./cmd/... ./pkg/...
-GOLANGCI     := go tool -modfile=tools/go.mod golangci-lint
+GO_PKGS      := ./api/... ./cmd/... ./pkg/...
+GOLANGCI     := go tool -modfile=tools/golangci-lint/go.mod golangci-lint
+CONTROLLER_GEN := go tool -modfile=tools/controller-gen/go.mod controller-gen
+SETUP_ENVTEST := go tool -modfile=tools/setup-envtest/go.mod setup-envtest
+ENVTEST_K8S  := 1.37.x
 KUBECONFIGS  := .local/kubeconfig
 CLUSTER      ?= dev-1
 
@@ -55,14 +58,31 @@ web/node_modules: web/package.json web/package-lock.json
 	npm --prefix web ci
 	@touch $@
 
+## --- code generation ------------------------------------------------------
+
+.PHONY: generate
+generate: ## Regenerate deepcopy code and CRD manifests from api/
+	$(CONTROLLER_GEN) object paths=./api/...
+	$(CONTROLLER_GEN) crd paths=./api/... output:crd:dir=deploy/crds
+
+.PHONY: crds
+crds: ## Install the CRDs into capybara-mgmt
+	kubectl --kubeconfig $(KUBECONFIGS)/capybara-mgmt.yaml apply --server-side -f deploy/crds
+
 ## --- quality ----------------------------------------------------------------
 
 .PHONY: test
 test: test-go test-web ## Run all tests
 
 .PHONY: test-go
-test-go:
-	go test $(GO_PKGS)
+test-go: envtest
+	KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST) use $(ENVTEST_K8S) --bin-dir .local/envtest -p path)" \
+	  go test $(GO_PKGS)
+
+# Controller tests run real kube-apiservers (envtest); binaries go to .local.
+.PHONY: envtest
+envtest:
+	@$(SETUP_ENVTEST) use $(ENVTEST_K8S) --bin-dir .local/envtest >/dev/null
 
 .PHONY: test-web
 test-web: web/node_modules
@@ -83,8 +103,17 @@ lint-make:
 	@if (false | true); then echo "Makefile recipes are not running with pipefail" >&2; exit 1; fi
 
 .PHONY: lint-go
-lint-go:
+lint-go: lint-generated
 	$(GOLANGCI) run $(GO_PKGS)
+
+# Fails if the committed generated files do not match api/ (and regenerates them).
+.PHONY: lint-generated
+lint-generated:
+	@tmp=$$(mktemp -d) && cp -R api deploy/crds "$$tmp"/ && \
+	$(MAKE) -s generate >/dev/null && \
+	if ! diff -r "$$tmp/api" api >/dev/null || ! diff -r "$$tmp/crds" deploy/crds >/dev/null; then \
+	  echo "generated files were out of date; they are regenerated now, commit them" >&2; rm -rf "$$tmp"; exit 1; \
+	fi; rm -rf "$$tmp"
 
 .PHONY: lint-web
 lint-web: web/node_modules
