@@ -1,8 +1,12 @@
+import type { SecretSummary } from '@/api/secrets'
+import { secretSummaries } from '@/api/secrets'
 import { formatLabels } from '@/components/resource/format'
-import type { ResourceDef } from '@/components/resource/types'
+import type { ResourceDef, RowExtra } from '@/components/resource/types'
 
-// The server only ever sends Secret metadata for lists, watches and the
-// detail page (no type, no keys, no values). Values come from Reveal/Edit.
+// Lists, watches and the detail page get Secret metadata only. Type and key
+// names come from a server-side summary; values only from Reveal/Edit.
+const summary = (extra?: RowExtra) => extra as SecretSummary | undefined
+
 export const secrets: ResourceDef = {
   id: 'core.secrets',
   type: { group: '', version: 'v1', plural: 'secrets', kind: 'Secret', namespaced: true },
@@ -11,6 +15,18 @@ export const secrets: ResourceDef = {
   path: 'config/secrets',
   sensitive: true,
   deleteConfirm: 'type-name',
-  columns: [{ key: 'labels', title: 'Labels', render: (o) => formatLabels(o.metadata.labels) || '—' }],
+  rowExtras: secretSummaries,
+  columns: [
+    { key: 'type', title: 'Type', render: (_o, _now, x) => summary(x)?.type ?? '…', width: 220 },
+    {
+      key: 'keys',
+      title: 'Keys',
+      render: (_o, _now, x) => {
+        const s = summary(x)
+        return s ? s.keys.join(', ') || '—' : '…'
+      },
+    },
+    { key: 'labels', title: 'Labels', render: (o) => formatLabels(o.metadata.labels) || '—' },
+  ],
   overview: [{ label: 'Values', render: () => 'Hidden. Use Reveal values on the YAML tab (recorded in the audit log).' }],
 }

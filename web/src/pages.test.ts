@@ -54,6 +54,9 @@ function respond(url: string): unknown {
   if (path.endsWith('/pods')) return { metadata: { resourceVersion: '10' }, items: [pod('demo-a'), pod('demo-b')] }
   if (path.endsWith('/pods/demo-a')) return pod('demo-a')
   if (path.endsWith('/namespaces')) return { metadata: { resourceVersion: '10' }, items: [{ metadata: meta('capybara-demo'), status: { phase: 'Active' } }] }
+  if (path.endsWith('/secrets/summary')) {
+    return { items: [{ namespace: 'capybara-demo', name: 'demo-credentials', uid: 'uid-demo-credentials', resourceVersion: '10', type: 'Opaque', keys: ['password', 'username'] }] }
+  }
   if (path.endsWith('/secrets')) return { metadata: { resourceVersion: '10' }, items: [{ metadata: meta('demo-credentials', 'capybara-demo') }] }
   if (path === '/api/clusters/dev-1/secrets/capybara-demo/demo-credentials') {
     return { apiVersion: 'v1', kind: 'Secret', metadata: meta('demo-credentials', 'capybara-demo'), data: { password: 'c2VjcmV0LXZhbHVl' } }
@@ -179,5 +182,11 @@ describe('resource pages (integration)', () => {
     input.value = 'demo-logger'
     input.dispatchEvent(new Event('input'))
     await vi.waitFor(() => expect(confirm()!.disabled).toBe(false))
+  })
+
+  it('shows Secret types and key names from the server summary', async () => {
+    const { wrapper } = await boot('/c/dev-1/config/secrets?ns=capybara-demo')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('password, username'))
+    expect(wrapper.text()).toContain('Opaque')
   })
 })

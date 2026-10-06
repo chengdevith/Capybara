@@ -6,7 +6,7 @@ import type { KubeObject } from '@/api/k8s'
 import { useNow } from '@/composables/useNow'
 import { age } from './format'
 import ResourceActions from './ResourceActions.vue'
-import { detailRouteOf, type ResourceDef } from './types'
+import { detailRouteOf, type ResourceDef, type RowExtra } from './types'
 
 const props = defineProps<{
   resource: ResourceDef
@@ -14,6 +14,7 @@ const props = defineProps<{
   cluster: string
   loading: boolean
   showNamespace: boolean
+  extras?: Map<string, RowExtra>
 }>()
 
 const route = useRoute()
@@ -64,7 +65,7 @@ const columns = computed<DataTableColumns<KubeObject>>(() => {
       key: c.key,
       title: c.title,
       width: c.width,
-      render: (o) => c.render(o, now.value),
+      render: (o) => c.render(o, now.value, props.extras?.get(o.metadata.uid)),
       sorter: sortValue
         ? (a, b) => {
             const x = sortValue(a)

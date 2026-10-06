@@ -3,10 +3,13 @@ import type { KubeObject, ResourceType } from '@/api/k8s'
 
 export type Tone = 'success' | 'warning' | 'error' | 'info' | 'default'
 
+/** Extra per-row data a kind loads from the server (see ResourceDef.rowExtras). */
+export type RowExtra = object
+
 export interface Column {
   key: string
   title: string
-  render: (obj: KubeObject, now: number) => VNodeChild
+  render: (obj: KubeObject, now: number, extra?: RowExtra) => VNodeChild
   /** Enables sorting on this column. */
   sortValue?: (obj: KubeObject) => string | number
   width?: number
@@ -45,6 +48,11 @@ export interface ResourceDef {
   sensitive?: boolean
   /** How deleting one is confirmed. Default 'simple'. */
   deleteConfirm?: 'simple' | 'type-name'
+  /**
+   * Loads extra per-row data (by uid) for the list, e.g. Secret types and
+   * key names from a server-side summary. Reloaded when the list changes.
+   */
+  rowExtras?: (cluster: string, namespace: string | null) => Promise<Map<string, RowExtra>>
 }
 
 export const listRouteOf = (def: ResourceDef): string => `${def.id}.list`

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { NAlert, NCard, NH2 } from 'naive-ui'
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, shallowRef, watch } from 'vue'
 import LiveIndicator from '@/components/resource/LiveIndicator.vue'
 import ResourceTable from '@/components/resource/ResourceTable.vue'
-import type { ResourceDef } from '@/components/resource/types'
+import type { ResourceDef, RowExtra } from '@/components/resource/types'
 import { useExtensionContext } from '@/composables/useExtensionContext'
 import { useLiveList } from '@/composables/useLiveList'
 import { useNamespace } from '@/composables/useNamespace'
@@ -19,6 +19,29 @@ const source = computed(() =>
   ctx.value.cluster ? { cluster: ctx.value.cluster, type: props.resource.type, namespace: scopedNamespace.value } : null,
 )
 const { items, loading, error, live } = useLiveList(source)
+
+// Optional per-row extras from the server, refreshed (debounced) as the
+// live list changes.
+const extras = shallowRef<Map<string, RowExtra>>(new Map())
+let extrasTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  () => [source.value, items.value.map((o) => o.metadata.resourceVersion).join(',')] as const,
+  () => {
+    const load = props.resource.rowExtras
+    const src = source.value
+    if (!load || !src) return
+    clearTimeout(extrasTimer)
+    extrasTimer = setTimeout(async () => {
+      try {
+        extras.value = await load(src.cluster, scopedNamespace.value)
+      } catch {
+        // extras are optional; the list itself still works
+      }
+    }, 300)
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => clearTimeout(extrasTimer))
 </script>
 
 <template>
@@ -46,6 +69,7 @@ const { items, loading, error, live } = useLiveList(source)
         :cluster="ctx.cluster ?? ''"
         :loading="loading"
         :show-namespace="resource.type.namespaced && !scopedNamespace"
+        :extras="extras"
       />
     </NCard>
   </div>
