@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { NMenu, type MenuOption } from 'naive-ui'
-import { computed, h } from 'vue'
+import { computed, h, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useExtensionContext } from '@/composables/useExtensionContext'
 import { navTree, useRegistry, type NavItemExtension, type Registered } from '@/extensions'
@@ -46,7 +46,20 @@ const selected = computed(() => {
   return null
 })
 
-const expanded = computed(() => tree.value.filter((e) => e.kind === 'section').map((e) => e.section.id))
+// Sections start expanded, including ones that appear later (e.g. after
+// the redirect from "/" picks a cluster, or a plugin registers one); a
+// section the user collapses stays collapsed.
+const expanded = ref<string[]>([])
+const seen = new Set<string>()
+watch(
+  () => tree.value.filter((e) => e.kind === 'section').map((e) => e.section.id),
+  (ids) => {
+    const fresh = ids.filter((id) => !seen.has(id))
+    fresh.forEach((id) => seen.add(id))
+    if (fresh.length) expanded.value = [...expanded.value, ...fresh]
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -54,7 +67,8 @@ const expanded = computed(() => tree.value.filter((e) => e.kind === 'section').m
     inverted
     :options="options"
     :value="selected"
-    :default-expanded-keys="expanded"
+    :expanded-keys="expanded"
     :indent="16"
+    @update:expanded-keys="(keys: string[]) => (expanded = keys)"
   />
 </template>

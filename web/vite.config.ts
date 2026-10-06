@@ -10,6 +10,17 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  optimizeDeps: {
+    // Pre-bundle the lazily loaded editors at startup. Otherwise Vite finds
+    // them on first use and reloads the page mid-session.
+    include: [
+      'monaco-editor/editor/editor.api',
+      'monaco-editor/languages/definitions/yaml/register',
+      '@xterm/xterm',
+      '@xterm/addon-fit',
+      'yaml',
+    ],
+  },
   server: {
     host: '127.0.0.1',
     port: 5173,
