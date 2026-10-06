@@ -35,6 +35,10 @@ func newHandler(d deps) http.Handler {
 	api.Handle("/api/clusters/{id}/k8s/{path...}", proxy.Handler(clusters, logger))
 	api.Handle("GET /api/clusters/{id}/watch", stream.WatchHandler(clusters, logger))
 	api.Handle("GET /api/clusters/{id}/logs", stream.LogsHandler(clusters, logger))
+	api.Handle("GET /api/clusters/{id}/exec", &stream.ExecHandler{
+		Clusters: clusters, Auditor: d.auditor, Logger: logger,
+		IdleTimeout: cfg.ExecIdleTimeout, MaxDuration: cfg.ExecMaxDuration,
+	})
 	api.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		httpjson.Error(w, http.StatusNotFound, "not found")
 	})
