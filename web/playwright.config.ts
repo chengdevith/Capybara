@@ -28,6 +28,7 @@ export default defineConfig({
     url: 'http://127.0.0.1:5173/healthz',
     reuseExistingServer: true,
     timeout: 180_000,
-    env: { CAPYBARA_AUDIT_FILE: '.local/audit/e2e.jsonl' },
+    // Fast health checks so the stop/start test sees changes quickly.
+    env: { CAPYBARA_AUDIT_FILE: '.local/audit/e2e.jsonl', CAPYBARA_CLUSTER_CHECK_INTERVAL: '5s' },
   },
 })

@@ -1,6 +1,7 @@
 import type { ExtensionRegistry } from '../registry'
 import { registerActions } from './actions'
 import { registerAudit } from './audit'
+import { registerClusters } from './clusters'
 import { registerDetailTabs } from './detail-tabs'
 import { registerHome } from './home'
 import { registerProjects } from './projects'
@@ -16,5 +17,6 @@ export function registerCoreExtensions(registry: ExtensionRegistry): void {
   registerCoreResources(registry)
   registerDetailTabs(registry)
   registerActions(registry)
+  registerClusters(registry)
   registerAudit(registry)
 }

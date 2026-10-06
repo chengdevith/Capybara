@@ -15,9 +15,11 @@ const tree = computed(() => navTree(registry, ctx.value))
 function link(item: Registered<NavItemExtension>): MenuOption {
   // Keep the selected namespace when moving between pages.
   const query = route.query.ns ? { ns: route.query.ns } : {}
-  const to = ctx.value.cluster
+  const target = registry.get(item.route)
+  const clusterScoped = target?.type === 'route' && target.scope === 'cluster'
+  const to = clusterScoped && ctx.value.cluster
     ? { name: item.route, params: { cluster: ctx.value.cluster }, query }
-    : { name: item.route, query }
+    : { name: item.route }
   return {
     key: item.id,
     label: () => h(RouterLink, { to }, { default: () => item.label }),

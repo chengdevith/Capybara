@@ -14,6 +14,9 @@ export const secrets: ResourceDef = {
   singular: 'Secret',
   path: 'config/secrets',
   sensitive: true,
+  // Secret access is opt-in for Capybara's ServiceAccount (RBAC cannot grant
+  // metadata-only listing).
+  forbiddenHint: 'Secret access is opt-in: regenerate the kubeconfig with make sa-kubeconfig CLUSTER=… WITH_SECRETS=1 and replace it on the Clusters page.',
   deleteConfirm: 'type-name',
   rowExtras: secretSummaries,
   columns: [

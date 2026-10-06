@@ -46,6 +46,8 @@ export interface ResourceDef {
    * server sends metadata only); they are fetched on Reveal or Edit.
    */
   sensitive?: boolean
+  /** How to get access, shown when the cluster refuses to list this kind (403). */
+  forbiddenHint?: string
   /** How deleting one is confirmed. Default 'simple'. */
   deleteConfirm?: 'simple' | 'type-name'
   /**

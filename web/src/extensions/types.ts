@@ -91,7 +91,10 @@ export interface ResourceActionExtension extends ExtensionBase {
   component: LazyComponent
 }
 
-/** A card on the cluster overview page. */
+/**
+ * A card on the cluster overview page (Home). `component` gets `cluster`
+ * (id) and `overview` (ClusterOverview, or null while loading/failed).
+ */
 export interface ClusterOverviewCardExtension extends ExtensionBase {
   type: 'cluster-overview-card'
   title: string

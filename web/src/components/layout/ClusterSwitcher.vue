@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { NSelect } from 'naive-ui'
 import { computed } from 'vue'
+import { statusLabel } from '@/api/clusters'
+import EnvironmentTag from '@/components/clusters/EnvironmentTag.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { clusterFromParams } from '@/composables/useExtensionContext'
 import { useClustersStore } from '@/stores/clusters'
@@ -10,9 +12,11 @@ const router = useRouter()
 const clusters = useClustersStore()
 
 const current = computed(() => clusterFromParams(route.params))
+const selected = computed(() => clusters.byId(current.value))
+// Clusters in Error stay selectable: their pages explain what is wrong.
 const options = computed(() =>
   clusters.items.map((c) => ({
-    label: `${c.displayName}${c.status.phase === 'Connected' ? '' : ' (unreachable)'}`,
+    label: `${c.displayName || c.id} · ${c.environment}${c.status.phase === 'Error' ? ` (${statusLabel(c)})` : ''}`,
     value: c.id,
   })),
 )
@@ -32,6 +36,7 @@ function switchTo(id: string) {
 
 <template>
   <NSelect
+    data-test="cluster-switcher"
     class="cluster-switcher"
     size="small"
     placeholder="Select cluster"
@@ -40,6 +45,11 @@ function switchTo(id: string) {
     :loading="clusters.loading"
     :consistent-menu-width="false"
     @update:value="switchTo"
+  />
+  <EnvironmentTag
+    v-if="selected"
+    :environment="selected.environment"
+    data-test="current-environment"
   />
 </template>
 

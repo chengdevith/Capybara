@@ -4,7 +4,8 @@ import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useClustersStore } from '@/stores/clusters'
 
-// "/" goes to the first registered cluster. No cluster is special.
+// "/" goes to the first registered cluster (no cluster is special), or to
+// the Clusters page to add one.
 const router = useRouter()
 const clusters = useClustersStore()
 
@@ -12,6 +13,7 @@ onMounted(async () => {
   await clusters.ensureLoaded()
   const first = clusters.items[0]
   if (first) await router.replace(`/c/${encodeURIComponent(first.id)}`)
+  else if (!clusters.error) await router.replace({ name: 'core.clusters' })
 })
 </script>
 
@@ -26,6 +28,6 @@ onMounted(async () => {
   </NAlert>
   <NEmpty
     v-else-if="clusters.items.length === 0"
-    description="No clusters are registered (see deploy/clusters.yaml)."
+    description="No clusters are registered yet."
   />
 </template>

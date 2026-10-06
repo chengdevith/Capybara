@@ -6,7 +6,7 @@ const cluster = (id: string) => ({
   id,
   displayName: id,
   environment: 'dev',
-  status: { phase: 'Connected', nodeCount: 1, lastChecked: '2026-01-01T00:00:00Z' },
+  status: { phase: 'Connected' as const, nodeCount: 1, lastChecked: '2026-01-01T00:00:00Z' },
 })
 
 function mockFetch(status: number, body: unknown) {
@@ -44,5 +44,19 @@ describe('clusters store', () => {
     await store.load()
     expect(store.error).toBe('boom')
     expect(store.loaded).toBe(true)
+  })
+
+  it('polls so health changes show up', async () => {
+    vi.useFakeTimers()
+    const fetch = mockFetch(200, [cluster('dev-1')])
+    const store = useClustersStore()
+    store.startPolling(1000)
+    store.startPolling(1000) // idempotent
+    await vi.advanceTimersByTimeAsync(2500)
+    expect(fetch).toHaveBeenCalledTimes(2)
+    store.stopPolling()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(fetch).toHaveBeenCalledTimes(2)
+    vi.useRealTimers()
   })
 })

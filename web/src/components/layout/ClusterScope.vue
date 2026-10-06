@@ -29,8 +29,8 @@ const cluster = computed(() => clusters.byId(id.value))
     :description="`No cluster with id “${id}” is registered.`"
   >
     <template #footer>
-      <NButton @click="$router.push('/')">
-        Go to default cluster
+      <NButton @click="$router.push({ name: 'core.clusters' })">
+        All clusters
       </NButton>
     </template>
   </NResult>

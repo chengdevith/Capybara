@@ -1,52 +1,117 @@
 <script setup lang="ts">
-import { NCard, NDescriptions, NDescriptionsItem, NH1, NTag } from 'naive-ui'
-import { computed } from 'vue'
+import { NAlert, NCard, NGrid, NGridItem, NH1, NTag } from 'naive-ui'
+import { computed, defineAsyncComponent, onBeforeUnmount, shallowRef, watch, type Component } from 'vue'
+import { clusterOverview, type ClusterOverview } from '@/api/clusters'
+import EnvironmentTag from '@/components/clusters/EnvironmentTag.vue'
 import { useExtensionContext } from '@/composables/useExtensionContext'
+import { byOrder, useRegistry, type LazyComponent } from '@/extensions'
 import { useClustersStore } from '@/stores/clusters'
 
+// The cluster overview. Every card is a cluster-overview-card extension;
+// they share one overview request, refreshed with the cluster list.
+const registry = useRegistry()
 const ctx = useExtensionContext()
 const clusters = useClustersStore()
 const cluster = computed(() => clusters.byId(ctx.value.cluster))
+
+const cards = computed(() => registry.active('cluster-overview-card', ctx.value).sort(byOrder))
+const components = new Map<string, Component>()
+function cardComponent(id: string, load: LazyComponent): Component {
+  let c = components.get(id)
+  if (!c) {
+    c = defineAsyncComponent(load)
+    components.set(id, c)
+  }
+  return c
+}
+
+const overview = shallowRef<ClusterOverview | null>(null)
+const error = shallowRef<string | null>(null)
+let abort: AbortController | null = null
+async function load() {
+  const id = ctx.value.cluster
+  if (!id) return
+  abort?.abort()
+  abort = new AbortController()
+  try {
+    overview.value = await clusterOverview(id, abort.signal)
+    error.value = null
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') return
+    error.value = e instanceof Error ? e.message : String(e)
+  }
+}
+// Reload when the cluster's recorded health changes (e.g. it comes back).
+watch(
+  () => [ctx.value.cluster, cluster.value?.status.lastChecked, cluster.value?.status.phase],
+  () => void load(),
+  { immediate: true },
+)
+onBeforeUnmount(() => abort?.abort())
 </script>
 
 <template>
   <div v-if="cluster">
-    <NH1>{{ cluster.displayName }}</NH1>
-    <NCard title="Cluster">
-      <NDescriptions
-        :column="2"
-        label-placement="left"
-        bordered
+    <div class="page-header">
+      <NH1 class="title">
+        {{ cluster.displayName || cluster.id }}
+      </NH1>
+      <EnvironmentTag :environment="cluster.environment" />
+      <NTag
+        size="small"
+        :bordered="false"
       >
-        <NDescriptionsItem label="ID">
-          {{ cluster.id }}
-        </NDescriptionsItem>
-        <NDescriptionsItem label="Environment">
-          <NTag size="small">
-            {{ cluster.environment || '—' }}
-          </NTag>
-        </NDescriptionsItem>
-        <NDescriptionsItem label="Status">
-          <NTag
-            size="small"
-            :type="cluster.status.phase === 'Connected' ? 'success' : 'error'"
-          >
-            {{ cluster.status.phase }}
-          </NTag>
-        </NDescriptionsItem>
-        <NDescriptionsItem label="Kubernetes">
-          {{ cluster.status.version ?? '—' }}
-        </NDescriptionsItem>
-        <NDescriptionsItem label="Nodes">
-          {{ cluster.status.nodeCount }}
-        </NDescriptionsItem>
-        <NDescriptionsItem
-          v-if="cluster.status.message"
-          label="Message"
+        {{ cluster.id }}
+      </NTag>
+    </div>
+    <NAlert
+      v-if="error"
+      type="warning"
+      class="error"
+    >
+      {{ error }}
+    </NAlert>
+    <NGrid
+      cols="1 m:2 l:3"
+      responsive="screen"
+      :x-gap="16"
+      :y-gap="16"
+    >
+      <NGridItem
+        v-for="card in cards"
+        :key="card.id"
+      >
+        <NCard
+          :title="card.title"
+          size="small"
+          class="card"
+          :data-test="`overview-card-${card.id}`"
         >
-          {{ cluster.status.message }}
-        </NDescriptionsItem>
-      </NDescriptions>
-    </NCard>
+          <component
+            :is="cardComponent(card.id, card.component)"
+            :cluster="cluster.id"
+            :overview="overview"
+          />
+        </NCard>
+      </NGridItem>
+    </NGrid>
   </div>
 </template>
+
+<style scoped>
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.title {
+  margin: 0;
+}
+.error {
+  margin-bottom: 12px;
+}
+.card {
+  height: 100%;
+}
+</style>

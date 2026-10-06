@@ -150,6 +150,18 @@ describe('useLiveList', () => {
     expect(list.items.value).toHaveLength(1)
   })
 
+  it('flags a 403 as not permitted and clears it once listing works', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'forbidden' }), { status: 403 })))
+    const { list } = run(src)
+    await settle()
+    expect(list.forbidden.value).toBe(true)
+
+    stubLists({ rv: '1', items: [] })
+    await vi.advanceTimersByTimeAsync(1000)
+    await settle()
+    expect(list.forbidden.value).toBe(false)
+  })
+
   it('restarts when the source changes and stops when disposed', async () => {
     stubLists({ rv: '1', items: [pod('a', '1')] }, { rv: '2', items: [] })
     const ns = ref('demo')

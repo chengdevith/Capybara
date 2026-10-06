@@ -33,9 +33,21 @@ export const useClustersStore = defineStore('clusters', () => {
     if (!loaded.value) await load()
   }
 
+  // Health changes (a cluster going down, credentials expiring) arrive by
+  // polling; the list is small and served from the registry.
+  let timer: ReturnType<typeof setInterval> | undefined
+  function startPolling(intervalMs = 10000) {
+    if (timer) return
+    timer = setInterval(() => void load(), intervalMs)
+  }
+  function stopPolling() {
+    clearInterval(timer)
+    timer = undefined
+  }
+
   function byId(id: string | null | undefined): Cluster | undefined {
     return id ? items.value.find((c) => c.id === id) : undefined
   }
 
-  return { items, loaded, loading, error, load, ensureLoaded, byId }
+  return { items, loaded, loading, error, load, ensureLoaded, byId, startPolling, stopPolling }
 })

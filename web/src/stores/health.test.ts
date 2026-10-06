@@ -20,4 +20,14 @@ describe('health store', () => {
     await h.refresh()
     expect(h.auditFailing).toBe(false)
   })
+
+  it('reports the Project size presets source', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ status: 'ok', audit: 'ok', projectConfig: 'using built-in size defaults' }))))
+    const h = useHealthStore()
+    await h.refresh()
+    expect(h.projectConfigNotice).toBe('using built-in size defaults')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ status: 'ok', audit: 'ok', projectConfig: 'ok' }))))
+    await h.refresh()
+    expect(h.projectConfigNotice).toBeNull()
+  })
 })

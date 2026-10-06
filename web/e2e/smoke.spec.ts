@@ -18,7 +18,7 @@ test('/ redirects to the first cluster and the sidebar comes from the registry',
   await page.goto('/')
   await expect(page).toHaveURL(/\/c\/dev-1\/home$/)
   const sidebar = page.locator('.n-layout-sider')
-  for (const item of ['Home', 'Projects', 'Workloads', 'Pods', 'Deployments', 'Networking', 'Services', 'Config', 'ConfigMaps', 'Secrets', 'Administration', 'Namespaces', 'Audit']) {
+  for (const item of ['Home', 'Projects', 'Workloads', 'Pods', 'Deployments', 'Networking', 'Services', 'Config', 'ConfigMaps', 'Secrets', 'Clusters', 'Administration', 'Namespaces', 'Audit']) {
     await expect(sidebar.getByText(item, { exact: true })).toBeVisible()
   }
 })

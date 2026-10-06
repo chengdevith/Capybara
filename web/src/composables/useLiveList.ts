@@ -1,4 +1,5 @@
 import { onScopeDispose, ref, shallowRef, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
+import { ApiError } from '@/api/client'
 import { listAll, watchUrl, type KubeList, type KubeObject, type ResourceType, type Selectors, type WatchMessage } from '@/api/k8s'
 
 /** A Kubernetes resource in a managed cluster. */
@@ -57,6 +58,8 @@ export interface LiveList {
   loading: Ref<boolean>
   /** Last error, cleared on recovery. */
   error: Ref<string | null>
+  /** The cluster refused the list (403): Capybara's credentials lack access. */
+  forbidden: Ref<boolean>
   /** True while the watch is connected. */
   live: Ref<boolean>
   /** Re-list from scratch. */
@@ -84,6 +87,7 @@ export function useLiveList(source: MaybeRefOrGetter<LiveListSource | null>, opt
   const items = shallowRef<KubeObject[]>([])
   const loading = ref(true)
   const error = ref<string | null>(null)
+  const forbidden = ref(false)
   const live = ref(false)
 
   // State of the current session; replaced wholesale when the source changes.
@@ -146,11 +150,13 @@ export function useLiveList(source: MaybeRefOrGetter<LiveListSource | null>, opt
       flush()
       loading.value = false
       error.value = null
+      forbidden.value = false
       connect(src)
     } catch (e) {
       if (id !== session) return
       loading.value = false
       error.value = e instanceof Error ? e.message : String(e)
+      forbidden.value = e instanceof ApiError && e.status === 403
       retry(src, list)
     }
   }
@@ -211,6 +217,7 @@ export function useLiveList(source: MaybeRefOrGetter<LiveListSource | null>, opt
     attempts = 0
     items.value = []
     error.value = null
+    forbidden.value = false
     loading.value = src !== null
     if (src) void list(normalize(src))
   }
@@ -229,5 +236,5 @@ export function useLiveList(source: MaybeRefOrGetter<LiveListSource | null>, opt
   )
   onScopeDispose(teardown)
 
-  return { items, loading, error, live, reload: () => start(toValue(source)) }
+  return { items, loading, error, forbidden, live, reload: () => start(toValue(source)) }
 }

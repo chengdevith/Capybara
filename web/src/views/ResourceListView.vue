@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NAlert, NCard, NH2 } from 'naive-ui'
+import { NAlert, NCard, NH2, NResult } from 'naive-ui'
 import { computed, onBeforeUnmount, shallowRef, watch } from 'vue'
 import LiveIndicator from '@/components/resource/LiveIndicator.vue'
 import ResourceTable from '@/components/resource/ResourceTable.vue'
@@ -18,7 +18,7 @@ const scopedNamespace = computed(() => (props.resource.type.namespaced ? namespa
 const source = computed(() =>
   ctx.value.cluster ? { cluster: ctx.value.cluster, type: props.resource.type, namespace: scopedNamespace.value } : null,
 )
-const { items, loading, error, live } = useLiveList(source)
+const { items, loading, error, forbidden, live } = useLiveList(source)
 
 // Optional per-row extras from the server, refreshed (debounced) as the
 // live list changes.
@@ -55,14 +55,22 @@ onBeforeUnmount(() => clearTimeout(extrasTimer))
         :loading="loading"
       />
     </div>
+    <NCard v-if="forbidden">
+      <NResult
+        status="403"
+        title="Not permitted on this cluster"
+        data-test="not-permitted"
+        :description="`Capybara's account on this cluster may not list ${resource.label}. ${resource.forbiddenHint ?? ''}`"
+      />
+    </NCard>
     <NAlert
-      v-if="error"
+      v-if="error && !forbidden"
       type="warning"
       class="error"
     >
       {{ error }}
     </NAlert>
-    <NCard>
+    <NCard v-if="!forbidden">
       <ResourceTable
         :resource="resource"
         :items="items"

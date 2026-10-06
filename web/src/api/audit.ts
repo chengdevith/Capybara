@@ -40,6 +40,8 @@ export interface Health {
   status: string
   /** "ok" or "failing: <reason>" */
   audit: string
+  /** "ok", "using built-in size defaults", or the problem with the sizes ConfigMap */
+  projectConfig?: string
 }
 
 export function getHealth(): Promise<Health> {
