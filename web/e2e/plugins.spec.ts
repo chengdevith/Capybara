@@ -1,8 +1,6 @@
-import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { DEMO_NS, kubectl, runningDemoPods } from './kube'
+import { cleanup, connectFlags, installerFile, sa, sampleProm, setInstaller } from './plugin-helpers'
 
 // Plugin framework end to end, with the Monitoring plugin:
 //  1. dev-1: installer credential set in the UI, kube-prometheus-stack
@@ -12,49 +10,6 @@ import { DEMO_NS, kubectl, runningDemoPods } from './kube'
 //     connect-only installer credential.
 //  3. Uninstall both (dev-1 also removes the CRDs after the scan).
 // Installer credentials are throwaway (1-hour tokens) and deleted at the end.
-
-const repo = resolve(import.meta.dirname, '../..')
-const sampleProm = resolve(repo, 'deploy/samples/prometheus-connect.yaml')
-const installerFile = (id: string) => resolve(repo, `.local/kubeconfig/capybara-${id}-installer.yaml`)
-const sa = (...args: string[]) => execFileSync(resolve(repo, 'hack/capybara-sa.sh'), args, { stdio: 'pipe' })
-
-interface Inst {
-  id: string
-  uid: string
-  spec: { cluster: string; mode: string }
-  status: { phase?: string }
-}
-
-async function installations(api: APIRequestContext): Promise<Inst[]> {
-  return (await (await api.get('/api/plugins/_installations')).json()) as Inst[]
-}
-
-async function setInstaller(api: APIRequestContext, id: string, ...extra: string[]) {
-  sa(id, '--installer', 'monitoring', '--duration', '1h', ...extra)
-  const res = await api.put(`/api/clusters/${id}/installer`, { data: { kubeconfig: readFileSync(installerFile(id), 'utf8') } })
-  expect(res.ok(), await res.text()).toBe(true)
-}
-
-const connectFlags = ['--connect', '--set', 'namespace=monitoring', '--set', 'service=prometheus', '--set', 'port=9090']
-
-/** Back to a clean slate: no installations, no installer credentials, no sample Prometheus. */
-async function cleanup(api: APIRequestContext) {
-  const existing = await installations(api)
-  if (existing.length) {
-    // Uninstalling needs the installer credentials.
-    if (existing.some((i) => i.spec.cluster === 'dev-1')) await setInstaller(api, 'dev-1')
-    if (existing.some((i) => i.spec.cluster === 'dev-2')) await setInstaller(api, 'dev-2', ...connectFlags)
-    for (const i of existing) {
-      await api.delete(`/api/plugins/installations/${i.id}?confirm=${i.id}&uid=${i.uid}&keepData=false`)
-    }
-    await expect.poll(async () => (await installations(api)).length, { timeout: 240_000, intervals: [3000] }).toBe(0)
-  }
-  for (const id of ['dev-1', 'dev-2']) {
-    await api.delete(`/api/clusters/${id}/installer`)
-    sa(id, '--sa', 'capybara-installer', '--delete')
-  }
-  kubectl('dev-2', 'delete', '-f', sampleProm, '--ignore-not-found', '--wait=false')
-}
 
 test.describe.configure({ mode: 'serial' })
 test.setTimeout(600_000)
@@ -127,6 +82,17 @@ test('the Metrics tab shows on dev-1 only, and disabling hides the UI while Prom
   await expect(page.locator('.n-tabs-tab', { hasText: 'Metrics' })).toHaveCount(0)
   await expect(page.locator('.n-layout-sider').getByText('Monitoring', { exact: true })).toHaveCount(0)
 
+  // Grafana through Capybara: dashboard queries may POST, admin/user/org/data-source writes may not.
+  const post = (path: string, body: unknown) =>
+    page.evaluate(async ([p, b]) => (await fetch(p as string, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })).status, [path, body] as const)
+  const g = '/api/plugins/monitoring/grafana/dev-1'
+  expect(await post(`${g}/api/ds/query`, {
+    queries: [{ refId: 'A', datasource: { uid: 'prometheus', type: 'prometheus' }, expr: 'up', instant: true }], from: 'now-5m', to: 'now',
+  })).toBe(200)
+  for (const path of ['/api/admin/users', '/api/user/password', '/api/orgs', '/api/datasources']) {
+    expect(await post(`${g}${path}`, {}), path).toBe(403)
+  }
+
   // Disable on dev-1.
   await page.goto('/marketplace/monitoring')
   await page.getByTestId('installation-dev-1').getByTestId('installation-enabled').click()
@@ -178,7 +144,12 @@ test('Connect existing on dev-2 to a hand-installed Prometheus with a connect-on
   await expect(page.getByTestId('monitoring-metrics').locator('canvas').first()).toBeVisible({ timeout: 60_000 })
 })
 
-test('uninstall: connect mode removes only the account; install mode removes the release and, after the scan, the CRDs', async ({ page }) => {
+const pvcs = () => kubectl('dev-1', '-n', 'capybara-monitoring', 'get', 'pvc', '-o', 'name').split('\n').filter(Boolean)
+const helmReleases = () => kubectl('dev-1', '-n', 'capybara-monitoring', 'get', 'secret', '-l', 'owner=helm', '-o', 'name')
+const monitoringCRDs = () => kubectl('dev-1', 'get', 'crd', '-o', 'name').split('\n').filter((n) => n.includes('monitoring.coreos.com'))
+
+test('uninstall keeping data: the release goes, the Prometheus volume stays', async ({ page }) => {
+  // Connect mode first: only the plugin's account goes; the connected Prometheus stays.
   await page.goto('/marketplace/monitoring')
   await page.getByTestId('installation-dev-2').getByTestId('uninstall').click()
   await page.getByTestId('confirm-name').locator('input').fill('monitoring.dev-2')
@@ -186,6 +157,27 @@ test('uninstall: connect mode removes only the account; install mode removes the
   await expect(page.getByTestId('installation-dev-2')).toHaveCount(0, { timeout: 120_000 })
   expect(() => kubectl('dev-2', '-n', 'monitoring', 'get', 'serviceaccount', 'capybara-plugin-monitoring')).toThrow()
   expect(kubectl('dev-2', '-n', 'monitoring', 'get', 'deploy', 'prometheus', '-o', 'name')).toBe('deployment.apps/prometheus')
+
+  const before = pvcs()
+  expect(before.some((n) => n.includes('prometheus-capybara-monitoring-prometheus'))).toBe(true)
+  await page.getByTestId('installation-dev-1').getByTestId('uninstall').click()
+  await expect(page.getByTestId('keep-data')).toBeChecked() // keeping data is the default
+  await page.getByTestId('confirm-name').locator('input').fill('monitoring.dev-1')
+  await page.getByTestId('confirm').click()
+  await expect(page.getByTestId('installation-dev-1')).toHaveCount(0, { timeout: 300_000 })
+
+  expect(helmReleases()).toBe('')
+  expect(pvcs()).toEqual(before) // the metrics volume is still there
+  expect(monitoringCRDs().length).toBeGreaterThan(0) // CRDs were not asked to go
+  await expect.poll(() => kubectl('dev-1', '-n', 'capybara-monitoring', 'get', 'statefulset', '-o', 'name'), { timeout: 120_000 }).toBe('')
+})
+
+test('reinstall over the kept CRDs and volume, then uninstall removing data and CRDs', async ({ page, request }) => {
+  // The CRDs an earlier uninstall kept are recognised as this plugin's.
+  const res = await request.post('/api/plugins/installations', { data: { plugin: 'monitoring', cluster: 'dev-1', mode: 'install' } })
+  expect(res.ok(), await res.text()).toBe(true)
+  await page.goto('/marketplace/monitoring')
+  await expect(phase(page, 'dev-1')).toHaveText('Ready', { timeout: 480_000 })
 
   await page.getByTestId('installation-dev-1').getByTestId('uninstall').click()
   await page.getByTestId('keep-data').click() // do not keep
@@ -195,6 +187,6 @@ test('uninstall: connect mode removes only the account; install mode removes the
   await page.getByTestId('confirm-name').locator('input').fill('monitoring.dev-1')
   await page.getByTestId('confirm').click()
   await expect(page.getByTestId('installation-dev-1')).toHaveCount(0, { timeout: 300_000 })
-  expect(kubectl('dev-1', 'get', 'crd', '-o', 'name').split('\n').filter((n) => n.includes('monitoring.coreos.com'))).toEqual([])
-  expect(kubectl('dev-1', '-n', 'capybara-monitoring', 'get', 'pvc', '-o', 'name')).toBe('')
+  expect(monitoringCRDs()).toEqual([])
+  expect(pvcs()).toEqual([])
 })
