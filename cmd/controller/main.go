@@ -135,10 +135,14 @@ func run(args []string) error {
 		return err
 	}
 
-	if err := (&plugin.InstallationReconciler{
+	installs := &plugin.InstallationReconciler{
 		Client: mgr.GetClient(), Reader: mgr.GetAPIReader(), Clusters: registry, Installers: installers, PluginsDir: cfg.PluginsDir,
 		Auditor: audit.NewAuditor(store, logger), Logger: logger,
-	}).SetupWithManager(mgr); err != nil {
+	}
+	if err := installs.SetupWithManager(mgr); err != nil {
+		return err
+	}
+	if err := (&plugin.CRDScanReconciler{Installation: installs}).SetupWithManager(mgr); err != nil {
 		return err
 	}
 

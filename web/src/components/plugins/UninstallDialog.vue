@@ -42,7 +42,7 @@ async function startScan() {
       await new Promise((r) => (poll = setTimeout(r, 1000)))
       return wait(tries - 1)
     }
-    await wait(30)
+    await wait(90)
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
     scanning.value = false

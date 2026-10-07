@@ -151,6 +151,12 @@ func userCtx(ctx context.Context, in *v1alpha1.PluginInstallation) (context.Cont
 
 // Reconcile drives one installation.
 func (r *InstallationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	start := time.Now()
+	defer func() {
+		if d := time.Since(start); d > 5*time.Second {
+			r.Logger.Warn("slow plugin reconcile", "installation", req.Name, "took", d.Round(time.Millisecond))
+		}
+	}()
 	var in v1alpha1.PluginInstallation
 	if err := r.Client.Get(ctx, req.NamespacedName, &in); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -171,9 +177,6 @@ func (r *InstallationReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 	st := in.Status.DeepCopy()
 	st.ObservedGeneration = in.Generation
-	if res, err := r.handleCRDScan(ctx, &in, &p, pluginErr, st); err != nil || res != nil {
-		return r.finish(ctx, &in, st, res, err)
-	}
 
 	fail := func(msg string) (ctrl.Result, error) {
 		st.Phase, st.Message = v1alpha1.InstallError, msg
@@ -536,23 +539,6 @@ func ptrOr(p *int32, d int32) int32 {
 		return d
 	}
 	return *p
-}
-
-// handleCRDScan answers a CRD scan request (for uninstall with CRD cleanup).
-func (r *InstallationReconciler) handleCRDScan(ctx context.Context, in *v1alpha1.PluginInstallation, p *v1alpha1.Plugin, pluginErr error,
-	st *v1alpha1.PluginInstallationStatus) (*ctrl.Result, error) {
-	reqID := in.Annotations[v1alpha1.AnnotationCRDScanRequest]
-	if reqID == "" || (st.CRDScan != nil && st.CRDScan.Request == reqID) {
-		return nil, nil
-	}
-	scan := &v1alpha1.CRDScan{Request: reqID, ScannedAt: metav1.NewTime(r.Now())}
-	st.CRDScan = scan
-	crds, foreign, err := r.scanCRDs(ctx, in, p, pluginErr)
-	if err != nil {
-		scan.Error = err.Error()
-	}
-	scan.CRDs, scan.Foreign, scan.Hash = crds, foreign, HashList(foreign)
-	return nil, nil
 }
 
 func (r *InstallationReconciler) scanCRDs(ctx context.Context, in *v1alpha1.PluginInstallation, p *v1alpha1.Plugin, pluginErr error) ([]string, []string, error) {
