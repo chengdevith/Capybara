@@ -185,8 +185,8 @@ func (r *InstallationReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	switch {
 	case apierrors.IsNotFound(pluginErr):
 		return fail(fmt.Sprintf("plugin %q is not in the catalog", in.Spec.Plugin))
-	case p.Spec.ExtensionAPI != ExtensionAPIVersion:
-		return fail(fmt.Sprintf("plugin %s needs extension API %d; this Capybara provides %d", p.Name, p.Spec.ExtensionAPI, ExtensionAPIVersion))
+	case CheckExtensionAPI(p.Spec.ExtensionAPI, p.Spec.MinExtensionAPI) != "":
+		return fail(fmt.Sprintf("plugin %s: %s", p.Name, CheckExtensionAPI(p.Spec.ExtensionAPI, p.Spec.MinExtensionAPI)))
 	case in.Spec.Version != p.Spec.Version && st.InstalledVersion != in.Spec.Version:
 		return fail(fmt.Sprintf("the catalog has %s %s, not %s", p.Name, p.Spec.Version, in.Spec.Version))
 	}
@@ -236,8 +236,9 @@ func (r *InstallationReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				}
 			}
 		}
+		probe, _ := r.Clusters.RESTConfig(in.Spec.Cluster)
 		pre, err := Preflight(ctx, PreflightInput{Spec: &p.Spec, PluginDir: dir, Cluster: in.Spec.Cluster, Mode: in.Spec.Mode,
-			Config: cfg, Installer: inst, InstallerIdentity: identity, KubeVersion: version, ReleaseDeployed: deployed})
+			Config: cfg, Installer: inst, InstallerIdentity: identity, KubeVersion: version, ReleaseDeployed: deployed, Probe: probe})
 		if err != nil {
 			return fail("pre-flight: " + err.Error())
 		}
@@ -254,10 +255,13 @@ func (r *InstallationReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		setCond(st, ConditionApplied, metav1.ConditionTrue, "Applied", "version "+in.Spec.Version)
 	}
 
-	// Keep the backend's token fresh (needs the installer credential).
+	// Keep the backend's token fresh (needs the installer credential). A
+	// plugin without declared services has no backend account at all.
 	tokenWarn := ""
-	if err := r.ensureToken(ctx, &in, inst, instErr, ns, services); err != nil {
-		tokenWarn = err.Error()
+	if len(services) > 0 {
+		if err := r.ensureToken(ctx, &in, inst, instErr, ns, services); err != nil {
+			tokenWarn = err.Error()
+		}
 	}
 	return r.checkSteps(ctx, &in, &p, services, st, tokenWarn)
 }
@@ -294,6 +298,14 @@ func (r *InstallationReconciler) apply(ctx context.Context, in *v1alpha1.PluginI
 		}
 		op := audit.Op{Cluster: in.Spec.Cluster, Namespace: ns, Kind: "HelmRelease", Name: p.Spec.Chart.ReleaseName, Action: action, Ref: ref}
 		err = r.Auditor.Do(uctx, op, func(ctx context.Context) (string, error) {
+			// Helm never upgrades crds/: apply them first, every time.
+			crds, err := chartCRDObjects(ch)
+			if err != nil {
+				return "", err
+			}
+			if err := applyCRDs(ctx, inst, crds); err != nil {
+				return "", err
+			}
 			if _, err := helm.Apply(ctx, p.Spec.Chart.ReleaseName, ch, values, r.HelmTimeout); err != nil {
 				return "", err
 			}
@@ -307,6 +319,18 @@ func (r *InstallationReconciler) apply(ctx context.Context, in *v1alpha1.PluginI
 			return fmt.Errorf("label CRDs: %w", err)
 		}
 		setStep(st, "chart", v1alpha1.StepDone, "")
+	}
+	if console := toRBAC(p.Spec.Permissions.Console.ClusterRules); len(console) > 0 {
+		var cl v1alpha1.Cluster
+		if err := r.Client.Get(ctx, types.NamespacedName{Name: in.Spec.Cluster}, &cl); err != nil {
+			return fmt.Errorf("cluster %s: %w", in.Spec.Cluster, err)
+		}
+		if err := ensureConsole(ctx, cs, p.Name, in.Spec.Cluster, cl.Status.Identity, console); err != nil {
+			return err
+		}
+	}
+	if len(services) == 0 || ns == "" {
+		return nil
 	}
 	return ensureBackendAccount(ctx, cs, ns, p.Name, in.Spec.Cluster, BackendRole(services, ns))
 }
@@ -405,6 +429,12 @@ func (r *InstallationReconciler) checkSteps(ctx context.Context, in *v1alpha1.Pl
 		tokenCfg.Timeout = 10 * time.Second
 	}
 	ns, _ := Namespace(&p.Spec, in.Spec.Mode, ConfigOf(in))
+	nsFor := func(c v1alpha1.StepCheck) string {
+		if c.Namespace != "" {
+			return c.Namespace
+		}
+		return ns
+	}
 
 	allDone := true
 	wasReady := meta.IsStatusConditionTrue(st.Conditions, ConditionInstalled)
@@ -427,7 +457,23 @@ func (r *InstallationReconciler) checkSteps(ctx context.Context, in *v1alpha1.Pl
 			if csErr != nil {
 				err = csErr
 			} else {
-				err = workloadReady(ctx, cs, ns, def.Check.Kind, def.Check.Name)
+				err = workloadReady(ctx, cs, nsFor(def.Check), def.Check.Kind, def.Check.Name)
+			}
+		case "apiResource":
+			if csErr != nil {
+				err = csErr
+			} else if ok, derr := APIResourceServed(cs, def.Check.Name); derr != nil {
+				err = derr
+			} else if !ok {
+				err = fmt.Errorf("%s is not served yet", def.Check.Name)
+			}
+		case "dryRun":
+			if base == nil {
+				err = errors.New("cluster not available")
+			} else {
+				dctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+				err = dryRunCreate(dctx, base, nsFor(def.Check), def.Check.Object.Raw)
+				cancel()
 			}
 		case "service":
 			err = r.serviceCheck(ctx, tokenCfg, services, def.Check)
@@ -688,8 +734,15 @@ func (r *InstallationReconciler) uninstall(ctx context.Context, in *v1alpha1.Plu
 			}
 		}
 	}
-	if err := deleteBackendAccount(ctx, cs, ns, in.Spec.Plugin); err != nil && !apierrors.IsForbidden(err) {
-		return r.blocked(ctx, in, st, "remove the backend's account: "+err.Error())
+	if len(p.Spec.Permissions.Console.ClusterRules) > 0 {
+		if err := deleteConsole(ctx, cs, in.Spec.Plugin); err != nil {
+			return r.blocked(ctx, in, st, "revoke the console permissions: "+err.Error())
+		}
+	}
+	if ns != "" && len(p.Spec.Permissions.Services) > 0 {
+		if err := deleteBackendAccount(ctx, cs, ns, in.Spec.Plugin); err != nil && !apierrors.IsForbidden(err) {
+			return r.blocked(ctx, in, st, "remove the backend's account: "+err.Error())
+		}
 	}
 	return done()
 }

@@ -185,6 +185,74 @@ type PluginPermissions struct {
 	// installed and enabled.
 	// +optional
 	Services []ServiceAccess `json:"services,omitempty"`
+	// Console is granted to Capybara's own account on the cluster while the
+	// plugin is installed (a ClusterRole capybara-plugin-<name>-console), so
+	// the console can read the plugin's resources and run its declared
+	// actions. Only ClusterRules are used.
+	// +optional
+	Console RuleSet `json:"console,omitempty"`
+}
+
+// ActionType is what a declared plugin action does.
+// +kubebuilder:validation:Enum=copy;patch
+type ActionType string
+
+// Action types.
+const (
+	// ActionCopy creates a new object from an existing one, copying only
+	// the declared fields (generateName from the original's name).
+	ActionCopy ActionType = "copy"
+	// ActionPatch applies a fixed JSON merge patch.
+	ActionPatch ActionType = "patch"
+)
+
+// ActionCondition limits an action to objects whose status condition has
+// one of the given statuses (e.g. Succeeded=Unknown: still running).
+type ActionCondition struct {
+	Type   string   `json:"type"`
+	Status []string `json:"status"`
+}
+
+// PluginAction is an operation on one of the plugin's resources that core
+// carries out with Capybara's account (holding the console permissions)
+// and audits; plugin code never decides what is written.
+type PluginAction struct {
+	// Name is the action id (audited as <plugin>.<name>).
+	Name  string `json:"name"`
+	Title string `json:"title"`
+	// The target resource.
+	Group    string     `json:"group"`
+	Version  string     `json:"version"`
+	Resource string     `json:"resource"`
+	Kind     string     `json:"kind"`
+	Type     ActionType `json:"type"`
+	// Copy: dotted field paths copied from the original when present.
+	// +optional
+	CopyFields []string `json:"copyFields,omitempty"`
+	// Patch: the JSON merge patch.
+	// +optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:validation:Type=object
+	Patch *runtime.RawExtension `json:"patch,omitempty"`
+	// When: only for objects matching this condition.
+	// +optional
+	When *ActionCondition `json:"when,omitempty"`
+	// Danger: shown in red and confirmed.
+	// +optional
+	Danger bool `json:"danger,omitempty"`
+}
+
+// Detect says what indicates an existing installation of the tool: install
+// mode is refused when found (connect to it instead); connect mode needs it.
+type Detect struct {
+	// API resources served by the cluster, as "<group>/<resource>".
+	// +optional
+	APIResources []string `json:"apiResources,omitempty"`
+	// Namespaces that only an existing (e.g. operator-managed) install has.
+	// They only refuse install mode.
+	// +optional
+	Namespaces []string `json:"namespaces,omitempty"`
 }
 
 // InstallMode is how a plugin is attached to a cluster.
@@ -255,14 +323,26 @@ type UIBundle struct {
 // StepCheck is how the controller decides a step is done.
 type StepCheck struct {
 	// helm (the release is deployed), workload (a Deployment/StatefulSet/
-	// DaemonSet is ready), service (a declared service answers a path).
-	// +kubebuilder:validation:Enum=helm;workload;service
+	// DaemonSet is ready), service (a declared service answers a path),
+	// apiResource (the cluster serves "<group>/<resource>", e.g. after its
+	// CRD is established), dryRun (the API server accepts Object in a
+	// server-side dry run, e.g. through the plugin's webhooks).
+	// +kubebuilder:validation:Enum=helm;workload;service;apiResource;dryRun
 	Type string `json:"type"`
-	// workload: kind and name (in the plugin namespace).
+	// workload: kind and name; apiResource: "<group>/<resource>" in Name.
 	// +optional
 	Kind string `json:"kind,omitempty"`
 	// +optional
 	Name string `json:"name,omitempty"`
+	// workload/dryRun: namespace (default: the plugin namespace).
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+	// dryRun: the object to create (dry run, with Capybara's account).
+	// +optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:validation:Type=object
+	Object *runtime.RawExtension `json:"object,omitempty"`
 	// service: the ServiceAccess name, a GET path, and a substring the
 	// response must contain.
 	// +optional
@@ -286,6 +366,9 @@ type InstallStep struct {
 // PluginSpec is a catalog entry, written by the catalog sync from the
 // plugin's manifest (plugins/<name>/plugin.yaml).
 type PluginSpec struct {
+	// Name is the plugin's name (the Plugin object's name).
+	// +optional
+	Name        string `json:"name,omitempty"`
 	Repository  string `json:"repository"`
 	DisplayName string `json:"displayName"`
 	Version     string `json:"version"`
@@ -294,8 +377,12 @@ type PluginSpec struct {
 	// Icon is a small SVG (data URI).
 	// +optional
 	Icon string `json:"icon,omitempty"`
-	// ExtensionAPI the UI bundle was written for.
+	// ExtensionAPI is the major extension API version the UI bundle uses.
 	ExtensionAPI int `json:"extensionApi"`
+	// MinExtensionAPI is the lowest "1.M" the plugin works with; Capybara
+	// refuses it when it provides an older minor version.
+	// +optional
+	MinExtensionAPI string `json:"minExtensionApi,omitempty"`
 	// +kubebuilder:validation:Enum=per-cluster;global
 	Scope string `json:"scope"`
 	// +kubebuilder:validation:MinItems=1
@@ -321,6 +408,10 @@ type PluginSpec struct {
 	Dependencies []string `json:"dependencies,omitempty"`
 	// +optional
 	Steps []InstallStep `json:"steps,omitempty"`
+	// +optional
+	Actions []PluginAction `json:"actions,omitempty"`
+	// +optional
+	Detect *Detect `json:"detect,omitempty"`
 	// Namespace for connect mode's backend account when the config does not
 	// name one (the namespace of the connected service).
 	// +optional

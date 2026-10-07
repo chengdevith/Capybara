@@ -107,6 +107,7 @@ func run(args []string) error {
 				Bundles: &plugin.Bundles{Mgmt: mgmt, PluginsDir: cfg.PluginsDir, DevDir: cfg.PluginDevDir}},
 			backends: &plugin.BackendProxy{Backends: cfg.PluginBackends, Logger: logger},
 			scoped:   &plugin.ScopedProxy{Mgmt: mgmt, Credentials: creds, Clusters: registry, Logger: logger},
+			actions:  &plugin.ActionAPI{Mgmt: mgmt, Clusters: registry, Auditor: auditor, Logger: logger},
 			clusterAPI: &cluster.API{
 				Mgmt: mgmt, MgmtErr: mgmtErr, Registry: registry, Auditor: auditor, Logger: logger,
 				Opts: cluster.ValidateOptions{AllowInsecure: cfg.AllowInsecureKubeconfig},

@@ -446,8 +446,8 @@ func (a *API) update(w http.ResponseWriter, r *http.Request) {
 			if b.Version != p.Spec.Version || !p.Status.Available {
 				return "", errorf(http.StatusConflict, "the catalog offers %s %s (available: %v)", p.Name, p.Spec.Version, p.Status.Available)
 			}
-			if p.Spec.ExtensionAPI != ExtensionAPIVersion {
-				return "", errorf(http.StatusConflict, "%s %s needs extension API %d; this Capybara provides %d", p.Name, b.Version, p.Spec.ExtensionAPI, ExtensionAPIVersion)
+			if why := CheckExtensionAPI(p.Spec.ExtensionAPI, p.Spec.MinExtensionAPI); why != "" {
+				return "", errorf(http.StatusConflict, "%s %s: %s", p.Name, b.Version, why)
 			}
 			details = append(details, fmt.Sprintf("version %s → %s", in.Spec.Version, b.Version))
 			in.Spec.Version = b.Version

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -16,8 +17,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -243,4 +247,134 @@ func storageVersion(crd map[string]any) string {
 		}
 	}
 	return ""
+}
+
+// applyCRDs server-side applies the chart's CRDs before Helm runs. Helm
+// installs crds/ only on first install and never upgrades them, so new
+// plugin versions (and reinstalls over kept CRDs) bring their CRDs here.
+func applyCRDs(ctx context.Context, inst *rest.Config, crds []*unstructured.Unstructured) error {
+	if len(crds) == 0 {
+		return nil
+	}
+	dyn, err := dynamic.NewForConfig(inst)
+	if err != nil {
+		return err
+	}
+	gvr := schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"}
+	for _, crd := range crds {
+		body, err := crd.MarshalJSON()
+		if err != nil {
+			return err
+		}
+		if _, err := dyn.Resource(gvr).Patch(ctx, crd.GetName(), types.ApplyPatchType, body,
+			metav1.PatchOptions{FieldManager: "capybara-controller", Force: ptr.To(true)}); err != nil {
+			return fmt.Errorf("apply CRD %s: %w", crd.GetName(), err)
+		}
+	}
+	return nil
+}
+
+// subjectFor turns an identity ("system:serviceaccount:ns:name" or a user)
+// into an RBAC subject.
+func subjectFor(identity string) (rbacv1.Subject, error) {
+	if rest, ok := strings.CutPrefix(identity, "system:serviceaccount:"); ok {
+		ns, name, ok := strings.Cut(rest, ":")
+		if !ok || ns == "" || name == "" {
+			return rbacv1.Subject{}, fmt.Errorf("bad service account identity %q", identity)
+		}
+		return rbacv1.Subject{Kind: "ServiceAccount", Namespace: ns, Name: name}, nil
+	}
+	if identity == "" {
+		return rbacv1.Subject{}, errors.New("the identity of Capybara's account on the cluster is not known yet")
+	}
+	return rbacv1.Subject{Kind: "User", APIGroup: rbacv1.GroupName, Name: identity}, nil
+}
+
+// ensureConsole grants Capybara's own account the plugin's console
+// permissions (ClusterRole + binding), with the installer credential.
+func ensureConsole(ctx context.Context, cs kubernetes.Interface, plugin, clusterID, identity string, rules []rbacv1.PolicyRule) error {
+	if len(rules) == 0 {
+		return nil
+	}
+	subject, err := subjectFor(identity)
+	if err != nil {
+		return err
+	}
+	name := ConsoleRole(plugin)
+	labels := pluginLabels(plugin, clusterID)
+	role := &rbacv1.ClusterRole{TypeMeta: metav1.TypeMeta{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "ClusterRole"},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels}, Rules: rules}
+	binding := &rbacv1.ClusterRoleBinding{TypeMeta: metav1.TypeMeta{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "ClusterRoleBinding"},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels},
+		RoleRef:    rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: name},
+		Subjects:   []rbacv1.Subject{subject}}
+	opts := metav1.PatchOptions{FieldManager: "capybara-controller", Force: ptr.To(true)}
+	body, _ := jsonMarshal(role)
+	if _, err := cs.RbacV1().ClusterRoles().Patch(ctx, name, types.ApplyPatchType, body, opts); err != nil {
+		return fmt.Errorf("console role: %w", err)
+	}
+	body, _ = jsonMarshal(binding)
+	if _, err := cs.RbacV1().ClusterRoleBindings().Patch(ctx, name, types.ApplyPatchType, body, opts); err != nil {
+		return fmt.Errorf("console role binding: %w", err)
+	}
+	return nil
+}
+
+// deleteConsole revokes the console permissions.
+func deleteConsole(ctx context.Context, cs kubernetes.Interface, plugin string) error {
+	name := ConsoleRole(plugin)
+	if err := cs.RbacV1().ClusterRoleBindings().Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	if err := cs.RbacV1().ClusterRoles().Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	return nil
+}
+
+// APIResourceServed reports whether the cluster serves "<group>/<resource>"
+// (discovery needs no RBAC).
+func APIResourceServed(cs kubernetes.Interface, groupResource string) (bool, error) {
+	group, resource, _ := strings.Cut(groupResource, "/")
+	groups, err := cs.Discovery().ServerGroups()
+	if err != nil {
+		return false, err
+	}
+	for _, g := range groups.Groups {
+		if g.Name != group {
+			continue
+		}
+		list, err := cs.Discovery().ServerResourcesForGroupVersion(g.PreferredVersion.GroupVersion)
+		if err != nil {
+			return false, err
+		}
+		for _, r := range list.APIResources {
+			if r.Name == resource {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// dryRunCreate asks the API server to accept obj without storing it.
+func dryRunCreate(ctx context.Context, cfg *rest.Config, ns string, raw []byte) error {
+	var obj unstructured.Unstructured
+	if err := obj.UnmarshalJSON(raw); err != nil {
+		return err
+	}
+	gv, err := schema.ParseGroupVersion(obj.GetAPIVersion())
+	if err != nil {
+		return err
+	}
+	plural, _ := meta.UnsafeGuessKindToResource(gv.WithKind(obj.GetKind()))
+	dyn, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return err
+	}
+	if obj.GetName() == "" && obj.GetGenerateName() == "" {
+		obj.SetGenerateName("capybara-check-")
+	}
+	_, err = dyn.Resource(plural).Namespace(ns).Create(ctx, &obj, metav1.CreateOptions{DryRun: []string{metav1.DryRunAll}})
+	return err
 }

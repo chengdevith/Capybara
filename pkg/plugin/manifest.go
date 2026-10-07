@@ -20,9 +20,32 @@ import (
 	"github.com/capybara/capybara/api/v1alpha1"
 )
 
-// ExtensionAPIVersion is the console extension API this Capybara provides
-// (web/src/extensions/types.ts and sdk/ must agree).
-const ExtensionAPIVersion = 1
+// The console extension API this Capybara provides, as major.minor
+// (sdk/src/extensions.ts must agree). Minor versions only add; a plugin
+// declares the lowest 1.M it works with (minExtensionApi).
+const (
+	ExtensionAPIVersion = 1 // major
+	ExtensionAPIMinor   = 1
+)
+
+// CheckExtensionAPI says why a plugin needing major and min ("1.M", empty
+// for 1.0) cannot run on this Capybara, or "" when it can.
+func CheckExtensionAPI(major int, min string) string {
+	if major != ExtensionAPIVersion {
+		return fmt.Sprintf("written for extension API %d.x; this Capybara provides %d.%d", major, ExtensionAPIVersion, ExtensionAPIMinor)
+	}
+	if min == "" {
+		return ""
+	}
+	var mj, mn int
+	if _, err := fmt.Sscanf(min, "%d.%d", &mj, &mn); err != nil || mj != major {
+		return fmt.Sprintf("minExtensionApi %q must be %d.<minor>", min, major)
+	}
+	if mn > ExtensionAPIMinor {
+		return fmt.Sprintf("needs extension API %s; this Capybara provides %d.%d", min, ExtensionAPIVersion, ExtensionAPIMinor)
+	}
+	return ""
+}
 
 // ManifestFile is the manifest's name inside a plugin directory.
 const ManifestFile = "plugin.yaml"
@@ -37,6 +60,7 @@ type Manifest struct {
 	Description         string                     `json:"description,omitempty"`
 	Icon                string                     `json:"icon,omitempty"`
 	ExtensionAPI        int                        `json:"extensionApi"`
+	MinExtensionAPI     string                     `json:"minExtensionApi,omitempty"`
 	Scope               string                     `json:"scope"`
 	Modes               []v1alpha1.InstallMode     `json:"modes"`
 	ExtensionPoints     []string                   `json:"extensionPoints,omitempty"`
@@ -48,6 +72,8 @@ type Manifest struct {
 	Permissions         v1alpha1.PluginPermissions `json:"permissions,omitempty"`
 	Steps               []v1alpha1.InstallStep     `json:"steps,omitempty"`
 	Dependencies        []string                   `json:"dependencies,omitempty"`
+	Actions             []v1alpha1.PluginAction    `json:"actions,omitempty"`
+	Detect              *v1alpha1.Detect           `json:"detect,omitempty"`
 }
 
 // ConfigSection holds the installation config schema.
@@ -156,6 +182,19 @@ func ParseManifest(raw []byte) (*Manifest, error) {
 			add("config.schema: %v", err)
 		}
 	}
+	if m.MinExtensionAPI != "" && !regexp.MustCompile(`^\d+\.\d+$`).MatchString(m.MinExtensionAPI) {
+		add("minExtensionApi must look like 1.1")
+	}
+	for _, a := range m.Actions {
+		problems = append(problems, validateAction(a, m.Permissions.Console)...)
+	}
+	if d := m.Detect; d != nil {
+		for _, r := range d.APIResources {
+			if g, res, ok := strings.Cut(r, "/"); !ok || g == "" || !dnsRE.MatchString(res) {
+				add("detect.apiResources: %q must be <group>/<resource>", r)
+			}
+		}
+	}
 	if len(problems) > 0 {
 		return nil, &ManifestError{Problems: problems}
 	}
@@ -198,6 +237,14 @@ func validateService(s v1alpha1.ServiceAccess) []string {
 
 func validateStep(st v1alpha1.InstallStep, services []v1alpha1.ServiceAccess) []string {
 	switch st.Check.Type {
+	case "apiResource":
+		if g, r, ok := strings.Cut(st.Check.Name, "/"); !ok || g == "" || r == "" {
+			return []string{fmt.Sprintf("step %q: apiResource checks need name <group>/<resource>", st.Name)}
+		}
+	case "dryRun":
+		if st.Check.Object == nil || len(st.Check.Object.Raw) == 0 {
+			return []string{fmt.Sprintf("step %q: dryRun checks need an object", st.Name)}
+		}
 	case "helm":
 	case "workload":
 		if !slices.Contains([]string{"Deployment", "StatefulSet", "DaemonSet"}, st.Check.Kind) || !dnsRE.MatchString(st.Check.Name) {
@@ -211,6 +258,44 @@ func validateStep(st v1alpha1.InstallStep, services []v1alpha1.ServiceAccess) []
 		return []string{fmt.Sprintf("step %q: unknown check type %q", st.Name, st.Check.Type)}
 	}
 	return nil
+}
+
+// validateAction checks an action is well formed and that the console
+// permissions allow it (create for copy, patch for patch).
+func validateAction(a v1alpha1.PluginAction, console v1alpha1.RuleSet) []string {
+	var problems []string
+	add := func(format string, args ...any) {
+		problems = append(problems, fmt.Sprintf("action %q: "+format, append([]any{a.Name}, args...)...))
+	}
+	if !nameRE.MatchString(a.Name) || a.Title == "" {
+		add("needs a DNS-label name and a title")
+	}
+	if !dnsRE.MatchString(a.Resource) || a.Version == "" || a.Kind == "" {
+		add("needs group, version, resource and kind")
+	}
+	verb := "create"
+	switch a.Type {
+	case v1alpha1.ActionCopy:
+		if len(a.CopyFields) == 0 {
+			add("copy needs copyFields")
+		}
+		for _, f := range a.CopyFields {
+			if !strings.HasPrefix(f, "spec.") {
+				add("copyFields must be under spec (got %q)", f)
+			}
+		}
+	case v1alpha1.ActionPatch:
+		verb = "patch"
+		if a.Patch == nil || len(a.Patch.Raw) == 0 {
+			add("patch needs a patch")
+		}
+	default:
+		add("unknown type %q", a.Type)
+	}
+	if !allows(toRBAC(console.ClusterRules), a.Group, a.Resource, verb) {
+		add("permissions.console must allow %s on %s", verb, a.Resource)
+	}
+	return problems
 }
 
 // LoadDir reads and verifies the plugin in dir: manifest, then the chart
@@ -227,10 +312,11 @@ func LoadDir(dir, repository string) (*Manifest, *v1alpha1.PluginSpec, error) {
 		return nil, nil, err
 	}
 	spec := &v1alpha1.PluginSpec{
-		Repository: repository, DisplayName: m.DisplayName, Version: m.Version, Description: m.Description,
+		Name: m.Name, Repository: repository, DisplayName: m.DisplayName, Version: m.Version, Description: m.Description,
 		ExtensionAPI: m.ExtensionAPI, Scope: m.Scope, Modes: m.Modes, ExtensionPoints: m.ExtensionPoints,
 		Chart: m.Chart, UI: m.UI, Backend: m.Backend, Permissions: m.Permissions, Steps: m.Steps,
 		Dependencies: m.Dependencies, ConnectNamespaceKey: m.ConnectNamespaceKey,
+		MinExtensionAPI: m.MinExtensionAPI, Actions: m.Actions, Detect: m.Detect,
 	}
 	if m.Config != nil {
 		b, _ := json.Marshal(m.Config.Schema)
@@ -250,8 +336,8 @@ var ErrHashMismatch = errors.New("sha256 does not match the manifest")
 
 // Verify checks the files a spec pins, and the extension API version.
 func Verify(dir string, spec *v1alpha1.PluginSpec) error {
-	if spec.ExtensionAPI != ExtensionAPIVersion {
-		return fmt.Errorf("written for extension API %d; this Capybara provides %d", spec.ExtensionAPI, ExtensionAPIVersion)
+	if why := CheckExtensionAPI(spec.ExtensionAPI, spec.MinExtensionAPI); why != "" {
+		return errors.New(why)
 	}
 	if spec.Chart != nil {
 		if _, err := ReadPinned(dir, spec.Chart.Archive, spec.Chart.SHA256); err != nil {

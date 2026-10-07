@@ -216,3 +216,16 @@ func parseYAMLMap(raw []byte) (map[string]any, error) {
 	}
 	return out, nil
 }
+
+// chartCRDObjects decodes the chart's crds/ files.
+func chartCRDObjects(ch *chart.Chart) ([]*unstructured.Unstructured, error) {
+	var out []*unstructured.Unstructured
+	for _, crd := range ch.CRDObjects() {
+		objs, err := decodeObjects(string(crd.File.Data))
+		if err != nil {
+			return nil, fmt.Errorf("crd %s: %w", crd.Filename, err)
+		}
+		out = append(out, objs...)
+	}
+	return out, nil
+}

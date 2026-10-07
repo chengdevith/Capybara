@@ -10,6 +10,8 @@ description: >-
   Querier; never install a second stack there).
 icon: icon.svg
 extensionApi: 1
+# Works with any 1.x console from 1.0 on.
+minExtensionApi: "1.0"
 scope: per-cluster
 modes: [install, connect]
 extensionPoints: [nav-section, nav-item, route, resource-detail-tab, cluster-overview-card, project-overview-card, settings-page]

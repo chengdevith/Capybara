@@ -25,6 +25,7 @@ type deps struct {
 	plugins    *plugin.API
 	backends   *plugin.BackendProxy
 	scoped     *plugin.ScopedProxy
+	actions    *plugin.ActionAPI
 	auditor    *audit.Auditor
 	auditLog   audit.Reader
 	projects   *project.API
@@ -42,6 +43,7 @@ func newHandler(d deps) http.Handler {
 	(&action.Handlers{Clusters: clusters, Auditor: d.auditor, Protected: cfg.Protected(), Logger: logger}).Register(api)
 	d.clusterAPI.Register(api)
 	d.plugins.Register(api)
+	d.actions.Register(api)
 	d.backends.Register(api)
 	// Any method is routed so the proxy can answer non-GET with 405 itself.
 	api.Handle("/api/clusters/{id}/k8s/{path...}", proxy.Handler(clusters, logger))

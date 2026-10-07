@@ -77,13 +77,18 @@ func Namespace(spec *v1alpha1.PluginSpec, mode v1alpha1.InstallMode, cfg map[str
 		}
 		return spec.Chart.Namespace, nil
 	}
-	if spec.ConnectNamespaceKey != "" {
-		if ns := ConfigString(cfg, spec.ConnectNamespaceKey); ns != "" {
-			return ns, nil
-		}
+	if spec.ConnectNamespaceKey == "" {
+		return "", nil // connect without a service (e.g. an existing Tekton): no namespace of its own
+	}
+	if ns := ConfigString(cfg, spec.ConnectNamespaceKey); ns != "" {
+		return ns, nil
 	}
 	return "", fmt.Errorf("connect mode needs config %q (the namespace of the connected service)", spec.ConnectNamespaceKey)
 }
+
+// ConsoleRole is the ClusterRole (and binding) granting Capybara's own
+// account a plugin's console permissions.
+func ConsoleRole(plugin string) string { return "capybara-plugin-" + plugin + "-console" }
 
 // proxyVerb is the RBAC verb Kubernetes checks for an HTTP method sent
 // through the service proxy.
@@ -143,8 +148,21 @@ func InstallerRules(spec *v1alpha1.PluginSpec, mode v1alpha1.InstallMode, servic
 	if mode == v1alpha1.ModeConnect {
 		ns = append(ns, BackendRole(services, namespace)...)
 	}
+	// Granting the console permissions: the installer creates the role and
+	// binding, and must hold what it grants (RBAC escalation rules).
+	if console := toRBAC(spec.Permissions.Console.ClusterRules); len(console) > 0 {
+		name := ConsoleRole(pluginNameOf(spec))
+		cluster = append(cluster,
+			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"clusterroles", "clusterrolebindings"}, Verbs: []string{"create"}},
+			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"clusterroles", "clusterrolebindings"}, ResourceNames: []string{name}, Verbs: []string{"get", "patch", "delete"}},
+		)
+		cluster = append(cluster, console...)
+	}
 	return cluster, ns
 }
+
+// pluginNameOf is a spec's plugin name (set by catalog sync on the spec copy).
+func pluginNameOf(spec *v1alpha1.PluginSpec) string { return spec.Name }
 
 func toRBAC(rules []v1alpha1.PolicyRule) []rbacv1.PolicyRule {
 	out := make([]rbacv1.PolicyRule, 0, len(rules))

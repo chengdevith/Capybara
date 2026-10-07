@@ -58,6 +58,9 @@ type PreflightInput struct {
 	// installs crds/ without ownership metadata, so existing CRDs are
 	// expected then.
 	ReleaseDeployed bool
+	// Probe is Capybara's own connection to the cluster, for detecting an
+	// existing installation (discovery and namespaces need no installer).
+	Probe *rest.Config
 }
 
 // Preflight checks an installation before anything is changed.
@@ -118,6 +121,24 @@ func Preflight(ctx context.Context, in PreflightInput) (*PreflightResult, error)
 		if err := preflightInstall(ctx, in, cs, clusterRules, res); err != nil {
 			return nil, err
 		}
+		// The controller server-side applies the chart's CRDs on every
+		// install and upgrade (Helm never upgrades crds/).
+		var crdRules []rbacv1.PolicyRule
+		if len(res.CRDs) > 0 {
+			crdRules = append(crdRules, rbacv1.PolicyRule{APIGroups: []string{"apiextensions.k8s.io"}, Resources: []string{"customresourcedefinitions"}, Verbs: []string{"create"}},
+				rbacv1.PolicyRule{APIGroups: []string{"apiextensions.k8s.io"}, Resources: []string{"customresourcedefinitions"}, ResourceNames: res.CRDs, Verbs: []string{"get", "patch"}})
+		}
+		crdMissing, err := checkRules(ctx, cs, crdRules, "")
+		if err != nil {
+			return nil, err
+		}
+		if len(crdMissing) > 0 {
+			res.Missing = append(res.Missing, crdMissing...)
+			problem("the installer credential cannot create or update the plugin's CRDs (needed for upgrades): %s", strings.Join(crdMissing, ", "))
+		}
+	}
+	if err := detect(ctx, in, res); err != nil {
+		return nil, err
 	}
 	res.OK = len(res.Problems) == 0
 	return res, nil
@@ -231,6 +252,56 @@ func LoadInstallChart(dir string, spec *v1alpha1.PluginSpec, clusterID string) (
 		values = mergeValues(values, extra)
 	}
 	return ch, values, nil
+}
+
+// detect refuses install mode where the tool already runs (connect to it
+// instead) and connect mode where it does not.
+func detect(ctx context.Context, in PreflightInput, res *PreflightResult) error {
+	d := in.Spec.Detect
+	if d == nil || in.Probe == nil {
+		return nil
+	}
+	probe, err := kubernetes.NewForConfig(in.Probe)
+	if err != nil {
+		return err
+	}
+	problem := func(format string, args ...any) { res.Problems = append(res.Problems, fmt.Sprintf(format, args...)) }
+	var served []string
+	for _, r := range d.APIResources {
+		ok, err := APIResourceServed(probe, r)
+		if err != nil {
+			return fmt.Errorf("discovery: %w", err)
+		}
+		if ok {
+			served = append(served, r)
+		}
+	}
+	switch in.Mode {
+	case v1alpha1.ModeConnect:
+		if len(served) == 0 {
+			problem("nothing to connect to: the cluster does not serve %s (install it, or use Install mode)", strings.Join(d.APIResources, ", "))
+		}
+	case v1alpha1.ModeInstall:
+		for _, ns := range d.Namespaces {
+			if _, err := probe.CoreV1().Namespaces().Get(ctx, ns, metav1.GetOptions{}); err == nil {
+				problem("namespace %s exists: the tool is already installed (e.g. by an operator); use Connect existing", ns)
+			}
+		}
+		dyn, err := dynamic.NewForConfig(in.Installer)
+		if err != nil {
+			return err
+		}
+		crdGVR := schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"}
+		for _, r := range served {
+			group, resource, _ := strings.Cut(r, "/")
+			crd, err := dyn.Resource(crdGVR).Get(ctx, resource+"."+group, metav1.GetOptions{})
+			// Ours only if an earlier install of this plugin labelled it.
+			if err != nil || crd.GetLabels()[v1alpha1.LabelPlugin] != pluginName(in.PluginDir) {
+				problem("%s is already served by another installation; use Connect existing", r)
+			}
+		}
+	}
+	return nil
 }
 
 func mergeValues(base, over map[string]any) map[string]any {
