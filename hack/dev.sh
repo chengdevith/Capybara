@@ -5,6 +5,21 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Refuse before building or touching anything if Capybara already runs
+# (another make dev, or make e2e): a second Vite would rewrite the shared
+# dependency cache under the running one and break its pages.
+busy=()
+for port in 8080 8091 5173; do
+  if owner="$(lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | awk 'NR==2 {print $1 " pid " $2}')" && [[ -n "$owner" ]]; then
+    busy+=("${port} (${owner})")
+  fi
+done
+if ((${#busy[@]})); then
+  echo "make dev: port(s) already in use: ${busy[*]}" >&2
+  echo "Capybara is probably already running (another make dev, or make e2e). Stop it first; nothing was started." >&2
+  exit 1
+fi
+
 missing=0
 for f in .local/kubeconfig/capybara-dev-1.yaml .local/kubeconfig/capybara-dev-2.yaml .local/kubeconfig/capybara-mgmt.yaml; do
   [[ -f "$f" ]] || missing=1
