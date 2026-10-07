@@ -72,6 +72,11 @@ permissions:
       - apiGroups: [apiextensions.k8s.io]
         resources: [customresourcedefinitions]
         verbs: [get, list, watch, create, update, patch, delete]
+      # Read only: uninstall's CRD scan lists the objects of each Tekton
+      # kind before you choose to remove the CRDs.
+      - apiGroups: [tekton.dev, resolution.tekton.dev]
+        resources: ["*"]
+        verbs: [get, list, watch]
       - apiGroups: [admissionregistration.k8s.io]
         resources: [validatingwebhookconfigurations, mutatingwebhookconfigurations]
         verbs: [get, list, watch, create, update, patch, delete]

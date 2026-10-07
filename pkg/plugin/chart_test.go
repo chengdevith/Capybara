@@ -178,3 +178,35 @@ func TestHasData(t *testing.T) {
 		}
 	}
 }
+
+// Uninstall's CRD scan lists every object of the chart's CRDs with the
+// installer credential, so each plugin must declare list on those kinds.
+func TestInstallerCanScanChartCRDs(t *testing.T) {
+	dirs, _ := filepath.Glob("../../plugins/*/plugin.yaml")
+	for _, m := range dirs {
+		dir := filepath.Dir(m)
+		_, spec, err := LoadDir(dir, "builtin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if spec.Chart == nil {
+			continue
+		}
+		ch, _, err := LoadInstallChart(dir, spec, "dev-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		crds, err := chartCRDObjects(ch)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rules, _ := InstallerRules(spec, v1alpha1.ModeInstall, nil, spec.Chart.Namespace)
+		for _, c := range crds {
+			group, _, _ := unstructured.NestedString(c.Object, "spec", "group")
+			plural, _, _ := unstructured.NestedString(c.Object, "spec", "names", "plural")
+			if !allows(rules, group, plural, "list") {
+				t.Errorf("%s: the installer may not list %s.%s (needed by the uninstall CRD scan)", filepath.Base(dir), plural, group)
+			}
+		}
+	}
+}
