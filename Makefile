@@ -50,7 +50,7 @@ demo-clean: ## Remove the demo workload from dev-1 and dev-2
 ## --- development ------------------------------------------------------------
 
 .PHONY: dev
-dev: web/node_modules ## Run the API server and the Vite dev server (UI on http://127.0.0.1:5173)
+dev: web/node_modules ## Run the API server, controller, plugin backends and the console (UI on http://127.0.0.1:5173)
 	./hack/dev.sh
 
 .PHONY: build
