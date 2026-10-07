@@ -1,6 +1,6 @@
 # Architecture (as built)
 
-Status: end of Phase 4 (Multi-cluster). CLAUDE.md is the target design; this
+Status: end of Phase 4.5 (Plugin framework). CLAUDE.md is the target design; this
 file records what exists and how the pieces fit.
 
 ## Local clusters
@@ -42,6 +42,13 @@ handlers ─▶ cluster.Provider ─▶ client-go (typed, dynamic, REST config; 
 | `POST /api/clusters/_validate`, `POST /api/clusters/_test` | pkg/cluster | parse / connect with an uploaded kubeconfig; nothing stored |
 | `POST /api/clusters`, `PATCH /api/clusters/{id}`, `PUT /api/clusters/{id}/kubeconfig`, `DELETE /api/clusters/{id}?confirm=&abandon=` | pkg/cluster | register, edit, rotate, remove; audited |
 | `GET /api/clusters/{id}/overview` | pkg/cluster | status plus counts (null when not permitted) |
+| `PUT/DELETE /api/clusters/{id}/installer` | pkg/cluster | the optional installer credential (write-only, audited) |
+| `GET /api/plugins`, `GET /api/plugins/_catalog/{name}`, `GET /api/plugins/_installations` | pkg/plugin | catalog with installations, per-mode installer permissions, UI bundle location |
+| `POST /api/plugins/installations`, `GET/PATCH/DELETE /api/plugins/installations/{id}` | pkg/plugin | install/connect, enable, disable, configure, upgrade, uninstall (keep data, CRD removal by scan hash); audited |
+| `POST /api/plugins/installations/{id}/_crd-scan`, `PUT …/connect-token` | pkg/plugin | ask the controller for foreign CRD objects; store a connect-mode bearer token (write-only) |
+| `GET /api/plugins/_ui/{name}/{sha256}.js` | pkg/plugin | UI bundle, trusted repositories only, bytes must match the pin |
+| `ANY /api/plugins/{name}/...` | pkg/plugin | to the plugin's backend process (credentials stripped, `X-Capybara-User`) |
+| `ANY /internal/plugins/{name}/clusters/{id}/services/{svc}/...` | pkg/plugin | backends only (Capybara-issued credential): declared services, methods and paths, plugin Ready and enabled, plugin's own token |
 | `ANY /api/clusters/{id}/k8s/...` | pkg/proxy | passthrough, **GET only**; Secrets as scrubbed metadata |
 | `WS /api/clusters/{id}/watch` | pkg/stream | live events for any resource; Secrets via the metadata client |
 | `WS /api/clusters/{id}/logs` | pkg/stream | follows one container's logs |
@@ -174,6 +181,42 @@ context) that logs exactly those messages at debug level.
 - **Least privilege**: `hack/capybara-sa.sh` / `make sa-kubeconfig` (see
   ADR 0005 for what the role can and cannot do).
 
+## Plugins (api/v1alpha1, pkg/plugin, sdk/, plugins/)
+
+```
+Marketplace UI ─▶ /api/plugins (audited) ─▶ PluginInstallation in mgmt
+                                               │
+cmd/controller: catalog sync (plugins/*/plugin.yaml, sha256 checks)
+                installation controller ── installer credential ──▶ managed cluster
+                  pre-flight (SSARs per declared rule, chart render)      Helm release (install mode)
+                  Helm install/upgrade/uninstall                         backend ServiceAccount + Role
+                  steps (workloads, service checks with the plugin token)  (services/proxy on declared services)
+                  backend token (TokenRequest) ──▶ Secret in mgmt
+browser ─▶ /api/plugins/<name>/... ─▶ plugin backend (own process)
+                                        └▶ /internal/plugins/... (issued credential)
+                                             └▶ service proxy with the plugin token ─▶ Prometheus / Grafana
+browser ◀─ /api/plugins/_ui/<name>/<sha>.js (pinned) ── loader: verify sha256, import, register
+```
+
+- **Manifest** (`plugins/<name>/plugin.yaml`): name, version, extension API,
+  modes, chart (archive + sha256, preset values, install values with
+  `{{cluster}}`, generated Secrets, `refuseInstallOn`), UI bundle + sha256,
+  backend, permissions (install and connect rule sets for the installer;
+  services the backend may reach), config schema (small JSON Schema
+  subset), steps (`helm`, `workload`, `service` checks).
+- **Installation phases**: Pending → Installing (steps) → Ready, or
+  Disabled (installed, UI hidden), Error (refused by pre-flight, failed, or
+  a step failing after `Installed`), Uninstalling.
+- **Monitoring**: kube-prometheus-stack 91.9.0 small preset (no
+  Alertmanager; no etcd/scheduler/controller-manager/proxy scraping on k3s),
+  or Connect existing to a Prometheus Service, or (untested, Phase 5) an
+  OpenShift Thanos Querier route. Backend `plugins/monitoring/backend`
+  (stdlib Go): predefined queries only, 1h/6h/24h/7d, short cache. UI
+  `plugins/monitoring/ui`: Metrics tab (Pod, Deployment, Node), Monitoring
+  section (Overview, Alerts, Grafana), cluster and Project cards, settings.
+- See ADR 0006 for the security decisions (installer credential, backend
+  credentials, bundle trust, shared modules).
+
 ## Projects (api/v1alpha1, pkg/project, cmd/controller)
 
 A Project (`platform.capybara.io/v1alpha1`, cluster-scoped, platform-wide
@@ -237,16 +280,22 @@ Vue 3 + Vite + Pinia + Vue Router + Naive UI. In dev, Vite proxies `/api`
 
 Every menu item, route and detail tab is an extension:
 
-- `types.ts`: extension points (`nav-section`, `nav-item`, `route`,
-  `resource-detail-tab`, plus typed stubs for `resource-action`,
-  `cluster-overview-card`, `project-overview-card`, `settings-page`) and
-  `EXTENSION_API_VERSION`. A route may name a `parent` route (a detail page's
+- `types.ts`: re-exports the extension API from the plugin SDK
+  (`sdk/src/extensions.ts`): `nav-section`, `nav-item`, `route`,
+  `resource-detail-tab`, `resource-action`, `cluster-overview-card`,
+  `project-overview-card`, `settings-page`, and `EXTENSION_API_VERSION`.
+  The context has the cluster and the plugins enabled on it. A route may name a `parent` route (a detail page's
   list), which keeps that sidebar item highlighted.
 - `registry.ts`: register/unregister, reactive, rejects duplicate ids and
   extensions written for a newer API version. `when(ctx)` decides whether an
   extension is active for the current cluster (the hook for "plugin enabled
   on this cluster").
 - `resolve.ts`: pure helpers: sidebar tree, detail tabs per kind, landing page.
+- `plugins/loader.ts`: loads enabled plugins' bundles at runtime (sha256
+  check, version check, `<plugin>.` ids, gated per cluster).
+- `build/shared-modules.ts` (web/): the import map and
+  `/capybara-shared/*.js` modules that give plugins the console's own vue,
+  pinia, naive-ui and SDK.
 - `core/`: core registrations, one file per feature area:
   `sections.ts`, `home.ts`, `resources/` (one file per kind), `detail-tabs.ts`.
 
@@ -339,6 +388,17 @@ overview built from `cluster-overview-card` extensions. The top bar shows the
 environment; prod adds a red line under the masthead. The cluster list is
 polled every 10s. A list the cluster refuses (403) shows "Not permitted on
 this cluster".
+
+### Plugins in the console
+
+`/marketplace` (global) lists the catalog; a plugin's page shows the
+installer permissions per mode and the backend's reachable services before
+install, the install/connect dialog (config form from the schema), each
+installation's live steps, the UI switch, upgrade and uninstall (keep data,
+CRD removal after a scan). Cluster pages manage the installer credential.
+Home renders `cluster-overview-card`s, Project pages
+`project-overview-card`s, and Administration → Settings `settings-page`s.
+Administration also has a read-only Nodes page.
 
 ### Projects in the console
 

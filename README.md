@@ -22,6 +22,9 @@ kubeconfig for one with `make sa-kubeconfig CLUSTER=dev-2 [WITH_SECRETS=1]`.
 Other targets: `make test`, `make lint`, `make e2e` (browser tests; needs the
 clusters), `make generate` (CRD and deepcopy code from `api/`), `make crds`,
 `make project-sizes` (load Project size presets into capybara-mgmt),
+`make plugin-images` (import a plugin's pinned images into k3d),
+`make plugin-ui` (rebuild a plugin's UI bundle and pin its sha256; needs
+the Node version in `plugins/<plugin>/ui/.nvmrc`),
 `make demo-clean`, `make cluster-down`, and
 `make kubectl CLUSTER=dev-1 ARGS="get pods -A"`. Run `make help` for all.
 
@@ -29,3 +32,20 @@ Kubeconfigs are written to `.local/kubeconfig/` (git-ignored), one file per
 cluster. Nothing reads or writes `~/.kube/config` or the current kubectl
 context. Inside Capybara, cluster kubeconfigs live only in Secrets in
 capybara-mgmt and are never returned by the API.
+
+## Plugins
+
+Plugins are in the Marketplace (`/marketplace`). Installing one on a cluster
+needs that cluster's installer credential (cluster page → Plugin installs),
+for example:
+
+```sh
+make plugin-images                                   # once: images into k3d
+hack/capybara-sa.sh dev-1 --installer monitoring     # install mode (broad)
+hack/capybara-sa.sh dev-2 --installer monitoring --connect \
+  --set namespace=monitoring --set service=prometheus --set port=9090
+```
+
+then upload `.local/kubeconfig/capybara-<id>-installer.yaml` on the
+cluster's page. `deploy/samples/prometheus-connect.yaml` is a hand-installed
+Prometheus to try Connect existing with. See docs/decisions/0006.
