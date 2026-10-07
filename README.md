@@ -1,4 +1,30 @@
+<div align="center">
+
+<img src="docs/assets/logo.png" alt="Capybara logo" width="140" />
+
 # Capybara
+
+**A multi-cluster Kubernetes management platform**
+
+In the spirit of Rancher and KubeSphere, with ideas from OpenShift.
+
+![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)
+![Vue](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![k3d](https://img.shields.io/badge/k3d-local%20clusters-FFC107)
+![Status](https://img.shields.io/badge/phase-4.5%20done-success)
+
+[What you can do](#-what-you-can-do) •
+[Architecture](#-how-it-fits-together) •
+[Getting started](#-getting-started) •
+[Console](#-using-the-console) •
+[Plugins](#-plugins) •
+[Development](#-development) •
+[Roadmap](#-roadmap)
+
+</div>
+
+---
 
 Capybara is a multi-cluster Kubernetes management platform, in the spirit of
 Rancher and KubeSphere, with ideas from OpenShift: Projects with namespace
@@ -11,6 +37,31 @@ It has a **small, stable core** and puts everything else in **plugins**:
 - **Plugins:** monitoring today; CI/CD, GitOps, logging, policy and backup
   later. Each is installed and enabled per cluster.
 
+```mermaid
+flowchart LR
+    subgraph core["🧱 Small, stable core"]
+        direction TB
+        c1["Clusters"]
+        c2["Workloads · Networking · Config"]
+        c3["Projects"]
+        c4["Audit"]
+        c5["Plugin manager"]
+    end
+
+    subgraph plugins["🧩 Plugins (per cluster)"]
+        direction TB
+        p1["✅ Monitoring (Observe)"]
+        p2["⏳ CI/CD"]
+        p3["⏳ GitOps"]
+        p4["⏳ Logging"]
+        p5["⏳ Policy"]
+        p6["⏳ Backup"]
+    end
+
+    c5 -- "install & enable" --> plugins
+```
+
+> [!WARNING]
 > **Status:** a local development platform (phases 0–4.5 of the
 > [roadmap](CLAUDE.md#roadmap)). There is **no authentication yet**: every
 > request runs as the user `dev`, and the server listens on `127.0.0.1` only.
@@ -18,7 +69,7 @@ It has a **small, stable core** and puts everything else in **plugins**:
 
 ---
 
-## What you can do
+## ✨ What you can do
 
 | Area | What it does |
 |---|---|
@@ -33,7 +84,50 @@ It has a **small, stable core** and puts everything else in **plugins**:
 
 ---
 
-## How it fits together
+## 🏗️ How it fits together
+
+```mermaid
+flowchart TB
+    subgraph B["🌐 Browser"]
+        console["Vue console"]
+    end
+
+    subgraph S["⚙️ Capybara API server (Go)"]
+        direction TB
+        auth["Auth middleware<br/>user dev for now"]
+        audit["Audit log<br/>fail-closed"]
+        registry["Cluster registry<br/>client-go"]
+        bundles["Plugin UI bundles<br/>pinned sha256"]
+        pluginapi["Plugin API<br/>/api/plugins/{name}/..."]
+        scoped["Scoped service proxy<br/>only what the plugin declared"]
+    end
+
+    subgraph M["🗄️ capybara-mgmt (k3d)"]
+        direction TB
+        crds["Cluster CRDs +<br/>kubeconfig Secrets"]
+        ctrl["Capybara controller<br/>cluster health · Projects · plugins (Helm)"]
+    end
+
+    pb["🔌 Plugin backend<br/>own process"]
+
+    subgraph C["☸️ Managed clusters"]
+        dev1["dev-1"]
+        dev2["dev-2"]
+    end
+
+    console -- "/api/... + websockets<br/>live lists, logs, terminal" --> auth
+    auth --> audit --> registry
+    bundles -. "loaded at runtime" .-> console
+    crds --> registry
+    registry -- "client-go" --> dev1 & dev2
+    ctrl -- "reconciles" --> crds
+    ctrl -- "Helm installs" --> C
+    auth --> pluginapi --> pb
+    pb --> scoped --> C
+```
+
+<details>
+<summary>Original ASCII diagram</summary>
 
 ```
  Browser (Vue console)
@@ -49,6 +143,8 @@ It has a **small, stable core** and puts everything else in **plugins**:
     │                                           (only what the plugin declared)
  capybara-mgmt (k3d) ◀── Capybara controller: cluster health, Projects, plugins (Helm)
 ```
+
+</details>
 
 - **capybara-mgmt** holds Capybara's state as Kubernetes resources
   (`platform.capybara.io`): `Cluster`, `Project`, `PluginRepository`,
@@ -68,7 +164,7 @@ records in [docs/decisions/](docs/decisions/).
 
 ---
 
-## Repository layout
+## 📁 Repository layout
 
 | Path | Contents |
 |---|---|
@@ -92,7 +188,7 @@ records in [docs/decisions/](docs/decisions/).
 
 ---
 
-## Getting started
+## 🚀 Getting started
 
 ### Requirements
 
@@ -114,13 +210,26 @@ This creates three k3d clusters and registers two of them in Capybara:
 | `capybara-dev-1` | `127.0.0.1:6551` | managed cluster `dev-1` |
 | `capybara-dev-2` | `127.0.0.1:6552` | managed cluster `dev-2` |
 
+```mermaid
+flowchart LR
+    mgmt["🗄️ capybara-mgmt<br/>127.0.0.1:6550<br/>Capybara's own state"]
+    d1["☸️ capybara-dev-1<br/>127.0.0.1:6551<br/>managed cluster dev-1"]
+    d2["☸️ capybara-dev-2<br/>127.0.0.1:6552<br/>managed cluster dev-2"]
+    local["📂 .local/kubeconfig/<br/>admin kubeconfigs (git-ignored)"]
+
+    mgmt -- "least-privilege SA<br/>30-day token" --> d1
+    mgmt -- "least-privilege SA<br/>30-day token" --> d2
+    local -. "your own kubectl" .-> mgmt & d1 & d2
+```
+
 dev-1 and dev-2 are registered with least-privilege ServiceAccounts
 (30-day tokens), not cluster-admin. Admin kubeconfigs for your own `kubectl`
 use go to `.local/kubeconfig/` (git-ignored). Nothing touches `~/.kube/config`
 or your current kubectl context.
 
-Re-run `make cluster-up` any time, for example after Docker restarts; it is
-safe to repeat.
+> [!TIP]
+> Re-run `make cluster-up` any time, for example after Docker restarts; it is
+> safe to repeat.
 
 ### 2. Optional: deploy the demo workload
 
@@ -140,7 +249,7 @@ Monitoring plugin backend and the console. Open
 
 ---
 
-## Using the console
+## 🖥️ Using the console
 
 ### Clusters
 
@@ -186,6 +295,18 @@ Monitoring plugin backend and the console. Open
 | M | 4 / 8 | 8Gi / 16Gi | 30 |
 | L | 8 / 16 | 16Gi / 32Gi | 60 |
 
+```mermaid
+flowchart LR
+    proj["📦 Project<br/>name · owner group · size"] --> ctrl["Capybara controller"]
+    sizes["capybara-project-sizes<br/>ConfigMap"] -. "S / M / L presets" .-> ctrl
+    ctrl --> ns["Namespace"]
+    ctrl --> rq["ResourceQuota"]
+    ctrl --> lr["LimitRange"]
+    ctrl --> np["NetworkPolicies<br/>deny ingress by default,<br/>allow same namespace + ingress controller"]
+    ctrl --> rb["Owner RoleBinding"]
+    ns & rq & lr & np & rb -. "changed? restored" .-> ctrl
+```
+
 The controller creates the namespace, ResourceQuota, LimitRange, network
 policies (deny ingress by default, allow the same namespace and the ingress
 controller) and an owner RoleBinding, and restores them if they change.
@@ -200,7 +321,7 @@ credential changes are recorded too.
 
 ---
 
-## Plugins
+## 🧩 Plugins
 
 Plugins are installed **per cluster** from the **Marketplace**. Two steps
 are separate:
@@ -209,6 +330,17 @@ are separate:
   already running.
 - **Enable** shows its UI on that cluster. Disabling hides the UI and
   leaves the tool running.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> NotInstalled
+    NotInstalled --> Installed: Install (deploy the tool)
+    NotInstalled --> Installed: Connect existing
+    Installed --> Enabled: Enable (show UI)
+    Enabled --> Installed: Disable (UI hidden, tool keeps running)
+    Installed --> NotInstalled: Uninstall (type the id)
+```
 
 ### Allow plugin installs on a cluster
 
@@ -253,14 +385,22 @@ make plugin-images      # once: import the pinned images into the k3d clusters
    - **Observe** in the sidebar (Overview, Alerts, Grafana);
    - usage cards on Home and on Project pages.
 
+```mermaid
+flowchart LR
+    pre{"Pre-flight<br/>installer has permissions?"}
+    pre -- "no" --> fix["⛔ Stop before changing anything<br/>show exact command to fix"]
+    pre -- "yes" --> chart["Chart"] --> prom["Prometheus ready"] --> targets["Targets scraped"] --> graf["Grafana ready"] --> ready(["✅ Ready"])
+```
+
 To uninstall, use the installation's *Uninstall* (type the id). You choose
 whether to keep the metrics data. The Prometheus Operator CRDs stay unless
 you choose to remove them; Capybara then lists any objects of those kinds
 that are not from this plugin, so you can confirm before they are deleted.
 
-**On OpenShift:** never install a second stack. Use Connect existing to
-Thanos Querier. That path is implemented but untested on real OpenShift,
-and it needs the host allowlist that arrives in Phase 5.
+> [!IMPORTANT]
+> **On OpenShift:** never install a second stack. Use Connect existing to
+> Thanos Querier. That path is implemented but untested on real OpenShift,
+> and it needs the host allowlist that arrives in Phase 5.
 
 ### Writing a plugin
 
@@ -276,6 +416,14 @@ A plugin is a folder `plugins/<name>/` with:
 - **`backend/` (optional):** a separate process. It calls Capybara's scoped
   endpoint with the credential Capybara issues it.
 
+```
+plugins/<name>/
+├── plugin.yaml   # name, version, modes, chart, UI bundle (sha256), permissions, services, config schema, steps
+├── chart/        # Helm chart (the tool)
+├── ui/           # ES module (Vite library mode) → definePlugin({ name, apiVersion, register })
+└── backend/      # optional: separate process, calls Capybara's scoped endpoint
+```
+
 `plugins/monitoring/` is the reference. `make plugin-ui` rebuilds a UI
 bundle and pins its sha256; `make lint` checks that the committed bundle
 rebuilds byte for byte. See [ADR 0006](docs/decisions/0006-phase-4.5-plugins.md)
@@ -283,7 +431,7 @@ for the trust model: UI bundles currently run with full console access.
 
 ---
 
-## Development
+## 🛠️ Development
 
 | Command | What it does |
 |---|---|
@@ -303,7 +451,9 @@ Settings are flags or `CAPYBARA_*` environment variables
 or `CAPYBARA_PLUGIN_DEV_DIR=plugins` to serve unpinned plugin UI bundles
 while developing a plugin (loopback only).
 
-## Security notes
+---
+
+## 🔒 Security notes
 
 - Cluster kubeconfigs and installer credentials are stored in capybara-mgmt
   under Capybara's own Secret types. No API returns them, and Reveal, Edit
@@ -316,7 +466,16 @@ while developing a plugin (loopback only).
 - Never commit kubeconfigs or tokens. Everything credential-like is written
   under `.local/`, which is git-ignored.
 
-## Roadmap
+```mermaid
+flowchart LR
+    pb["Plugin backend<br/>(no cluster credentials)"] -- "plugin's own limited token" --> proxy["Capybara scoped proxy"]
+    proxy -- "declared services · methods · paths only" --> svc["Cluster service"]
+    proxy -. "anything else" .-x deny["⛔ refused"]
+```
+
+---
+
+## 🗺️ Roadmap
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -328,5 +487,10 @@ while developing a plugin (loopback only).
 | 5 | Keycloak/AD auth, per-user RBAC, plugin install rights | next |
 | 6 | Agent and tunnel instead of stored kubeconfigs | |
 | 7 | More plugins: Tekton, Argo CD, logging, policy, backup | |
+
+```mermaid
+flowchart LR
+    p01["✅ 0–1<br/>Foundations,<br/>read-only console"] --> p2["✅ 2<br/>Write actions,<br/>terminal, audit"] --> p3["✅ 3<br/>Projects"] --> p4["✅ 4<br/>Multi-cluster"] --> p45["✅ 4.5<br/>Plugin framework<br/>+ Monitoring"] --> p5["🔜 5<br/>Keycloak/AD auth,<br/>per-user RBAC"] --> p6["6<br/>Agent + tunnel"] --> p7["7<br/>Tekton, Argo CD,<br/>logging, policy, backup"]
+```
 
 The product brief is in [CLAUDE.md](CLAUDE.md).
