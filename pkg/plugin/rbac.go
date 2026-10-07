@@ -23,6 +23,8 @@ type Service struct {
 	Port      string   `json:"port"`
 	Methods   []string `json:"methods"`
 	Paths     []string `json:"paths"`
+	// WritePaths limit non-GET methods (empty: Paths).
+	WritePaths []string `json:"writePaths,omitempty"`
 }
 
 // ProxyName is the services/proxy name Capybara uses for this service:
@@ -48,7 +50,7 @@ func ResolveServices(spec *v1alpha1.PluginSpec, mode v1alpha1.InstallMode, cfg m
 		if !applies(a.Modes, mode) {
 			continue
 		}
-		s := Service{Name: a.Name, Namespace: a.Namespace, Service: a.Service, Port: a.Port, Methods: a.Methods, Paths: a.Paths}
+		s := Service{Name: a.Name, Namespace: a.Namespace, Service: a.Service, Port: a.Port, Methods: a.Methods, Paths: a.Paths, WritePaths: a.WritePaths}
 		if mode == v1alpha1.ModeConnect {
 			for key, dst := range map[string]*string{a.NamespaceKey: &s.Namespace, a.ServiceKey: &s.Service, a.PortKey: &s.Port} {
 				if key != "" {

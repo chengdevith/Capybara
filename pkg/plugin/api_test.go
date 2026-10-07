@@ -390,9 +390,31 @@ func TestScopedProxy(t *testing.T) {
 			t.Errorf("%s %s: %d %s, want %d", c.method, c.path, code, body, c.code)
 		}
 	}
+	// Grafana: reads anywhere, POST only to the dashboard query API.
+	g := base + "grafana/api/plugins/monitoring/grafana/dev-1"
+	for _, c := range []struct {
+		method, path string
+		code         int
+	}{
+		{"POST", g + "/api/admin/users", 403},
+		{"POST", g + "/api/user/password", 403},
+		{"POST", g + "/api/orgs", 403},
+		{"POST", g + "/api/datasources", 403},
+		{"PUT", g + "/api/datasources/1", 405},
+		{"DELETE", g + "/api/dashboards/uid/x", 405},
+		{"POST", g + "/api/ds/queryx", 403},
+	} {
+		if code, body := call(c.method, c.path, good); code != c.code {
+			t.Errorf("%s %s: %d %s, want %d", c.method, c.path, code, body, c.code)
+		}
+	}
 	if seen != nil {
 		t.Fatal("a refused request reached the cluster")
 	}
+	if code, _ := call("POST", g+"/api/ds/query", good); code != 200 || seen.Method != "POST" {
+		t.Errorf("grafana query POST: %d", code)
+	}
+	seen = nil
 	code, _ := call("GET", base+"prometheus/api/v1/query?query=up", good)
 	if code != 200 || seen.URL.Path != "/api/v1/namespaces/capybara-monitoring/services/capybara-monitoring-prometheus:9090/proxy/api/v1/query" ||
 		seen.URL.RawQuery != "query=up" || seen.Header.Get("Authorization") != "Bearer plugin-k8s-token" {
@@ -486,5 +508,26 @@ func TestScopedThanosIsLoopbackOnly(t *testing.T) {
 	p.AllowExternal = func(string) bool { return false }
 	if r := call(); r.Code != 403 || !strings.Contains(r.Body.String(), "Phase 5") {
 		t.Errorf("external thanos: %d %s", r.Code, r.Body)
+	}
+}
+
+func TestPathAllowed(t *testing.T) {
+	prefixes := []string{"/api/v1/query", "/api/plugins/monitoring/grafana/*/api/ds/query"}
+	for p, want := range map[string]bool{
+		"/api/v1/query":       true,
+		"/api/v1/query/x":     true,
+		"/api/v1/query_range": false,
+		"/api/v1":             false,
+		"/api/plugins/monitoring/grafana/dev-1/api/ds/query":  true,
+		"/api/plugins/monitoring/grafana/dev-1/api/ds/queryx": false,
+		"/api/plugins/monitoring/grafana/dev-1/api/admin":     false,
+		"/api/plugins/monitoring/grafana/a/b/api/ds/query":    false,
+	} {
+		if got := pathAllowed(prefixes, p); got != want {
+			t.Errorf("%s: %v, want %v", p, got, want)
+		}
+	}
+	if !pathAllowed([]string{"/"}, "/anything/at/all") {
+		t.Error("/ allows everything")
 	}
 }

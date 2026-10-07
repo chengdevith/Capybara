@@ -161,8 +161,13 @@ type ServiceAccess struct {
 	PortKey string `json:"portKey,omitempty"`
 	// HTTP methods allowed.
 	Methods []string `json:"methods"`
-	// Path prefixes allowed (after the service proxy prefix).
+	// Path prefixes allowed (after the service proxy prefix). "*" matches
+	// one path segment.
 	Paths []string `json:"paths"`
+	// WritePaths are the only path prefixes allowed for methods other than
+	// GET and HEAD (default: Paths).
+	// +optional
+	WritePaths []string `json:"writePaths,omitempty"`
 	// Modes this access applies to (default: all).
 	// +optional
 	Modes []InstallMode `json:"modes,omitempty"`

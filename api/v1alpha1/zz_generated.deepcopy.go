@@ -815,6 +815,11 @@ func (in *ServiceAccess) DeepCopyInto(out *ServiceAccess) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.WritePaths != nil {
+		in, out := &in.WritePaths, &out.WritePaths
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Modes != nil {
 		in, out := &in.Modes, &out.Modes
 		*out = make([]InstallMode, len(*in))

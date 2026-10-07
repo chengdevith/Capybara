@@ -247,6 +247,9 @@ func (p *ScopedProxy) serve(w http.ResponseWriter, r *http.Request) error {
 	if !pathAllowed(s.Paths, reqPath) {
 		return &scopedError{http.StatusForbidden, reqPath + " is not an allowed path for " + svc}
 	}
+	if r.Method != http.MethodGet && r.Method != http.MethodHead && len(s.WritePaths) > 0 && !pathAllowed(s.WritePaths, reqPath) {
+		return &scopedError{http.StatusForbidden, r.Method + " " + reqPath + " is not allowed for " + svc + " (read-only there)"}
+	}
 
 	cfg := ConfigOf(&in)
 	if in.Spec.Mode == v1alpha1.ModeConnect && ConfigString(cfg, "target") == "thanos-querier" {
@@ -396,9 +399,26 @@ func cleanPath(p string) (string, error) {
 	return path.Clean("/" + p), nil
 }
 
+// pathAllowed reports whether p is one of the prefixes or below it, segment
+// by segment; a "*" segment in a prefix matches any one segment.
 func pathAllowed(prefixes []string, p string) bool {
+	got := strings.Split(strings.Trim(p, "/"), "/")
 	for _, pre := range prefixes {
-		if pre == "/" || p == pre || strings.HasPrefix(p, strings.TrimSuffix(pre, "/")+"/") {
+		if pre == "/" {
+			return true
+		}
+		want := strings.Split(strings.Trim(pre, "/"), "/")
+		if len(got) < len(want) {
+			continue
+		}
+		match := true
+		for i, w := range want {
+			if w != "*" && w != got[i] {
+				match = false
+				break
+			}
+		}
+		if match {
 			return true
 		}
 	}

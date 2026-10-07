@@ -679,7 +679,7 @@ func (r *InstallationReconciler) uninstall(ctx context.Context, in *v1alpha1.Plu
 				}
 			}
 			if keep {
-				return "release removed; data (PersistentVolumeClaims in " + ns + ") kept", nil
+				return "release removed; data (PersistentVolumeClaims) kept in namespace " + ns + ", which stays", nil
 			}
 			// One by one: the declared permissions have list and delete, not deletecollection.
 			pvcs, err := cs.CoreV1().PersistentVolumeClaims(ns).List(ctx, metav1.ListOptions{})
@@ -691,7 +691,7 @@ func (r *InstallationReconciler) uninstall(ctx context.Context, in *v1alpha1.Plu
 					return "", err
 				}
 			}
-			return "release and its data (PersistentVolumeClaims in " + ns + ") removed", nil
+			return "release and its data (PersistentVolumeClaims) removed; namespace " + ns + " stays, empty (Capybara does not delete namespaces it did not create through a Project)", nil
 		})
 		if err != nil {
 			return r.blocked(ctx, in, st, err.Error())

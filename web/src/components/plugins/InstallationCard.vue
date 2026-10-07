@@ -110,6 +110,7 @@ async function change(c: { enabled?: boolean; version?: string }) {
     <UninstallDialog
       v-if="uninstalling"
       :installation="inst"
+      :namespace="plugin.spec.chart?.namespace"
       @close="uninstalling = false"
       @removed="uninstalling = false"
     />

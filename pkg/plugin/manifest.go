@@ -188,7 +188,7 @@ func validateService(s v1alpha1.ServiceAccess) []string {
 			problems = append(problems, fmt.Sprintf("service %q: unknown method %q", s.Name, m))
 		}
 	}
-	for _, p := range s.Paths {
+	for _, p := range append(append([]string{}, s.Paths...), s.WritePaths...) {
 		if !strings.HasPrefix(p, "/") || strings.Contains(p, "..") || strings.ContainsAny(p, "?#") {
 			problems = append(problems, fmt.Sprintf("service %q: path %q must be an absolute path prefix", s.Name, p))
 		}

@@ -172,9 +172,12 @@ permissions:
       namespace: capybara-monitoring
       service: capybara-monitoring-grafana
       port: "80"
-      # Grafana's own UI as an anonymous Viewer (dashboards POST queries).
+      # Grafana's own UI as an anonymous Viewer. Its pages and read APIs are
+      # GET; the only POST allowed is the dashboard query API, so admin,
+      # user, org and data-source write APIs cannot be reached.
       methods: [GET, POST]
       paths: [/]
+      writePaths: [/api/plugins/monitoring/grafana/*/api/ds/query]
       modes: [install]
 
 steps:

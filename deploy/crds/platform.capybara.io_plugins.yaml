@@ -322,8 +322,9 @@ spec:
                             port in connect mode.
                           type: string
                         paths:
-                          description: Path prefixes allowed (after the service proxy
-                            prefix).
+                          description: |-
+                            Path prefixes allowed (after the service proxy prefix). "*" matches
+                            one path segment.
                           items:
                             type: string
                           type: array
@@ -337,6 +338,13 @@ spec:
                           type: string
                         serviceKey:
                           type: string
+                        writePaths:
+                          description: |-
+                            WritePaths are the only path prefixes allowed for methods other than
+                            GET and HEAD (default: Paths).
+                          items:
+                            type: string
+                          type: array
                       required:
                       - methods
                       - name

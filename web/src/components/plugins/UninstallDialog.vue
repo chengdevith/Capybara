@@ -7,12 +7,13 @@ import { usePluginsStore } from '@/stores/plugins'
 // Type-the-name uninstall. Install mode asks whether to keep data and warns
 // that CRDs stay; removing them is opt-in and shows the objects of those
 // kinds that are not from this plugin first.
-const props = defineProps<{ installation: Installation }>()
+const props = defineProps<{ installation: Installation; namespace?: string }>()
 const emit = defineEmits<{ close: []; removed: [] }>()
 const message = useMessage()
 const plugins = usePluginsStore()
 
 const inst = props.installation
+const namespace = props.namespace ?? 'the plugin namespace'
 const typed = ref('')
 const keepData = ref(true)
 const removeCRDs = ref(false)
@@ -93,7 +94,10 @@ async function submit() {
     @close="emit('close')"
   >
     <template v-if="inst.spec.mode === 'install'">
-      <p>Removes the Helm release and the plugin's account from the cluster.</p>
+      <p>
+        Removes the Helm release and the plugin's account from the cluster. The namespace
+        <strong>{{ namespace }}</strong> stays (empty unless you keep the data); delete it yourself if you no longer need it.
+      </p>
       <NCheckbox
         v-model:checked="keepData"
         data-test="keep-data"
