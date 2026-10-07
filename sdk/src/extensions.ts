@@ -6,6 +6,17 @@ import type { Component } from 'vue'
  */
 export const EXTENSION_API_VERSION = 1
 
+/**
+ * Minor version of the extension API: bumped when the API gains something
+ * (backwards compatible). A plugin declares the minimum it needs
+ * (PluginModule.minApi, e.g. '1.1') and is refused by an older console.
+ *
+ * 1.0  extension points, register()
+ * 1.1  registerResource(), components (LogViewer, ResourceLink),
+ *      composables (useLiveList), pluginAction()
+ */
+export const EXTENSION_API_MINOR = 1
+
 /** What an extension's `when` predicate can look at. */
 export interface ExtensionContext {
   /** Cluster id from the URL, or null on global pages. */

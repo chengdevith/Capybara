@@ -6,6 +6,7 @@ import { definePlugin, EXTENSION_API_VERSION } from '@capybara/sdk'
 export default definePlugin({
   name: 'monitoring',
   apiVersion: EXTENSION_API_VERSION,
+  minApi: '1.0',
   register(api) {
     api.register({ type: 'nav-section', id: 'monitoring.section', label: 'Observe', order: 50 })
     api.register({ type: 'route', id: 'monitoring.overview', path: 'monitoring', scope: 'cluster', title: 'Observe', component: () => import('./OverviewPage.vue') })

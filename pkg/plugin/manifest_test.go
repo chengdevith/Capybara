@@ -170,15 +170,19 @@ func TestCatalogSync(t *testing.T) {
 	}
 }
 
-// The console's extension API version (sdk/src/extensions.ts) must match
+// The console's extension API version and minor (sdk/src/extensions.ts) must match
 // what the controller checks plugins against.
 func TestExtensionAPIVersionMatchesSDK(t *testing.T) {
 	raw, err := os.ReadFile("../../sdk/src/extensions.ts")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "export const EXTENSION_API_VERSION = " + strconv.Itoa(ExtensionAPIVersion) + "\n"
-	if !strings.Contains(string(raw), want) {
-		t.Fatalf("sdk/src/extensions.ts does not declare %q", strings.TrimSpace(want))
+	for _, want := range []string{
+		"export const EXTENSION_API_VERSION = " + strconv.Itoa(ExtensionAPIVersion) + "\n",
+		"export const EXTENSION_API_MINOR = " + strconv.Itoa(ExtensionAPIMinor) + "\n",
+	} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("sdk/src/extensions.ts does not declare %q", strings.TrimSpace(want))
+		}
 	}
 }

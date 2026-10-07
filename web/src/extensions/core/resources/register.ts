@@ -6,7 +6,7 @@ import type { ExtensionRegistry } from '../../registry'
  * item. The pages are the generic ones; `def` is all that differs per kind.
  */
 export function registerResource(
-  registry: ExtensionRegistry,
+  registry: Pick<ExtensionRegistry, 'register'>,
   def: ResourceDef,
   nav: { order: number; section?: string },
 ): void {

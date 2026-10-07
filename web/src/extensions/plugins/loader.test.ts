@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { PluginApi } from '@capybara/sdk'
 import type { CatalogEntry, Installation } from '@/api/plugins'
 import { createRegistry } from '../registry'
-import { EXTENSION_API_VERSION } from '../types'
-import { createPluginLoader } from './loader'
+import { EXTENSION_API_MINOR, EXTENSION_API_VERSION } from '../types'
+import { checkMinApi, createPluginLoader } from './loader'
 
 const page = () => Promise.resolve({ default: {} })
 
@@ -99,5 +100,55 @@ describe('plugin loader', () => {
     await loader.sync([entry({}, { enabled: false })])
     expect(registry.get('monitoring.tab.metrics')).toBeUndefined()
     expect(loader.loaded()).toEqual([])
+  })
+
+  it('refuses a bundle that needs a newer minor API, with a clear message', async () => {
+    expect(checkMinApi(undefined)).toBe('')
+    expect(checkMinApi('1.0')).toBe('')
+    expect(checkMinApi(`1.${EXTENSION_API_MINOR}`)).toBe('')
+    expect(checkMinApi('1.x')).toMatch(/not <major>.<minor>/)
+    const { registry, loader, errors } = setup(plugin({ minApi: '1.9' }))
+    await loader.sync([entry()])
+    expect(errors.monitoring).toBe(`needs extension API 1.9; this Capybara provides 1.${EXTENSION_API_MINOR}`)
+    expect(registry.all('resource-detail-tab')).toHaveLength(0)
+  })
+
+  it('registers plugin resources on the generic pages, gated and removed on unload', async () => {
+    const def = {
+      id: 'monitoring.widgets', label: 'Widgets', singular: 'Widget', path: 'widgets', columns: [],
+      type: { group: 'example.com', version: 'v1', plural: 'widgets', kind: 'Widget', namespaced: true },
+    }
+    const mod = plugin({
+      minApi: '1.1',
+      register(api: PluginApi) {
+        expect(api.apiMinor).toBe(EXTENSION_API_MINOR)
+        expect(api.components.LogViewer).toBeDefined()
+        expect(api.composables.useLiveList).toBeTypeOf('function')
+        api.registerResource(def, { order: 10, section: 'monitoring.section' })
+      },
+    })
+    const { registry, loader, errors } = setup(mod)
+    await loader.sync([entry()])
+    expect(errors.monitoring).toBeNull()
+    const detail = registry.get('monitoring.widgets.detail')
+    expect(detail).toMatchObject({ type: 'route', source: 'monitoring', path: 'widgets/:namespace/:name' })
+    const ctx = (cluster: string, plugins: string[]) => ({ cluster, plugins: new Set(plugins) })
+    expect(registry.active('route', ctx('dev-1', ['monitoring'])).map((r) => r.id)).toEqual(['monitoring.widgets.list', 'monitoring.widgets.detail'])
+    expect(registry.active('nav-item', ctx('dev-2', []))).toHaveLength(0)
+    await loader.sync([])
+    expect(registry.get('monitoring.widgets.list')).toBeUndefined()
+    expect(registry.get('monitoring.widgets.nav')).toBeUndefined()
+  })
+
+  it('refuses resources outside the plugin namespace', async () => {
+    const mod = plugin({
+      register(api: PluginApi) {
+        api.registerResource({ id: 'core.widgets', label: 'W', singular: 'W', path: 'w', columns: [], type: { group: '', version: 'v1', plural: 'w', kind: 'W', namespaced: false } }, { order: 1 })
+      },
+    })
+    const { registry, loader, errors } = setup(mod)
+    await loader.sync([entry()])
+    expect(errors.monitoring).toMatch(/resource id "core.widgets" must start with "monitoring\."/)
+    expect(registry.all('route')).toHaveLength(0)
   })
 })

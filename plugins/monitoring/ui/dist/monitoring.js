@@ -21737,6 +21737,7 @@ var VL = M((() => {
 })), ER = t({
 	name: "monitoring",
 	apiVersion: e,
+	minApi: "1.0",
 	register(e) {
 		e.register({
 			type: "nav-section",
