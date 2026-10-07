@@ -7,7 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
+
+	"github.com/capybara/capybara/api/v1alpha1"
 )
 
 const monitoringChart = "../../plugins/monitoring/chart/kube-prometheus-stack-91.9.0.tgz"
@@ -119,5 +122,44 @@ func TestImagesMatchPinnedList(t *testing.T) {
 				t.Errorf("%s: test hook images must not be listed", list)
 			}
 		}
+	}
+}
+
+// Tekton's chart (built from the vendored release) renders, creates only
+// what its manifest declares, keeps only the cluster resolver, and leaves
+// the release namespace to the controller.
+func TestTektonChartWithinDeclaredPermissions(t *testing.T) {
+	_, spec, err := LoadDir("../../plugins/tekton", "builtin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, values, err := LoadInstallChart("../../plugins/tekton", spec, "dev-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Render(context.Background(), ch, RenderOptions{ReleaseName: spec.Chart.ReleaseName, Namespace: spec.Chart.Namespace, Values: values, KubeVersion: "v1.35.5"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rules, _ := InstallerRules(spec, v1alpha1.ModeInstall, nil, spec.Chart.Namespace)
+	for _, o := range append(r.Objects, r.CRDs...) {
+		gvr := guessResource(o)
+		if !allows(rules, gvr.Group, gvr.Resource, "create") {
+			t.Errorf("creates %s %s, not declared", o.GetKind(), o.GetName())
+		}
+		if o.GetKind() == "Namespace" && o.GetName() == spec.Chart.Namespace {
+			t.Error("the release namespace must come from the controller (with namespaceLabels), not the chart")
+		}
+		if o.GetKind() == "ConfigMap" && o.GetName() == "resolvers-feature-flags" {
+			data, _, _ := unstructured.NestedStringMap(o.Object, "data")
+			for k, v := range data {
+				if strings.HasPrefix(k, "enable-") && strings.HasSuffix(k, "-resolver") && (v == "true") != (k == "enable-cluster-resolver") {
+					t.Errorf("resolver flag %s = %s", k, v)
+				}
+			}
+		}
+	}
+	if len(r.CRDs) != 8 {
+		t.Errorf("CRDs = %d", len(r.CRDs))
 	}
 }

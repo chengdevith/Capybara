@@ -10,6 +10,14 @@ export function kubectl(cluster: 'dev-1' | 'dev-2' | 'mgmt', ...args: string[]):
   }).trim()
 }
 
+/** kubectl with a manifest on stdin (e.g. `create -f -`). */
+export function kubectlStdin(cluster: 'dev-1' | 'dev-2' | 'mgmt', input: string, ...args: string[]): string {
+  return execFileSync('kubectl', ['--kubeconfig', resolve(repo, `.local/kubeconfig/capybara-${cluster}.yaml`), ...args], {
+    encoding: 'utf8',
+    input,
+  }).trim()
+}
+
 export const DEMO_NS = 'capybara-demo'
 export const DEMO_DEPLOYMENT = 'demo-logger'
 /** The demo Secret's value (deploy/samples/demo.yaml; not a real credential). */

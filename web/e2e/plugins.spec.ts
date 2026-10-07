@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { DEMO_NS, kubectl, runningDemoPods } from './kube'
-import { cleanup, connectFlags, installerFile, sa, sampleProm, setInstaller } from './plugin-helpers'
+import { cleanup, connectFlags, installerCan, installerFile, installFromMarketplace as install, phase, sa, sampleProm, setInstaller } from './plugin-helpers'
 
 // Plugin framework end to end, with the Monitoring plugin (shown as "Observe"):
 //  1. dev-1: installer credential set in the UI, kube-prometheus-stack
@@ -26,18 +26,7 @@ test.afterAll(async ({ playwright }, info) => {
   await api.dispose()
 })
 
-async function installFromMarketplace(page: Page, cluster: string, mode: 'Install' | 'Connect existing') {
-  await page.goto('/marketplace')
-  await page.getByTestId('plugin-monitoring').click()
-  await page.getByTestId('install-plugin').click()
-  await page.getByTestId('install-cluster').click()
-  await page.locator('.n-base-select-option', { hasText: `(${cluster})` }).click()
-  await page.getByTestId('install-mode').getByText(mode, { exact: true }).click()
-  await page.getByTestId('install-submit').click()
-  await expect(page.getByTestId(`installation-${cluster}`)).toBeVisible()
-}
-
-const phase = (page: Page, cluster: string) => page.getByTestId(`installation-${cluster}`).getByTestId('installation-phase')
+const installFromMarketplace = (page: Page, cluster: string, mode: 'Install' | 'Connect existing') => install(page, 'monitoring', cluster, mode)
 
 async function demoPodPage(page: Page, cluster: string) {
   const pod = cluster === 'dev-1' ? runningDemoPods()[0]! : kubectl('dev-2', '-n', DEMO_NS, 'get', 'pods', '-o', 'jsonpath={.items[0].metadata.name}')
@@ -118,13 +107,7 @@ test('Connect existing on dev-2 to a hand-installed Prometheus with a connect-on
   kubectl('dev-2', '-n', 'monitoring', 'rollout', 'status', 'deploy/prometheus', '--timeout=180s')
   await setInstaller(request, 'dev-2', ...connectFlags)
   // The connect-only credential cannot do anything cluster-wide.
-  const canI = (...args: string[]) => {
-    try {
-      return kubectl('dev-2', 'auth', 'can-i', ...args, '--as', 'system:serviceaccount:capybara-system:capybara-installer')
-    } catch (e) {
-      return String((e as { stdout?: string }).stdout ?? '').trim() // "no" exits 1
-    }
-  }
+  const canI = (...args: string[]) => installerCan('dev-2', ...args)
   expect(canI('create', 'clusterroles')).toBe('no')
   expect(canI('get', 'secrets', '-n', 'monitoring')).toBe('no')
   expect(canI('create', 'serviceaccounts', '-n', 'monitoring')).toBe('yes')

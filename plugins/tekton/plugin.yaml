@@ -1,0 +1,175 @@
+# Pipelines (id: tekton): Tekton Pipelines, installed from the vendored
+# upstream release, or connected to a Tekton already in the cluster.
+# Viewing and safe actions only (ADR 0007): no Git, registry or credential
+# management before Phase 5.
+name: tekton
+displayName: Pipelines
+version: 0.1.0
+description: >-
+  Tekton Pipelines: Pipelines, PipelineRuns and TaskRuns with step logs;
+  rerun or cancel a run; the latest runs on each Project. Installs Tekton
+  Pipelines v1.17.0 (only the cluster resolver enabled), or connects to a
+  Tekton already in the cluster (on OpenShift: OpenShift Pipelines; never
+  install a second one there).
+icon: icon.svg
+extensionApi: 1
+# Uses registerResource, LogViewer, ResourceLink, useLiveList (1.1).
+minExtensionApi: "1.1"
+scope: per-cluster
+modes: [install, connect]
+extensionPoints: [nav-section, nav-item, route, resource-detail-tab, resource-action, project-overview-card]
+
+chart:
+  # Built from upstream/release-v1.17.0.yaml by cmd/plugin-chart
+  # (make plugin-chart PLUGIN=tekton; make lint checks it reproduces).
+  archive: chart/tekton-pipelines-1.17.0.tgz
+  sha256: 9e97634219e7ea01d45fa207bc2dab0b77f6d710995624f1f3383b00154108b8
+  releaseName: capybara-tekton
+  # Upstream's namespace (its webhooks and CRD conversion point here).
+  namespace: tekton-pipelines
+  # What upstream's own Namespace object (dropped from the chart) set.
+  namespaceLabels:
+    app.kubernetes.io/instance: default
+    app.kubernetes.io/part-of: tekton-pipelines
+    pod-security.kubernetes.io/enforce: restricted
+  version: 1.17.0
+  # OpenShift ships OpenShift Pipelines: connect to it instead.
+  refuseInstallOn: [openshift]
+
+ui:
+  bundle: ui/dist/tekton.js
+  sha256: d1fe4027ed49c142871f96024d346d0d85c92e9f8e4c8c2312c9644fc1380125
+
+# An existing Tekton: connect needs one of these served; install is refused
+# when a CRD here belongs to another install, or a namespace exists.
+detect:
+  apiResources: [tekton.dev/pipelineruns, operator.tekton.dev/tektonconfigs]
+  namespaces: [openshift-pipelines]
+
+permissions:
+  # Installer credential, install mode: everything the chart creates
+  # (checked against a render before installing) and Helm's release
+  # Secrets. escalate/bind: Tekton's ClusterRoles grant permissions the
+  # installer does not hold itself (pods, secrets, leases, ...).
+  install:
+    clusterRules:
+      - apiGroups: [""]
+        resources: [namespaces]
+        verbs: [get, list, watch, create, patch]
+      - apiGroups: [""]
+        resources: [services, configmaps, secrets, serviceaccounts]
+        verbs: [get, list, watch, create, update, patch, delete]
+      - apiGroups: [apps]
+        resources: [deployments]
+        verbs: [get, list, watch, create, update, patch, delete]
+      - apiGroups: [apps]
+        resources: [replicasets]
+        verbs: [get, list, watch]
+      - apiGroups: [autoscaling]
+        resources: [horizontalpodautoscalers]
+        verbs: [get, list, watch, create, update, patch, delete]
+      - apiGroups: [apiextensions.k8s.io]
+        resources: [customresourcedefinitions]
+        verbs: [get, list, watch, create, update, patch, delete]
+      - apiGroups: [admissionregistration.k8s.io]
+        resources: [validatingwebhookconfigurations, mutatingwebhookconfigurations]
+        verbs: [get, list, watch, create, update, patch, delete]
+      - apiGroups: [rbac.authorization.k8s.io]
+        resources: [clusterroles, clusterrolebindings, roles, rolebindings]
+        verbs: [get, list, watch, create, update, patch, delete]
+      - apiGroups: [rbac.authorization.k8s.io]
+        resources: [clusterroles, roles]
+        verbs: [escalate, bind]
+  # Connect mode needs nothing beyond the console grant below (Capybara
+  # adds creating that ClusterRole and binding, and holding what it grants).
+  connect: {}
+  # Granted to Capybara's own account on the cluster while the plugin is
+  # installed (ClusterRole capybara-plugin-tekton-console): reading Tekton's
+  # resources, and the two declared actions. create on PipelineRuns lets a
+  # run use any ServiceAccount in its namespace (Tekton does not check that
+  # the creator may); see ADR 0007.
+  console:
+    clusterRules:
+      - apiGroups: [tekton.dev]
+        resources: [pipelines, pipelineruns, tasks, taskruns, customruns, stepactions]
+        verbs: [get, list, watch]
+      - apiGroups: [tekton.dev]
+        resources: [pipelineruns]
+        verbs: [create, patch]
+
+# Writes the console may make, only as declared here (core runs them,
+# audited as tekton.<action>).
+actions:
+  - name: rerun
+    title: Rerun
+    group: tekton.dev
+    version: v1
+    resource: pipelineruns
+    kind: PipelineRun
+    type: copy
+    # A new run of the same pipeline (an inline pipelineSpec only when the
+    # original had one); never its status or cancel state.
+    copyFields: [spec.pipelineRef, spec.pipelineSpec, spec.params, spec.workspaces, spec.taskRunTemplate, spec.timeouts]
+  - name: cancel
+    title: Cancel
+    group: tekton.dev
+    version: v1
+    resource: pipelineruns
+    kind: PipelineRun
+    type: patch
+    patch: {spec: {status: Cancelled}}
+    when: {type: Succeeded, status: [Unknown]}
+    danger: true
+
+steps:
+  - name: chart
+    title: Chart installing
+    modes: [install]
+    check:
+      type: helm
+  - name: api
+    title: Pipelines API served
+    check:
+      type: apiResource
+      name: tekton.dev/pipelineruns
+  - name: controller
+    title: Controller ready
+    modes: [install]
+    check:
+      type: workload
+      kind: Deployment
+      name: tekton-pipelines-controller
+  - name: webhook
+    title: Webhook ready
+    modes: [install]
+    check:
+      type: workload
+      kind: Deployment
+      name: tekton-pipelines-webhook
+  - name: resolvers
+    title: Resolvers ready
+    modes: [install]
+    check:
+      type: workload
+      kind: Deployment
+      name: tekton-pipelines-remote-resolvers
+      namespace: tekton-pipelines-resolvers
+  - name: admission
+    title: PipelineRuns accepted
+    check:
+      # A server-side dry run through Tekton's webhooks, with Capybara's
+      # account (its console permissions).
+      type: dryRun
+      namespace: default
+      object:
+        apiVersion: tekton.dev/v1
+        kind: PipelineRun
+        spec:
+          pipelineSpec:
+            tasks:
+              - name: check
+                taskSpec:
+                  steps:
+                    - name: check
+                      image: cgr.dev/chainguard/busybox
+                      script: "true"

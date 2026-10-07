@@ -1,0 +1,25 @@
+# How chart/ is built from the vendored upstream release (cmd/plugin-chart).
+# Rebuild: make plugin-chart PLUGIN=tekton; make lint checks it reproduces.
+source: release-v1.17.0.yaml
+url: https://github.com/tektoncd/pipeline/releases/download/v1.17.0/release.yaml
+sha256: 93ee4eda6978be24e7c04e410b059008099f059e8eea078d560d9f69944ff349
+chart:
+  name: tekton-pipelines
+  version: 1.17.0
+  appVersion: v1.17.0
+  description: Tekton Pipelines v1.17.0 (upstream release.yaml, unchanged but for the edits in build.yaml)
+# The release namespace: the controller creates it, with the labels upstream
+# gave it (plugin.yaml chart.namespaceLabels). tekton-pipelines-resolvers stays.
+dropNamespaces: [tekton-pipelines]
+configMapData:
+  # Only the cluster resolver (Tasks and Pipelines from the cluster itself):
+  # git, hub, bundles and http fetch remote code, which needs registry/Git
+  # credential handling that waits for Phase 5 (ADR 0007).
+  - namespace: tekton-pipelines-resolvers
+    name: resolvers-feature-flags
+    data:
+      enable-bundles-resolver: "false"
+      enable-hub-resolver: "false"
+      enable-git-resolver: "false"
+      enable-http-resolver: "false"
+      enable-cluster-resolver: "true"

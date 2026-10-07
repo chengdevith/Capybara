@@ -1,0 +1,13 @@
+# A run of the sample Pipeline (deploy/samples/tekton-pipeline.yaml). Use
+# kubectl create (generateName): make kubectl CLUSTER=dev-1 ARGS="create -f deploy/samples/tekton-run.yaml"
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: hello-
+  namespace: capybara-demo
+spec:
+  pipelineRef:
+    name: hello
+  params:
+    - name: who
+      value: Capybara

@@ -34,8 +34,8 @@ It has a **small, stable core** and puts everything else in **plugins**:
 
 - **Core:** clusters, workloads, networking, config, Projects, audit, and the
   plugin manager.
-- **Plugins:** monitoring today; CI/CD, GitOps, logging, policy and backup
-  later. Each is installed and enabled per cluster.
+- **Plugins:** monitoring and pipelines (Tekton) today; GitOps, logging,
+  policy and backup later. Each is installed and enabled per cluster.
 
 ```mermaid
 flowchart LR
@@ -51,7 +51,7 @@ flowchart LR
     subgraph plugins["🧩 Plugins (per cluster)"]
         direction TB
         p1["✅ Monitoring (Observe)"]
-        p2["⏳ CI/CD"]
+        p2["✅ Pipelines (Tekton)"]
         p3["⏳ GitOps"]
         p4["⏳ Logging"]
         p5["⏳ Policy"]
@@ -81,6 +81,7 @@ flowchart LR
 | **Audit** | Every write is recorded before it runs (refused if it can't be recorded), with who, what, where and the result. |
 | **Marketplace** | Install plugins per cluster, or connect them to a tool that already runs there. Enable or disable their UI per cluster. |
 | **Observe (monitoring plugin)** | Prometheus and Grafana: a Metrics tab on Pods, Deployments and Nodes, cluster and Project usage cards, alerts, and a Grafana link. |
+| **Pipelines (Tekton plugin)** | PipelineRuns, TaskRuns and Pipelines with live status and step logs, Rerun and Cancel (audited), and the latest runs on each Project. |
 
 ---
 
@@ -170,7 +171,7 @@ records in [docs/decisions/](docs/decisions/).
 |---|---|
 | `cmd/server` | API server (HTTP + websockets) |
 | `cmd/controller` | Controllers: cluster health, Projects, plugin catalog and installations |
-| `cmd/bootstrap`, `cmd/plugin-images`, `cmd/plugin-rbac` | Helper tools used by scripts |
+| `cmd/bootstrap`, `cmd/plugin-chart`, `cmd/plugin-images`, `cmd/plugin-rbac` | Helper tools used by scripts |
 | `api/v1alpha1` | CRD types (`platform.capybara.io`) |
 | `pkg/cluster` | Cluster registry, kubeconfig validation, health, cluster API |
 | `pkg/proxy`, `pkg/stream` | Read-only Kubernetes passthrough; watch, logs and terminal websockets |
@@ -180,7 +181,9 @@ records in [docs/decisions/](docs/decisions/).
 | `pkg/audit`, `pkg/auth`, `pkg/config` | Audit log, placeholder auth, settings |
 | `web/` | Vue 3 + TypeScript console; `web/src/extensions` is the extension registry |
 | `sdk/` | `@capybara/sdk`: the extension API for plugin UIs |
-| `plugins/monitoring/` | First plugin: `plugin.yaml`, `chart/`, `backend/`, `ui/` |
+| `plugins/monitoring/` | First plugin (Observe): `plugin.yaml`, `chart/`, `backend/`, `ui/` |
+| `plugins/tekton/` | Pipelines plugin: `plugin.yaml`, `upstream/` (vendored release), generated `chart/`, `ui/` |
+| `plugins/_ui-build/` | Shared build config and checks for plugin UI bundles |
 | `deploy/` | k3d scripts, CRDs, size presets, sample workloads |
 | `hack/` | Developer scripts (`dev.sh`, `capybara-sa.sh`, `plugin-images.sh`, `plugin-ui.sh`) |
 | `docs/` | Architecture and decision records |
@@ -194,7 +197,7 @@ records in [docs/decisions/](docs/decisions/).
 
 - Docker (running), [k3d](https://k3d.io), kubectl
 - Go 1.27+
-- Node 26.8.1 (exactly, for `make lint` and plugin builds; see `plugins/monitoring/ui/.nvmrc`)
+- Node 26.8.1 (exactly, for `make lint` and plugin builds; see `plugins/*/ui/.nvmrc`)
 
 ### 1. Create the local clusters
 
@@ -367,7 +370,7 @@ The Marketplace and sidebar call it **Observe**, as OpenShift's console does;
 its id, used in URLs, namespaces and commands, is `monitoring`.
 
 ```sh
-make plugin-images      # once: import the pinned images into the k3d clusters
+make plugin-images PLUGIN=monitoring   # once: import its pinned images into the k3d clusters
 ```
 
 1. *Marketplace → Observe*. Review what the installer needs and what the
@@ -402,6 +405,40 @@ that are not from this plugin, so you can confirm before they are deleted.
 > Thanos Querier. That path is implemented but untested on real OpenShift,
 > and it needs the host allowlist that arrives in Phase 5.
 
+### Install Pipelines (the Tekton plugin)
+
+```sh
+make plugin-images PLUGIN=tekton          # once: import Tekton's pinned images
+hack/capybara-sa.sh dev-1 --installer tekton
+```
+
+1. Upload the installer credential on the cluster's page, then
+   *Marketplace → Pipelines → Install on a cluster → Install*. Steps:
+   chart → API served → controller, webhook, resolvers ready →
+   PipelineRuns accepted → **Ready**. It installs Tekton Pipelines v1.17.0
+   with only the cluster resolver enabled (no Git, Hub, bundle or HTTP
+   fetching yet).
+2. Try the sample (needs `make demo`):
+   ```sh
+   make kubectl CLUSTER=dev-1 ARGS="apply -f deploy/samples/tekton-pipeline.yaml"
+   make kubectl CLUSTER=dev-1 ARGS="create -f deploy/samples/tekton-run.yaml"
+   ```
+3. Use it: **Pipelines** in the sidebar (PipelineRuns, TaskRuns,
+   Pipelines); a run's **Tasks** tab with step logs; **Actions → Rerun** or
+   **Cancel run**; the **Pipeline runs** card on Project pages.
+
+**Connect existing** works with a Tekton already in the cluster (on
+OpenShift: OpenShift Pipelines, never a second install). Its installer
+credential only creates Capybara's read and action grant:
+`hack/capybara-sa.sh dev-2 --installer tekton --connect`.
+
+> [!NOTE]
+> While Pipelines is installed, Capybara's own account on that cluster may
+> read Tekton's resources and create and patch PipelineRuns, for Rerun and
+> Cancel only. Creating a PipelineRun can run code as any ServiceAccount in
+> its namespace, and until Phase 5 every console user can use those
+> actions. See [ADR 0007](docs/decisions/0007-phase-4.6-tekton.md).
+
 ### Writing a plugin
 
 A plugin is a folder `plugins/<name>/` with:
@@ -420,14 +457,23 @@ A plugin is a folder `plugins/<name>/` with:
 plugins/<name>/
 ├── plugin.yaml   # name, version, modes, chart, UI bundle (sha256), permissions, services, config schema, steps
 ├── chart/        # Helm chart (the tool)
-├── ui/           # ES module (Vite library mode) → definePlugin({ name, apiVersion, register })
+├── upstream/     # optional: vendored upstream YAML + build.yaml → chart/ (make plugin-chart)
+├── images.txt    # every image the chart names, pinned by digest
+├── ui/           # ES module (Vite library mode) → definePlugin({ name, apiVersion, minApi, register })
 └── backend/      # optional: separate process, calls Capybara's scoped endpoint
 ```
 
-`plugins/monitoring/` is the reference. `make plugin-ui` rebuilds a UI
-bundle and pins its sha256; `make lint` checks that the committed bundle
-rebuilds byte for byte. See [ADR 0006](docs/decisions/0006-phase-4.5-plugins.md)
-for the trust model: UI bundles currently run with full console access.
+`plugins/monitoring/` (with a backend) and `plugins/tekton/` (views and
+declared actions only) are the references. A UI can register whole kinds
+on the console's generic list and detail pages (`api.registerResource`),
+and use its log viewer, object links and live lists. Writes go through
+actions declared in `plugin.yaml` and run, audited, by Capybara.
+`make plugin-ui` rebuilds UI bundles and pins their sha256; `make lint`
+checks that every committed bundle and generated chart rebuilds byte for
+byte. See [ADR 0006](docs/decisions/0006-phase-4.5-plugins.md) for the trust
+model (UI bundles currently run with full console access) and
+[ADR 0007](docs/decisions/0007-phase-4.6-tekton.md) for console permissions,
+declared actions and extension API versions.
 
 ---
 
@@ -435,7 +481,7 @@ for the trust model: UI bundles currently run with full console access.
 
 | Command | What it does |
 |---|---|
-| `make dev` | API server, controller, Monitoring backend and console |
+| `make dev` | API server, controller, plugin backends and console |
 | `make test` | Go unit tests, envtest controller suites, Vitest |
 | `make lint` | golangci-lint, ESLint, vue-tsc, generated-file and bundle checks |
 | `make e2e` | Playwright browser tests against the real k3d clusters |

@@ -188,22 +188,31 @@ Marketplace UI ─▶ /api/plugins (audited) ─▶ PluginInstallation in mgmt
                                                │
 cmd/controller: catalog sync (plugins/*/plugin.yaml, sha256 checks)
                 installation controller ── installer credential ──▶ managed cluster
-                  pre-flight (SSARs per declared rule, chart render)      Helm release (install mode)
+                  pre-flight (SSARs per declared rule, chart render,       Helm release (install mode)
+                    detect, CRD create/patch)                              CRDs (server-side apply, before Helm)
                   Helm install/upgrade/uninstall                         backend ServiceAccount + Role
+                  console grant ──────────────────────────────────────▶  ClusterRole capybara-plugin-<name>-console
                   steps (workloads, service checks with the plugin token)  (services/proxy on declared services)
                   backend token (TokenRequest) ──▶ Secret in mgmt
 browser ─▶ /api/plugins/<name>/... ─▶ plugin backend (own process)
                                         └▶ /internal/plugins/... (issued credential)
                                              └▶ service proxy with the plugin token ─▶ Prometheus / Grafana
-browser ◀─ /api/plugins/_ui/<name>/<sha>.js (pinned) ── loader: verify sha256, import, register
+browser ◀─ /api/plugins/_ui/<name>/<sha>.js (pinned) ── loader: verify sha256, minApi, import, register
+browser ─▶ /api/clusters/<id>/plugin-actions/<plugin>/<action> (audited) ─▶ declared copy/patch with Capybara's account
 ```
 
-- **Manifest** (`plugins/<name>/plugin.yaml`): name, version, extension API,
-  modes, chart (archive + sha256, preset values, install values with
-  `{{cluster}}`, generated Secrets, `refuseInstallOn`), UI bundle + sha256,
-  backend, permissions (install and connect rule sets for the installer;
-  services the backend may reach), config schema (small JSON Schema
-  subset), steps (`helm`, `workload`, `service` checks).
+- **Manifest** (`plugins/<name>/plugin.yaml`): name, version, extension API
+  (major and `minExtensionApi`), modes, chart (archive + sha256, preset
+  values, install values with `{{cluster}}`, generated Secrets,
+  `namespaceLabels`, `refuseInstallOn`), UI bundle + sha256, backend,
+  permissions (install and connect rule sets for the installer; `console`
+  rules granted to Capybara's own account; services the backend may
+  reach), `actions` (declared copy/patch writes), `detect` (what an
+  existing install serves), config schema (small JSON Schema subset),
+  steps (`helm`, `workload`, `service`, `apiResource`, `dryRun` checks).
+- **Charts from upstream YAML**: `plugins/<name>/upstream/build.yaml` and
+  `cmd/plugin-chart` build a deterministic chart from a vendored, pinned
+  manifest; `make lint` checks it reproduces.
 - **Installation phases**: Pending → Installing (steps) → Ready, or
   Disabled (installed, UI hidden), Error (refused by pre-flight, failed, or
   a step failing after `Installed`), Uninstalling.
@@ -214,8 +223,15 @@ browser ◀─ /api/plugins/_ui/<name>/<sha>.js (pinned) ── loader: verify s
   (stdlib Go): predefined queries only, 1h/6h/24h/7d, short cache. UI
   `plugins/monitoring/ui`: Metrics tab (Pod, Deployment, Node), Observe
   section (Overview, Alerts, Grafana), cluster and Project cards, settings.
+- **Pipelines** (id `tekton`, no backend): Tekton Pipelines v1.17.0 from the
+  vendored release (only the cluster resolver), or Connect existing to a
+  Tekton already there (OpenShift Pipelines; never a second install). UI
+  `plugins/tekton/ui`: PipelineRuns, TaskRuns and Pipelines on the generic
+  resource pages, a Tasks tab with step logs on PipelineRuns, a Logs tab on
+  TaskRuns, Rerun and Cancel actions, a Project card with the latest runs.
 - See ADR 0006 for the security decisions (installer credential, backend
-  credentials, bundle trust, shared modules).
+  credentials, bundle trust, shared modules) and ADR 0007 for console
+  permissions, declared actions, upstream charts and API minor versions.
 
 ## Projects (api/v1alpha1, pkg/project, cmd/controller)
 
@@ -398,6 +414,9 @@ installation's live steps, the UI switch, upgrade and uninstall (keep data,
 CRD removal after a scan). Cluster pages manage the installer credential.
 Home renders `cluster-overview-card`s, Project pages
 `project-overview-card`s, and Administration → Settings `settings-page`s.
+Plugins may also register whole kinds on the generic list and detail pages
+(`api.registerResource`, extension API 1.1) and reuse the log viewer, object
+links and live lists.
 Administration also has a read-only Nodes page.
 
 ### Projects in the console
