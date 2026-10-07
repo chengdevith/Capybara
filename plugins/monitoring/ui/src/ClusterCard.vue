@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NProgress, NSpin } from 'naive-ui'
+import { NProgress, NSpin, useThemeVars } from 'naive-ui'
 import { onMounted, ref } from 'vue'
 import { bytes, cores, overview, type Overview } from './api'
 
@@ -14,6 +14,8 @@ onMounted(async () => {
   }
 })
 const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0)
+// Follow the console theme (Naive's progress default is its info blue).
+const themeVars = useThemeVars()
 </script>
 
 <template>
@@ -27,11 +29,13 @@ const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0)
       <div>CPU {{ cores(data.cpuUsed) }} of {{ cores(data.cpuCapacity) }}</div>
       <NProgress
         type="line"
+        :color="themeVars.primaryColor"
         :percentage="pct(data.cpuUsed, data.cpuCapacity)"
       />
       <div>Memory {{ bytes(data.memoryUsed) }} of {{ bytes(data.memoryCapacity) }}</div>
       <NProgress
         type="line"
+        :color="themeVars.primaryColor"
         :percentage="pct(data.memoryUsed, data.memoryCapacity)"
       />
       <div class="muted">

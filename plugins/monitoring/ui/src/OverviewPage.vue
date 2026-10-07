@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useCluster } from '@capybara/sdk'
-import { NAlert, NButton, NCard, NGrid, NGridItem, NH2, NProgress, NSpace, NStatistic } from 'naive-ui'
+import { NAlert, NButton, NCard, NGrid, NGridItem, NH2, NProgress, NSpace, NStatistic, useThemeVars } from 'naive-ui'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { bytes, cores, grafanaURL, overview, status, type Overview } from './api'
 
@@ -28,6 +28,8 @@ watch(cluster, () => {
 }, { immediate: true })
 onBeforeUnmount(() => clearInterval(timer))
 const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0)
+// Follow the console theme (Naive's progress default is its info blue).
+const themeVars = useThemeVars()
 </script>
 
 <template>
@@ -68,6 +70,7 @@ const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0)
           <NStatistic :value="`${cores(data.cpuUsed)} of ${cores(data.cpuCapacity)}`" />
           <NProgress
             type="line"
+            :color="themeVars.primaryColor"
             :percentage="pct(data.cpuUsed, data.cpuCapacity)"
           />
         </NCard>
@@ -80,6 +83,7 @@ const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0)
           <NStatistic :value="`${bytes(data.memoryUsed)} of ${bytes(data.memoryCapacity)}`" />
           <NProgress
             type="line"
+            :color="themeVars.primaryColor"
             :percentage="pct(data.memoryUsed, data.memoryCapacity)"
           />
         </NCard>

@@ -25,7 +25,7 @@ const term = new Terminal({
   cursorBlink: true,
   fontSize: 13,
   fontFamily: "'Red Hat Mono', Menlo, Consolas, monospace",
-  theme: { background: '#151515', foreground: '#e0e0e0' },
+  theme: { background: '#1d1c23', foreground: '#e6e1da', cursor: '#d4ad80', selectionBackground: '#4a4858' }, // --capy-console-*
   convertEol: false,
 })
 const fit = new FitAddon()
@@ -135,7 +135,7 @@ function reconnect() {
 }
 .terminal {
   height: 60vh;
-  background: #151515;
+  background: var(--capy-console-bg);
   padding: 6px;
 }
 </style>

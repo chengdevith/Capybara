@@ -51,4 +51,9 @@ export function bytes(n: number): string {
   }
   return `${n.toFixed(i ? 1 : 0)} ${units[i]}`
 }
-export const cores = (n: number) => (n < 1 ? `${Math.round(n * 1000)}m` : `${n.toFixed(2)} cores`)
+export function cores(n: number): string {
+  if (n === 0) return '0'
+  if (n >= 1) return `${n.toFixed(2)} cores`
+  const m = n * 1000 // millicores; one decimal when small, so axis labels stay distinct
+  return m < 10 ? `${m.toFixed(1)}m` : `${Math.round(m)}m`
+}

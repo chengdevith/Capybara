@@ -5,35 +5,54 @@ import { useThemeStore } from '@/stores/theme'
 
 const theme = useThemeStore()
 
-// OCP-style palette: near-black masthead and dark sidebar in both modes,
-// blue accents (lighter in dark mode so links stay readable).
+// Capybara palette, taken from the logo: caramel (body #c39b6e) as the
+// brand color, the logo's charcoal (eyes #464655) for the masthead and
+// sidebar, warm neutrals for the content. Light mode uses a deeper caramel
+// so white text on buttons stays readable (WCAG AA); dark mode uses the
+// lighter caramel on charcoal.
+const brand = {
+  caramel: '#c39b6e', // logo body
+  caramelDeep: '#8a5f36', // light-mode primary (5.6:1 with white)
+  caramelLight: '#d4ad80', // dark-mode primary (8:1 on the dark background)
+  charcoal: '#2e2d38', // masthead
+  charcoalSider: '#33323d', // sidebar
+  charcoalActive: '#4a4858', // selected sidebar item
+}
 const shared: GlobalThemeOverrides = {
-  Layout: { siderColorInverted: '#212427' },
+  Layout: { siderColorInverted: brand.charcoalSider },
   Menu: {
-    itemColorActiveInverted: '#4f5255',
-    itemColorActiveHoverInverted: '#4f5255',
-    itemTextColorActiveInverted: '#fff',
-    itemTextColorActiveHoverInverted: '#fff',
+    itemColorActiveInverted: brand.charcoalActive,
+    itemColorActiveHoverInverted: brand.charcoalActive,
+    itemTextColorActiveInverted: '#e0bd92',
+    itemTextColorActiveHoverInverted: '#e0bd92',
+    itemIconColorActiveInverted: '#e0bd92',
+    itemTextColorChildActiveInverted: '#e0bd92',
+    arrowColorChildActiveInverted: '#e0bd92',
   },
 }
 const light: GlobalThemeOverrides = {
   ...shared,
   common: {
-    primaryColor: '#0066cc',
-    primaryColorHover: '#004080',
-    primaryColorPressed: '#003366',
-    primaryColorSuppl: '#0066cc',
-    borderRadius: '3px',
+    primaryColor: brand.caramelDeep,
+    primaryColorHover: '#9a6b3f',
+    primaryColorPressed: '#6f4b29',
+    primaryColorSuppl: '#9a6b3f',
+    bodyColor: '#f7f3ee',
+    borderRadius: '4px',
   },
 }
 const dark: GlobalThemeOverrides = {
   ...shared,
   common: {
-    primaryColor: '#73bcf7',
-    primaryColorHover: '#9fd3ff',
-    primaryColorPressed: '#4d9fe0',
-    primaryColorSuppl: '#73bcf7',
-    borderRadius: '3px',
+    primaryColor: brand.caramelLight,
+    primaryColorHover: '#e0bd92',
+    primaryColorPressed: brand.caramel,
+    primaryColorSuppl: '#e0bd92',
+    bodyColor: '#1d1c23',
+    cardColor: '#26252e',
+    modalColor: '#26252e',
+    popoverColor: '#2c2b35',
+    borderRadius: '4px',
   },
 }
 
@@ -59,19 +78,21 @@ const overrides = computed(() => (theme.isDark ? dark : light))
 /* Colors that are ours rather than Naive UI's. The theme store sets
    data-theme on <html>. */
 :root {
-  --capy-masthead-bg: #151515;
-  --capy-sider-bg: #212427;
-  --capy-content-bg: #f0f0f0;
-  --capy-text-muted: #6a6e73;
-  --capy-border: #d2d2d2;
-  --capy-link: #0066cc;
+  --capy-masthead-bg: #2e2d38;
+  --capy-sider-bg: #33323d;
+  --capy-content-bg: #f7f3ee;
+  --capy-text-muted: #6b6875;
+  --capy-border: #e2d9cd;
+  --capy-link: #8a5f36;
+  --capy-console-bg: #1d1c23;
+  --capy-console-fg: #e6e1da;
   color-scheme: light;
 }
 :root[data-theme='dark'] {
-  --capy-content-bg: #1b1d21;
-  --capy-text-muted: #a3a6aa;
-  --capy-border: #3c3f42;
-  --capy-link: #73bcf7;
+  --capy-content-bg: #1d1c23;
+  --capy-text-muted: #a8a5b0;
+  --capy-border: #3d3b47;
+  --capy-link: #d4ad80;
   color-scheme: dark;
 }
 a {

@@ -20,6 +20,8 @@ function render() {
   chart.setOption(
     {
       animation: false,
+      // Starts with Capybara's caramel and charcoal-lavender (from the logo).
+      color: ['#c39b6e', '#7a7896', '#5f9e8f', '#d08c5b', '#8fa9c7', '#b0718a', '#9aa05a'],
       grid: { left: 64, right: 16, top: 28, bottom: 28 },
       tooltip: { trigger: 'axis', valueFormatter: (v: unknown) => props.format(Number(v)) },
       legend: { type: 'scroll', top: 0, textStyle: { color: text } },

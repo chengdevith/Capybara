@@ -163,8 +163,8 @@ function onScroll() {
   height: 60vh;
   margin: 0;
   overflow: auto;
-  background: #151515;
-  color: #e0e0e0;
+  background: var(--capy-console-bg);
+  color: var(--capy-console-fg);
   padding: 12px;
   font-size: 12px;
   line-height: 1.5;
