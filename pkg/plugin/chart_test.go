@@ -165,3 +165,16 @@ func TestTektonChartWithinDeclaredPermissions(t *testing.T) {
 		t.Errorf("CRDs = %d", len(r.CRDs))
 	}
 }
+
+// Only plugins that keep data in volumes offer to keep or remove it.
+func TestHasData(t *testing.T) {
+	for name, want := range map[string]bool{"monitoring": true, "tekton": false} {
+		_, spec, err := LoadDir("../../plugins/"+name, "builtin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := HasData(spec); got != want {
+			t.Errorf("%s: HasData = %v", name, got)
+		}
+	}
+}

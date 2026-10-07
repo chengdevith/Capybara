@@ -68,8 +68,9 @@ type Clusters interface {
 // InstallationReconciler installs, connects, checks and uninstalls plugins.
 type InstallationReconciler struct {
 	Client client.Client // capybara-mgmt
-	// Reader reads Secrets the manager's cache does not hold (plugin
-	// tokens): the cache only has kubeconfig Secrets.
+	// Reader reads from the API server: Secrets the manager's cache does
+	// not hold (plugin tokens; the cache only has kubeconfig Secrets), and
+	// the installation itself at the start of each reconcile.
 	Reader     client.Reader
 	Clusters   Clusters
 	Installers *cluster.Installers
@@ -157,8 +158,17 @@ func (r *InstallationReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			r.Logger.Warn("slow plugin reconcile", "installation", req.Name, "took", d.Round(time.Millisecond))
 		}
 	}()
+	// Read the installation from the API server, not the cache: an apply
+	// writes status before and after a long Helm run, the first write
+	// queues the next reconcile, and that one would otherwise start from a
+	// cache without the final write (no appliedHash) and apply again,
+	// forever.
 	var in v1alpha1.PluginInstallation
-	if err := r.Client.Get(ctx, req.NamespacedName, &in); err != nil {
+	reader := r.Reader
+	if reader == nil {
+		reader = r.Client
+	}
+	if err := reader.Get(ctx, req.NamespacedName, &in); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	var p v1alpha1.Plugin
@@ -709,6 +719,9 @@ func (r *InstallationReconciler) uninstall(ctx context.Context, in *v1alpha1.Plu
 				if err := cs.CoreV1().Secrets(ns).Delete(ctx, g.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
 					return "", err
 				}
+			}
+			if !HasData(&p.Spec) {
+				return "release removed; namespace " + ns + " stays (Capybara does not delete namespaces it did not create through a Project)", nil
 			}
 			if keep {
 				return "release removed; data (PersistentVolumeClaims) kept in namespace " + ns + ", which stays", nil

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { NAlert, NButton, NCard, NSpace, NStep, NSteps, NSwitch, NTag, useMessage } from 'naive-ui'
 import { computed, ref } from 'vue'
-import { updateInstallation, type CatalogEntry, type Installation } from '@/api/plugins'
+import { hasData, updateInstallation, type CatalogEntry, type Installation } from '@/api/plugins'
 import { usePluginsStore } from '@/stores/plugins'
 import UninstallDialog from './UninstallDialog.vue'
 
@@ -111,6 +111,7 @@ async function change(c: { enabled?: boolean; version?: string }) {
       v-if="uninstalling"
       :installation="inst"
       :namespace="plugin.spec.chart?.namespace"
+      :has-data="hasData(plugin.spec)"
       @close="uninstalling = false"
       @removed="uninstalling = false"
     />

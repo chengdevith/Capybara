@@ -4,10 +4,11 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { getInstallation, requestCRDScan, uninstallPlugin, type CRDScan, type Installation } from '@/api/plugins'
 import { usePluginsStore } from '@/stores/plugins'
 
-// Type-the-name uninstall. Install mode asks whether to keep data and warns
-// that CRDs stay; removing them is opt-in and shows the objects of those
-// kinds that are not from this plugin first.
-const props = defineProps<{ installation: Installation; namespace?: string }>()
+// Type-the-name uninstall. Install mode asks whether to keep data (for
+// plugins that have data volumes) and warns that CRDs stay; removing them is
+// opt-in and shows the objects of those kinds that are not from this
+// plugin first.
+const props = defineProps<{ installation: Installation; namespace?: string; hasData?: boolean }>()
 const emit = defineEmits<{ close: []; removed: [] }>()
 const message = useMessage()
 const plugins = usePluginsStore()
@@ -96,20 +97,21 @@ async function submit() {
     <template v-if="inst.spec.mode === 'install'">
       <p>
         Removes the Helm release and the plugin's account from the cluster. The namespace
-        <strong>{{ namespace }}</strong> stays (empty unless you keep the data); delete it yourself if you no longer need it.
+        <strong>{{ namespace }}</strong> stays{{ hasData ? ' (empty unless you keep the data)' : '' }}; delete it yourself if you no longer need it.
       </p>
       <NCheckbox
+        v-if="hasData"
         v-model:checked="keepData"
         data-test="keep-data"
       >
-        Keep the metrics data (PersistentVolumeClaims stay in the plugin's namespace)
+        Keep the data (PersistentVolumeClaims stay in the plugin's namespace)
       </NCheckbox>
       <NAlert
         type="warning"
         class="block"
         :show-icon="false"
       >
-        The chart's CustomResourceDefinitions (Prometheus Operator kinds) stay in the cluster unless you remove them.
+        The chart's CustomResourceDefinitions stay in the cluster unless you remove them.
         Removing a CRD deletes every object of that kind, including ones other tools created.
       </NAlert>
       <NCheckbox

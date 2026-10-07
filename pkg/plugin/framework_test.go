@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
@@ -17,6 +18,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/capybara/capybara/api/v1alpha1"
 )
@@ -182,6 +184,24 @@ func TestBackendlessPluginWithConsolePermissionsAndCRDUpgrade(t *testing.T) {
 		t.Error("a plugin without services must get no backend account")
 	}
 
+	// A cache that lags behind the last status write (as the manager's does
+	// right after a long apply) must not cause another apply.
+	helmRevisions := func() int {
+		list, _ := f.cs.CoreV1().Secrets("widgets").List(ctx, metav1.ListOptions{LabelSelector: "owner=helm,name=widgets"})
+		return len(list.Items)
+	}
+	revisions := helmRevisions()
+	stale := in.DeepCopy()
+	stale.Status = v1alpha1.PluginInstallationStatus{Phase: v1alpha1.InstallInstalling}
+	cached := f.r.Client
+	f.r.Client = staleClient{Client: cached, stale: stale}
+	f.r.Reader = cached
+	in = f.reconcile(t, "widgets.dev-1")
+	f.r.Client = cached
+	if helmRevisions() != revisions || in.Status.Phase != v1alpha1.InstallReady {
+		t.Errorf("re-applied from a stale cache: %d → %d Helm revisions, phase %s", revisions, helmRevisions(), in.Status.Phase)
+	}
+
 	// Upgrade: the new chart's CRD is applied (Helm alone would skip it).
 	spec2 := writeWidgetsPlugin(t, root, "1.1.0", "two")
 	_ = f.c.Get(ctx, types.NamespacedName{Name: "widgets"}, p)
@@ -225,4 +245,18 @@ func TestBackendlessPluginWithConsolePermissionsAndCRDUpgrade(t *testing.T) {
 	if !strings.Contains(in.Status.Message, "already served by another installation") {
 		t.Errorf("install over a foreign CRD: %q", in.Status.Message)
 	}
+}
+
+// staleClient returns an old copy of one installation, like a lagging cache.
+type staleClient struct {
+	client.Client
+	stale *v1alpha1.PluginInstallation
+}
+
+func (c staleClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if in, ok := obj.(*v1alpha1.PluginInstallation); ok && key.Name == c.stale.Name {
+		c.stale.DeepCopyInto(in)
+		return nil
+	}
+	return c.Client.Get(ctx, key, obj, opts...)
 }

@@ -166,7 +166,7 @@ test('uninstall: connect leaves the existing Tekton; install removes the release
   expect(kubectl('dev-2', '-n', 'tekton-pipelines', 'get', 'deploy', 'tekton-pipelines-controller', '-o', 'name')).toBe('deployment.apps/tekton-pipelines-controller')
 
   await page.getByTestId('installation-dev-1').getByTestId('uninstall').click()
-  await page.getByTestId('keep-data').click() // do not keep
+  await expect(page.getByTestId('keep-data')).toHaveCount(0) // Tekton keeps no data volumes
   await page.getByTestId('remove-crds').click()
   // The scan finds the sample runs (objects of the CRDs) and asks to confirm.
   await expect(page.getByTestId('foreign-objects')).toBeVisible({ timeout: 90_000 })

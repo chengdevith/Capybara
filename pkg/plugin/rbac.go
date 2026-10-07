@@ -164,6 +164,14 @@ func InstallerRules(spec *v1alpha1.PluginSpec, mode v1alpha1.InstallMode, servic
 // pluginNameOf is a spec's plugin name (set by catalog sync on the spec copy).
 func pluginNameOf(spec *v1alpha1.PluginSpec) string { return spec.Name }
 
+// HasData reports whether a plugin keeps data in volumes: its installer may
+// delete PersistentVolumeClaims (to remove them on uninstall when asked).
+// Plugins without that have nothing to keep, and uninstall skips the step.
+func HasData(spec *v1alpha1.PluginSpec) bool {
+	rules := append(toRBAC(spec.Permissions.Install.ClusterRules), toRBAC(spec.Permissions.Install.NamespaceRules)...)
+	return allows(rules, "", "persistentvolumeclaims", "list") && allows(rules, "", "persistentvolumeclaims", "delete")
+}
+
 func toRBAC(rules []v1alpha1.PolicyRule) []rbacv1.PolicyRule {
 	out := make([]rbacv1.PolicyRule, 0, len(rules))
 	for _, r := range rules {

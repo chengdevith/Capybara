@@ -59,6 +59,22 @@ export interface PluginSpec {
   steps?: { name: string; title: string; modes?: InstallMode[] }[]
 }
 
+/** Whether a plugin keeps data in volumes: its installer may delete
+ * PersistentVolumeClaims (pkg/plugin HasData). Only then does uninstall
+ * offer to keep the data. */
+export function hasData(spec: PluginSpec): boolean {
+  const rules = [...(spec.permissions?.install?.clusterRules ?? []), ...(spec.permissions?.install?.namespaceRules ?? [])]
+  const allows = (verb: string) =>
+    rules.some(
+      (r) =>
+        !r.resourceNames?.length &&
+        (r.apiGroups ?? []).some((g) => g === '' || g === '*') &&
+        (r.resources ?? []).some((x) => x === 'persistentvolumeclaims' || x === '*') &&
+        r.verbs.some((v) => v === verb || v === '*'),
+    )
+  return allows('list') && allows('delete')
+}
+
 export interface StepStatus {
   name: string
   title: string
