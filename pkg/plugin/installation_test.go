@@ -251,10 +251,18 @@ func TestConnectModeLifecycle(t *testing.T) {
 		t.Error("disable re-applied")
 	}
 
-	// Uninstall removes the account and the token, then releases the object.
+	// Without the installer credential the uninstall waits and says why.
+	f.installers.Set("dev-1", nil)
 	if err := f.c.Delete(ctx, &in); err != nil {
 		t.Fatal(err)
 	}
+	in = f.reconcile(t, "monitoring.dev-1")
+	if in.Status.Phase != v1alpha1.InstallUninstalling || !strings.Contains(in.Status.Message, "uninstall blocked") {
+		t.Fatalf("blocked uninstall: %s %q", in.Status.Phase, in.Status.Message)
+	}
+
+	// Uninstall removes the account and the token, then releases the object.
+	f.setInstaller(t, "dev-1", nil)
 	f.reconcile(t, "monitoring.dev-1")
 	if err := f.c.Get(ctx, types.NamespacedName{Name: "monitoring.dev-1"}, &in); !apierrors.IsNotFound(err) {
 		t.Fatalf("installation kept: %v (status %+v)", err, in.Status)

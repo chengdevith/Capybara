@@ -300,6 +300,9 @@ func (r *InstallationReconciler) apply(ctx context.Context, in *v1alpha1.PluginI
 			setStep(st, "chart", v1alpha1.StepFailed, err.Error())
 			return err
 		}
+		if err := r.labelCRDs(ctx, inst, p); err != nil {
+			return fmt.Errorf("label CRDs: %w", err)
+		}
 		setStep(st, "chart", v1alpha1.StepDone, "")
 	}
 	return ensureBackendAccount(ctx, cs, ns, p.Name, in.Spec.Cluster, BackendRole(services, ns))
@@ -591,6 +594,28 @@ func (r *InstallationReconciler) chartCRDs(p *v1alpha1.Plugin) ([]string, error)
 	return names, nil
 }
 
+// labelCRDs marks the chart's CRDs as this plugin's, so a later
+// re-install recognises CRDs an uninstall kept (Helm's crds/ carry no
+// ownership metadata).
+func (r *InstallationReconciler) labelCRDs(ctx context.Context, inst *rest.Config, p *v1alpha1.Plugin) error {
+	crds, err := r.chartCRDs(p)
+	if err != nil {
+		return err
+	}
+	dyn, err := dynamic.NewForConfig(inst)
+	if err != nil {
+		return err
+	}
+	patch := []byte(`{"metadata":{"labels":{"` + v1alpha1.LabelPlugin + `":"` + p.Name + `"}}}`)
+	crdGVR := schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"}
+	for _, name := range crds {
+		if _, err := dyn.Resource(crdGVR).Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	return nil
+}
+
 // uninstall removes what the installation created, then lets it go.
 func (r *InstallationReconciler) uninstall(ctx context.Context, in *v1alpha1.PluginInstallation, p *v1alpha1.Plugin, pluginErr error) (ctrl.Result, error) {
 	if !controllerutil.ContainsFinalizer(in, v1alpha1.FinalizerPluginUninstall) {
@@ -626,7 +651,7 @@ func (r *InstallationReconciler) uninstall(ctx context.Context, in *v1alpha1.Plu
 		return ctrl.Result{}, err
 	}
 	if st.Phase != v1alpha1.InstallUninstalling {
-		st.Phase, st.Message = v1alpha1.InstallUninstalling, ""
+		st.Phase, st.Message = v1alpha1.InstallUninstalling, "removing"
 		if err := r.writeStatus(ctx, in, st); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -656,8 +681,15 @@ func (r *InstallationReconciler) uninstall(ctx context.Context, in *v1alpha1.Plu
 			if keep {
 				return "release removed; data (PersistentVolumeClaims in " + ns + ") kept", nil
 			}
-			if err := cs.CoreV1().PersistentVolumeClaims(ns).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			// One by one: the declared permissions have list and delete, not deletecollection.
+			pvcs, err := cs.CoreV1().PersistentVolumeClaims(ns).List(ctx, metav1.ListOptions{})
+			if err != nil {
 				return "", err
+			}
+			for _, pvc := range pvcs.Items {
+				if err := cs.CoreV1().PersistentVolumeClaims(ns).Delete(ctx, pvc.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+					return "", err
+				}
 			}
 			return "release and its data (PersistentVolumeClaims in " + ns + ") removed", nil
 		})
@@ -708,7 +740,8 @@ func (r *InstallationReconciler) removeCRDs(ctx context.Context, ref string, in 
 }
 
 func (r *InstallationReconciler) blocked(ctx context.Context, in *v1alpha1.PluginInstallation, st *v1alpha1.PluginInstallationStatus, msg string) (ctrl.Result, error) {
-	st.Phase, st.Message = v1alpha1.InstallError, "uninstall waiting: "+msg
+	// Stays Uninstalling (the object is going away) and says what blocks it.
+	st.Phase, st.Message = v1alpha1.InstallUninstalling, "uninstall blocked: "+msg
 	return r.finish(ctx, in, st, &ctrl.Result{RequeueAfter: 30 * time.Second}, nil)
 }
 

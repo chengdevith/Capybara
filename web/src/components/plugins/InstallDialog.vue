@@ -22,7 +22,7 @@ const error = ref<string | null>(null)
 const installed = computed(() => new Set(props.plugin.installations.map((i) => i.spec.cluster)))
 const options = computed(() =>
   clusters.items.map((c) => ({
-    label: `${c.displayName || c.id} · ${c.status.pluginInstalls === 'Enabled' ? 'installs enabled' : 'installs disabled'}${installed.value.has(c.id) ? ' · installed' : ''}`,
+    label: `${c.displayName || c.id} (${c.id}) · ${c.status.pluginInstalls === 'Enabled' ? 'installs enabled' : 'installs disabled'}${installed.value.has(c.id) ? ' · installed' : ''}`,
     value: c.id,
     disabled: installed.value.has(c.id),
   })),

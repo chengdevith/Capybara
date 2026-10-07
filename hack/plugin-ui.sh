@@ -30,6 +30,11 @@ case "$cmd" in
     (cd "$ui" && node scripts/check-node.mjs && npx --no-install vite build --outDir "$tmp" --emptyOutDir >/dev/null)
     built="$(shasum -a 256 "${tmp}/$(basename "$bundle")" | cut -d' ' -f1)"
     committed="$(shasum -a 256 "${ui}/${bundle}" | cut -d' ' -f1)"
+    # Browser bundles must not reference Node globals (they throw at runtime).
+    if grep -q 'process\.env' "${ui}/${bundle}"; then
+      echo "${plugin} UI bundle references process.env; define it at build time" >&2
+      exit 1
+    fi
     if [[ "$built" != "$pinned" || "$committed" != "$pinned" ]]; then
       echo "${plugin} UI bundle is not reproducible from source: built ${built}, committed ${committed}, pinned ${pinned}" >&2
       echo "run: make plugin-ui PLUGIN=${plugin}" >&2

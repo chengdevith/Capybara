@@ -184,6 +184,11 @@ func preflightInstall(ctx context.Context, in PreflightInput, cs kubernetes.Inte
 		if err != nil {
 			return err
 		}
+		// Ours if the controller labelled it at an earlier install (Helm's
+		// crds/ carry no ownership metadata), or Helm-owned by our release.
+		if obj.GetLabels()[v1alpha1.LabelPlugin] == pluginName(in.PluginDir) {
+			continue
+		}
 		if owner := obj.GetAnnotations()["meta.helm.sh/release-name"]; owner != spec.Chart.ReleaseName || obj.GetAnnotations()["meta.helm.sh/release-namespace"] != spec.Chart.Namespace {
 			if owner == "" {
 				owner = "something other than Helm"
