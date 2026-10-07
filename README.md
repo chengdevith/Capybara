@@ -29,7 +29,7 @@ It has a **small, stable core** and puts everything else in **plugins**:
 | **Secrets** | Lists never carry Secret values. Values reach the browser only when you press *Reveal*, and that is audited. |
 | **Audit** | Every write is recorded before it runs (refused if it can't be recorded), with who, what, where and the result. |
 | **Marketplace** | Install plugins per cluster, or connect them to a tool that already runs there. Enable or disable their UI per cluster. |
-| **Monitoring plugin** | Prometheus and Grafana: a Metrics tab on Pods, Deployments and Nodes, cluster and Project usage cards, alerts, and a Grafana link. |
+| **Observe (monitoring plugin)** | Prometheus and Grafana: a Metrics tab on Pods, Deployments and Nodes, cluster and Project usage cards, alerts, and a Grafana link. |
 
 ---
 
@@ -229,13 +229,16 @@ Upload the generated `.local/kubeconfig/capybara-<id>-installer.yaml` on
 the cluster's page under **Plugin installs**. The page then shows
 *Enabled*. Add `--duration 1h` for a short-lived token.
 
-### Install Monitoring
+### Install Observe (the monitoring plugin)
+
+The Marketplace and sidebar call it **Observe**, as OpenShift's console does;
+its id, used in URLs, namespaces and commands, is `monitoring`.
 
 ```sh
 make plugin-images      # once: import the pinned images into the k3d clusters
 ```
 
-1. *Marketplace → Monitoring*. Review what the installer needs and what the
+1. *Marketplace → Observe*. Review what the installer needs and what the
    plugin's backend may reach.
 2. *Install on a cluster*, then pick the cluster and the mode:
    - **Install** deploys kube-prometheus-stack (a small preset for k3d).
@@ -247,7 +250,7 @@ make plugin-images      # once: import the pinned images into the k3d clusters
    stops before changing anything and shows the exact command to fix it.
 4. Use it:
    - the **Metrics** tab on Pods, Deployments and Nodes;
-   - **Monitoring** in the sidebar (Overview, Alerts, Grafana);
+   - **Observe** in the sidebar (Overview, Alerts, Grafana);
    - usage cards on Home and on Project pages.
 
 To uninstall, use the installation's *Uninstall* (type the id). You choose

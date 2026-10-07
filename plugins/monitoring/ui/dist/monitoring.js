@@ -1,4 +1,4 @@
-if(typeof document!=='undefined'){const s=document.createElement('style');s.dataset.plugin='monitoring';s.textContent=".muted[data-v-e59f9909]{opacity:.7;font-size:12px}.chart[data-v-ac80903c]{width:100%;height:260px}.range[data-v-543ca935],.card[data-v-543ca935]{margin-bottom:12px}.muted[data-v-d967538f],.muted[data-v-b0d2df3d]{opacity:.7;margin-top:6px;font-size:12px}.note[data-v-bc9f3634]{margin-bottom:12px}\n/*$vite$:1*/";document.head.appendChild(s)}
+if(typeof document!=='undefined'){const s=document.createElement('style');s.dataset.plugin='monitoring';s.textContent=".muted[data-v-169aaafb]{opacity:.7;font-size:12px}.chart[data-v-ac80903c]{width:100%;height:260px}.range[data-v-543ca935],.card[data-v-543ca935]{margin-bottom:12px}.muted[data-v-d967538f],.muted[data-v-b0d2df3d]{opacity:.7;margin-top:6px;font-size:12px}.note[data-v-bc9f3634]{margin-bottom:12px}\n/*$vite$:1*/";document.head.appendChild(s)}
 import { EXTENSION_API_VERSION as e, definePlugin as t, pluginFetch as n, useCluster as r } from "@capybara/sdk";
 import { Fragment as i, createBlock as a, createCommentVNode as o, createElementBlock as s, createElementVNode as c, createTextVNode as l, createVNode as u, defineComponent as d, h as f, onBeforeUnmount as p, onMounted as m, openBlock as h, ref as g, renderList as _, toDisplayString as v, unref as y, watch as b, withCtx as x } from "vue";
 import { NAlert as S, NButton as C, NCard as w, NDataTable as T, NDescriptions as E, NDescriptionsItem as D, NGrid as O, NGridItem as k, NH2 as A, NProgress as j, NRadioButton as ee, NRadioGroup as te, NSpace as ne, NSpin as re, NStatistic as ie, NTag as ae, useThemeVars as oe } from "naive-ui";
@@ -65,7 +65,7 @@ var ue, de, fe, N, P, pe, me, he, ge, _e, ve = M((() => {
 					justify: "space-between"
 				}, {
 					default: x(() => [u(y(A), null, {
-						default: x(() => [...r[0] ||= [l("Monitoring", -1)]]),
+						default: x(() => [...r[0] ||= [l("Observe", -1)]]),
 						_: 1
 					}), y(t) ? (h(), a(y(C), {
 						key: 0,
@@ -146,7 +146,7 @@ var ue, de, fe, N, P, pe, me, he, ge, _e, ve = M((() => {
 		return n;
 	};
 })), Ee = /* @__PURE__ */ ce({ default: () => De }), De, Oe = M((() => {
-	Se(), Se(), Ce(), Te(), De = /*#__PURE__*/ we(xe, [["__scopeId", "data-v-e59f9909"]]);
+	Se(), Se(), Ce(), Te(), De = /*#__PURE__*/ we(xe, [["__scopeId", "data-v-169aaafb"]]);
 })), ke, Ae = M((() => {
 	ve(), ke = /*@__PURE__*/ d({
 		__name: "AlertsPage",
@@ -21720,14 +21720,14 @@ var VL = M((() => {
 		e.register({
 			type: "nav-section",
 			id: "monitoring.section",
-			label: "Monitoring",
+			label: "Observe",
 			order: 50
 		}), e.register({
 			type: "route",
 			id: "monitoring.overview",
 			path: "monitoring",
 			scope: "cluster",
-			title: "Monitoring",
+			title: "Observe",
 			component: () => Promise.resolve().then(() => (Oe(), Ee))
 		}), e.register({
 			type: "route",
@@ -21790,7 +21790,7 @@ var VL = M((() => {
 		}), e.register({
 			type: "settings-page",
 			id: "monitoring.settings",
-			label: "Monitoring",
+			label: "Observe",
 			order: 10,
 			component: () => Promise.resolve().then(() => (TR(), CR))
 		});

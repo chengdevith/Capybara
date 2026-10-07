@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { NAlert } from 'naive-ui'
+import { usePluginsStore } from '@/stores/plugins'
 
 // Shown in place of an extension that could not be loaded or rendered.
 defineProps<{ label: string; source: string; error: unknown }>()
 const text = (e: unknown) => (e instanceof Error ? e.message : String(e))
+const plugins = usePluginsStore()
 </script>
 
 <template>
@@ -14,7 +16,7 @@ const text = (e: unknown) => (e instanceof Error ? e.message : String(e))
   >
     {{ text(error) }}
     <div class="source">
-      {{ source === 'core' ? 'Part of Capybara.' : `From the ${source} plugin. Its installation can be disabled in the Marketplace.` }}
+      {{ source === 'core' ? 'Part of Capybara.' : `From the ${plugins.displayName(source)} plugin. Its installation can be disabled in the Marketplace.` }}
     </div>
   </NAlert>
 </template>

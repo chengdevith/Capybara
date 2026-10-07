@@ -36,7 +36,7 @@ test('a plugin bundle that fails to load shows an error on the cluster where it 
   writeBundle('throw new Error("broken on purpose: the bundle throws while loading")\nexport default {}')
   await page.goto('/c/dev-2/home')
   await expect(page.getByTestId('plugin-load-error')).toContainText('broken on purpose: the bundle throws while loading')
-  await expect(page.getByTestId('plugin-load-error')).toContainText("The monitoring plugin's UI could not be loaded")
+  await expect(page.getByTestId('plugin-load-error')).toContainText("The Observe plugin's UI could not be loaded")
   // dev-1 does not have the plugin: no banner there.
   await page.goto('/c/dev-1/home')
   await expect(page.getByTestId('overview-card-core.card.health')).toBeVisible()
@@ -62,7 +62,7 @@ test('a plugin component that fails to load or render shows an error in its plac
   const tabError = page.getByTestId('extension-error')
   await expect(tabError).toContainText('Metrics tab could not be shown')
   await expect(tabError).toContainText('broken on purpose: render')
-  await expect(tabError).toContainText('monitoring plugin')
+  await expect(tabError).toContainText('Observe plugin')
   // The rest of the page still works.
   await page.locator('.n-tabs-tab', { hasText: 'YAML' }).click()
   await expect(page.getByTestId('yaml-editor')).toBeVisible()

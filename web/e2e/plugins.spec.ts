@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { DEMO_NS, kubectl, runningDemoPods } from './kube'
 import { cleanup, connectFlags, installerFile, sa, sampleProm, setInstaller } from './plugin-helpers'
 
-// Plugin framework end to end, with the Monitoring plugin:
+// Plugin framework end to end, with the Monitoring plugin (shown as "Observe"):
 //  1. dev-1: installer credential set in the UI, kube-prometheus-stack
 //     installed from the Marketplace until Ready, Metrics tab on dev-1 only,
 //     disabling hides the UI while Prometheus keeps running.
@@ -76,11 +76,11 @@ test('the Metrics tab shows on dev-1 only, and disabling hides the UI while Prom
   await demoPodPage(page, 'dev-1')
   await page.locator('.n-tabs-tab', { hasText: 'Metrics' }).click()
   await expect(page.getByTestId('monitoring-metrics').locator('canvas').first()).toBeVisible({ timeout: 60_000 })
-  await expect(page.locator('.n-layout-sider').getByText('Monitoring', { exact: true })).toBeVisible()
+  await expect(page.locator('.n-layout-sider').getByText('Observe', { exact: true })).toBeVisible()
 
   await demoPodPage(page, 'dev-2')
   await expect(page.locator('.n-tabs-tab', { hasText: 'Metrics' })).toHaveCount(0)
-  await expect(page.locator('.n-layout-sider').getByText('Monitoring', { exact: true })).toHaveCount(0)
+  await expect(page.locator('.n-layout-sider').getByText('Observe', { exact: true })).toHaveCount(0)
 
   // Grafana through Capybara: dashboard queries may POST, admin/user/org/data-source writes may not.
   const post = (path: string, body: unknown) =>
@@ -101,7 +101,7 @@ test('the Metrics tab shows on dev-1 only, and disabling hides the UI while Prom
     await demoPodPage(page, 'dev-1')
     return page.locator('.n-tabs-tab', { hasText: 'Metrics' }).count()
   }, { timeout: 60_000 }).toBe(0)
-  await expect(page.locator('.n-layout-sider').getByText('Monitoring', { exact: true })).toHaveCount(0)
+  await expect(page.locator('.n-layout-sider').getByText('Observe', { exact: true })).toHaveCount(0)
   // The tool itself keeps running.
   const running = kubectl('dev-1', '-n', 'capybara-monitoring', 'get', 'pods', '-o', 'jsonpath={range .items[*]}{.metadata.name}={.status.phase} {end}')
   expect(running).toMatch(/prometheus-capybara-monitoring-prometheus-0=Running/)

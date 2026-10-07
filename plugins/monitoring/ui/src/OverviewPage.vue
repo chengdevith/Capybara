@@ -36,7 +36,7 @@ const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0)
       align="center"
       justify="space-between"
     >
-      <NH2>Monitoring</NH2>
+      <NH2>Observe</NH2>
       <NButton
         v-if="cluster"
         tag="a"

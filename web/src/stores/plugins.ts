@@ -63,6 +63,11 @@ export const usePluginsStore = defineStore('plugins', () => {
     return (cluster && enabledByCluster.value.get(cluster)) || none
   }
 
+  /** A plugin's display name (its id until the catalog is loaded). */
+  function displayName(name: string): string {
+    return catalog.value.find((p) => p.name === name)?.spec.displayName || name
+  }
+
   function setLoadError(name: string, msg: string | null) {
     const next = { ...loadErrors.value }
     if (msg) next[name] = msg
@@ -70,5 +75,5 @@ export const usePluginsStore = defineStore('plugins', () => {
     loadErrors.value = next
   }
 
-  return { catalog, loaded, error, loadErrors, load, startPolling, stopPolling, onChange, enabledOn, setLoadError }
+  return { catalog, loaded, error, loadErrors, load, startPolling, stopPolling, onChange, enabledOn, setLoadError, displayName }
 })

@@ -207,12 +207,12 @@ browser ◀─ /api/plugins/_ui/<name>/<sha>.js (pinned) ── loader: verify s
 - **Installation phases**: Pending → Installing (steps) → Ready, or
   Disabled (installed, UI hidden), Error (refused by pre-flight, failed, or
   a step failing after `Installed`), Uninstalling.
-- **Monitoring**: kube-prometheus-stack 91.9.0 small preset (no
+- **Monitoring** (shown as "Observe"; id `monitoring`): kube-prometheus-stack 91.9.0 small preset (no
   Alertmanager; no etcd/scheduler/controller-manager/proxy scraping on k3s),
   or Connect existing to a Prometheus Service, or (untested, Phase 5) an
   OpenShift Thanos Querier route. Backend `plugins/monitoring/backend`
   (stdlib Go): predefined queries only, 1h/6h/24h/7d, short cache. UI
-  `plugins/monitoring/ui`: Metrics tab (Pod, Deployment, Node), Monitoring
+  `plugins/monitoring/ui`: Metrics tab (Pod, Deployment, Node), Observe
   section (Overview, Alerts, Grafana), cluster and Project cards, settings.
 - See ADR 0006 for the security decisions (installer credential, backend
   credentials, bundle trust, shared modules).

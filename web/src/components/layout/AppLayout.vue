@@ -76,7 +76,7 @@ onBeforeUnmount(() => {
           v-for="b in brokenPlugins"
           :key="b.name"
           type="warning"
-          :title="`The ${b.name} plugin's UI could not be loaded`"
+          :title="`The ${plugins.displayName(b.name)} plugin's UI could not be loaded`"
           class="audit-banner"
           data-test="plugin-load-error"
         >

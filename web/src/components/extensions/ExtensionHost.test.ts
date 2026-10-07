@@ -1,6 +1,7 @@
 /* eslint-disable vue/one-component-per-file, vue/require-render-return -- deliberately broken test components */
 import { flushPromises, mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
 import ExtensionHost from './ExtensionHost.vue'
 
@@ -11,6 +12,7 @@ const host = (id: string, component: () => Promise<unknown>, attrs: Record<strin
   })
 
 describe('ExtensionHost', () => {
+  beforeEach(() => setActivePinia(createPinia()))
   // Vue logs handled errors in dev; keep the test output readable.
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 
