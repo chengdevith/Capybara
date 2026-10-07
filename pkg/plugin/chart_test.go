@@ -144,8 +144,10 @@ func TestTektonChartWithinDeclaredPermissions(t *testing.T) {
 	rules, _ := InstallerRules(spec, v1alpha1.ModeInstall, nil, spec.Chart.Namespace)
 	for _, o := range append(r.Objects, r.CRDs...) {
 		gvr := guessResource(o)
-		if !allows(rules, gvr.Group, gvr.Resource, "create") {
-			t.Errorf("creates %s %s, not declared", o.GetKind(), o.GetName())
+		for _, verb := range []string{"create", "delete"} {
+			if !allows(rules, gvr.Group, gvr.Resource, verb) {
+				t.Errorf("%s %s %s: not declared", verb, o.GetKind(), o.GetName())
+			}
 		}
 		if o.GetKind() == "Namespace" && o.GetName() == spec.Chart.Namespace {
 			t.Error("the release namespace must come from the controller (with namespaceLabels), not the chart")

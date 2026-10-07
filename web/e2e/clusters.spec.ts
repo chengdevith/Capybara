@@ -3,12 +3,14 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { DEMO_NS, kubectl, runningDemoPods } from './kube'
+import { cleanup } from './plugin-helpers'
 
 // Multi-cluster: dev-2 is unregistered, registered again through the UI
 // from a kubeconfig for a throwaway ServiceAccount (capybara-e2e, 1-hour
 // token), then stopped and started while dev-1 keeps working. Afterwards
 // dev-2's original credentials are put back and the e2e account is
 // deleted, which invalidates its token: runs leave no valid tokens behind.
+// Plugin installations are removed first (they would block unregistering).
 
 const repo = resolve(import.meta.dirname, '../..')
 const sa = (...args: string[]) => execFileSync(resolve(repo, 'hack/capybara-sa.sh'), ['dev-2', '--sa', 'capybara-e2e', ...args], { stdio: 'pipe' })
@@ -36,8 +38,12 @@ let original = ''
 
 test.describe.configure({ mode: 'serial' })
 
-test.beforeAll(() => {
+test.beforeAll(async ({ playwright }, testInfo) => {
   original = originalKubeconfig()
+  // Unregistering dev-2 is refused while plugins use it: start without any.
+  const api = await playwright.request.newContext({ baseURL: testInfo.project.use.baseURL })
+  await cleanup(api)
+  await api.dispose()
 })
 
 test.afterAll(async ({ playwright }, testInfo) => {

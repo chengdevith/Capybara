@@ -179,6 +179,9 @@ func preflightInstall(ctx context.Context, in PreflightInput, cs kubernetes.Inte
 		gvr := guessResource(o)
 		if !allows(rules, gvr.Group, gvr.Resource, "create") {
 			problem("the chart creates %s %q, which the plugin does not declare", o.GetKind(), o.GetName())
+		} else if !allows(rules, gvr.Group, gvr.Resource, "delete") {
+			// Otherwise uninstall would stop halfway.
+			problem("the chart creates %s %q, which the plugin may not delete (uninstall would fail)", o.GetKind(), o.GetName())
 		}
 	}
 	for _, crd := range r.CRDs {

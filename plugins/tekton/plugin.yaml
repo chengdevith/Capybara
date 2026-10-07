@@ -53,9 +53,10 @@ permissions:
   # installer does not hold itself (pods, secrets, leases, ...).
   install:
     clusterRules:
+      # delete: the chart creates tekton-pipelines-resolvers.
       - apiGroups: [""]
         resources: [namespaces]
-        verbs: [get, list, watch, create, patch]
+        verbs: [get, list, watch, create, patch, delete]
       - apiGroups: [""]
         resources: [services, configmaps, secrets, serviceaccounts]
         verbs: [get, list, watch, create, update, patch, delete]
