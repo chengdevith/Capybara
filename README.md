@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/logo.png" alt="Capybara logo" width="140" />
+<img src="/web/src/assets/logo.png" alt="Capybara logo" width="140" />
 
 # Capybara
 
