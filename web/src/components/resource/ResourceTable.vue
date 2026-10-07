@@ -49,6 +49,7 @@ const columns = computed<DataTableColumns<KubeObject>>(() => {
       render: nameLink,
       sorter: (a, b) => a.metadata.name.localeCompare(b.metadata.name),
       minWidth: 200,
+      ellipsis: { tooltip: true },
     },
   ]
   if (props.showNamespace) {
@@ -57,6 +58,8 @@ const columns = computed<DataTableColumns<KubeObject>>(() => {
       title: 'Namespace',
       render: (o) => o.metadata.namespace ?? '',
       sorter: (a, b) => (a.metadata.namespace ?? '').localeCompare(b.metadata.namespace ?? ''),
+      width: 160,
+      ellipsis: { tooltip: true },
     })
   }
   for (const c of def.columns) {
@@ -65,6 +68,8 @@ const columns = computed<DataTableColumns<KubeObject>>(() => {
       key: c.key,
       title: c.title,
       width: c.width,
+      minWidth: c.width ? undefined : (c.minWidth ?? 120),
+      ellipsis: c.ellipsis === false ? false : { tooltip: true },
       render: (o) => c.render(o, now.value, props.extras?.get(o.metadata.uid)),
       sorter: sortValue
         ? (a, b) => {
@@ -78,18 +83,25 @@ const columns = computed<DataTableColumns<KubeObject>>(() => {
   cols.push({
     key: 'age',
     title: 'Age',
-    width: 80,
+    width: 72,
     render: (o) => age(o.metadata.creationTimestamp, now.value),
     sorter: (a, b) => created(b) - created(a),
   })
   cols.push({
     key: 'actions',
     title: '',
-    width: 48,
+    width: 44,
+    fixed: 'right',
     render: (o) => h(ResourceActions, { cluster: props.cluster, resource: def, object: o, compact: true }),
   })
   return cols
 })
+
+// Below the columns' combined width the table scrolls sideways instead of
+// squeezing cells until words break.
+const scrollX = computed(() =>
+  columns.value.reduce((sum, c) => sum + Number(('width' in c && c.width) || ('minWidth' in c && c.minWidth) || 120), 0),
+)
 </script>
 
 <template>
@@ -112,6 +124,8 @@ const columns = computed<DataTableColumns<KubeObject>>(() => {
       :row-key="(o: KubeObject) => o.metadata.uid"
       :pagination="{ pageSize: 50 }"
       :bordered="false"
+      :scroll-x="scrollX"
+      class="table"
     />
   </div>
 </template>
@@ -125,6 +139,14 @@ const columns = computed<DataTableColumns<KubeObject>>(() => {
 }
 .filter {
   max-width: 280px;
+}
+/* Headers stay on one line; cells never break inside a word. */
+.table :deep(.n-data-table-th) {
+  white-space: nowrap;
+}
+.table :deep(.n-data-table-td) {
+  word-break: normal;
+  overflow-wrap: normal;
 }
 .count {
   color: var(--capy-text-muted);

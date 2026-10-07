@@ -1,6 +1,6 @@
 import type { SecretSummary } from '@/api/secrets'
 import { secretSummaries } from '@/api/secrets'
-import { formatLabels } from '@/components/resource/format'
+import { labelChips } from '@/components/resource/render'
 import type { ResourceDef, RowExtra } from '@/components/resource/types'
 
 // Lists, watches and the detail page get Secret metadata only. Type and key
@@ -20,7 +20,7 @@ export const secrets: ResourceDef = {
   deleteConfirm: 'type-name',
   rowExtras: secretSummaries,
   columns: [
-    { key: 'type', title: 'Type', render: (_o, _now, x) => summary(x)?.type ?? '…', width: 220 },
+    { key: 'type', title: 'Type', render: (_o, _now, x) => summary(x)?.type ?? '…', width: 170 },
     {
       key: 'keys',
       title: 'Keys',
@@ -29,7 +29,7 @@ export const secrets: ResourceDef = {
         return s ? s.keys.join(', ') || '—' : '…'
       },
     },
-    { key: 'labels', title: 'Labels', render: (o) => formatLabels(o.metadata.labels) || '—' },
+    { key: 'labels', title: 'Labels', render: (o) => labelChips(o.metadata.labels), width: 320, ellipsis: false },
   ],
   overview: [{ label: 'Values', render: () => 'Hidden. Use Reveal values on the YAML tab (recorded in the audit log).' }],
 }

@@ -1,12 +1,40 @@
 <script setup lang="ts">
+import { NButton } from 'naive-ui'
 import logo from '@/assets/logo.png'
+import { useUiStore } from '@/stores/ui'
 import ClusterSwitcher from './ClusterSwitcher.vue'
 import NamespaceSelector from './NamespaceSelector.vue'
 import ThemeSwitcher from './ThemeSwitcher.vue'
+
+const ui = useUiStore()
 </script>
 
 <template>
   <div class="topbar">
+    <NButton
+      quaternary
+      circle
+      text-color="#ffffff"
+      class="menu-toggle"
+      :aria-label="ui.sidebarCollapsed ? 'Show the sidebar' : 'Hide the sidebar'"
+      :aria-expanded="!ui.sidebarCollapsed"
+      :title="ui.sidebarCollapsed ? 'Show the sidebar' : 'Hide the sidebar'"
+      data-test="sidebar-toggle"
+      @click="ui.toggleSidebar()"
+    >
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
+        <path d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </NButton>
     <RouterLink
       to="/"
       class="brand"
@@ -18,10 +46,12 @@ import ThemeSwitcher from './ThemeSwitcher.vue'
         width="32"
         height="32"
       >
-      <span>Capybara</span>
+      <span class="brand-name">Capybara</span>
     </RouterLink>
-    <ClusterSwitcher />
-    <NamespaceSelector />
+    <div class="selectors">
+      <ClusterSwitcher />
+      <NamespaceSelector />
+    </div>
     <span class="spacer" />
     <ThemeSwitcher />
   </div>
@@ -31,9 +61,14 @@ import ThemeSwitcher from './ThemeSwitcher.vue'
 .topbar {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   height: 100%;
-  padding: 0 16px;
+  padding: 0 12px;
+  min-width: 0;
+}
+.menu-toggle {
+  color: #fff;
+  flex: none;
 }
 .brand {
   display: inline-flex;
@@ -43,12 +78,29 @@ import ThemeSwitcher from './ThemeSwitcher.vue'
   font-weight: 600;
   font-size: 18px;
   text-decoration: none;
-  margin-right: 8px;
+  margin-right: 4px;
+  flex: none;
 }
 .logo {
   display: block;
 }
+.selectors {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
 .spacer {
   flex: 1;
+}
+/* Narrow windows: drop the brand name, let the selectors shrink. */
+@media (max-width: 900px) {
+  .brand-name {
+    display: none;
+  }
+  .selectors {
+    gap: 6px;
+  }
 }
 </style>

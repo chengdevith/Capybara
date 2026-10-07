@@ -88,6 +88,23 @@ describe('App (smoke)', () => {
     expect(wrapper.find('[data-test="plugin-load-error"]').exists()).toBe(false)
   })
 
+  it('hides and shows the sidebar with the top bar button', async () => {
+    localStorage.removeItem('capybara.sidebar')
+    const { wrapper } = await boot('/c/dev-1/home')
+    const sider = () => wrapper.find('[data-test="sidebar"]')
+    const toggle = wrapper.find('[data-test="sidebar-toggle"]')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    await toggle.trigger('click')
+    await flushPromises()
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(sider().classes()).toContain('n-layout-sider--collapsed')
+    expect(localStorage.getItem('capybara.sidebar')).toBe('collapsed')
+    await toggle.trigger('click')
+    await flushPromises()
+    expect(sider().classes()).not.toContain('n-layout-sider--collapsed')
+    localStorage.removeItem('capybara.sidebar')
+  })
+
   it('marks a prod cluster in the top bar', async () => {
     const { wrapper } = await boot('/c/prod-1/home')
     await vi.waitFor(() => expect(wrapper.find('[data-test="prod-masthead"]').exists()).toBe(true))

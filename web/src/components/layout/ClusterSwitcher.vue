@@ -56,5 +56,7 @@ function switchTo(id: string) {
 <style scoped>
 .cluster-switcher {
   width: 200px;
+  min-width: 110px;
+  flex: 0 1 200px;
 }
 </style>

@@ -1,6 +1,6 @@
 import type { KubeObject } from '@/api/k8s'
 import { formatLabels } from '@/components/resource/format'
-import { dash } from '@/components/resource/render'
+import { dash, labelChips } from '@/components/resource/render'
 import type { ResourceDef } from '@/components/resource/types'
 
 interface ServicePort {
@@ -37,7 +37,7 @@ export const services: ResourceDef = {
     { key: 'clusterIP', title: 'Cluster IP', render: (o) => dash(o.spec?.clusterIP), width: 130 },
     { key: 'externalIP', title: 'External IP', render: externalIPs },
     { key: 'ports', title: 'Ports', render: servicePorts },
-    { key: 'selector', title: 'Selector', render: (o) => formatLabels(o.spec?.selector) || '—' },
+    { key: 'selector', title: 'Selector', render: (o) => labelChips(o.spec?.selector), width: 300, ellipsis: false },
   ],
   overview: [
     { label: 'Type', render: (o) => dash(o.spec?.type) },

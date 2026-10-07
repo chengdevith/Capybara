@@ -103,6 +103,30 @@ a {
   flex-wrap: wrap;
   gap: 4px;
 }
+/* Compact label chips in tables: one line each, full text on hover. */
+.capy-tags-compact {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.capy-tags-compact .capy-chip {
+  max-width: 150px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.capy-tags-compact .capy-chip-more {
+  flex: none;
+}
+.capy-tags-compact .capy-chip .n-tag__content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.capy-label-list {
+  max-width: 480px;
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-all;
+}
 .capy-plain-list {
   margin: 0;
   padding: 0;

@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useExtensionContext } from '@/composables/useExtensionContext'
 import { useClustersStore } from '@/stores/clusters'
 import { useHealthStore } from '@/stores/health'
+import { useUiStore } from '@/stores/ui'
 import { usePluginsStore } from '@/stores/plugins'
 import AppSidebar from './AppSidebar.vue'
 import TopBar from './TopBar.vue'
@@ -12,6 +13,7 @@ const clusters = useClustersStore()
 const health = useHealthStore()
 const ctx = useExtensionContext()
 const plugins = usePluginsStore()
+const ui = useUiStore()
 // Plugins enabled on this cluster whose UI bundle failed to load.
 const brokenPlugins = computed(() =>
   [...plugins.enabledOn(ctx.value.cluster)].filter((n) => plugins.loadErrors[n]).map((n) => ({ name: n, error: plugins.loadErrors[n] })),
@@ -43,15 +45,19 @@ onBeforeUnmount(() => {
     >
       <NLayoutSider
         :width="220"
+        :collapsed="ui.sidebarCollapsed"
+        :collapsed-width="0"
+        collapse-mode="transform"
         :native-scrollbar="false"
         inverted
         class="sider"
+        data-test="sidebar"
       >
         <AppSidebar />
       </NLayoutSider>
       <NLayoutContent
         class="content"
-        content-style="padding: 24px;"
+        content-class="content-inner"
       >
         <NAlert
           v-if="health.auditFailing"
@@ -112,5 +118,13 @@ onBeforeUnmount(() => {
 }
 .content {
   background: var(--capy-content-bg);
+}
+.content :deep(.content-inner) {
+  padding: 24px;
+}
+@media (max-width: 720px) {
+  .content :deep(.content-inner) {
+    padding: 12px;
+  }
 }
 </style>

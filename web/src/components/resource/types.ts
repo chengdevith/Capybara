@@ -12,7 +12,12 @@ export interface Column {
   render: (obj: KubeObject, now: number, extra?: RowExtra) => VNodeChild
   /** Enables sorting on this column. */
   sortValue?: (obj: KubeObject) => string | number
+  /** Fixed width (px). Use for short values (counts, IPs, types). */
   width?: number
+  /** Minimum width (px) for flexible columns; the table scrolls sideways below it. */
+  minWidth?: number
+  /** One line with an ellipsis and the full text on hover (default). False for cells with chips. */
+  ellipsis?: boolean
 }
 
 export interface Field {

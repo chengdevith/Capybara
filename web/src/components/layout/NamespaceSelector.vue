@@ -89,11 +89,17 @@ const modeOptions = [
 .selector {
   display: flex;
   gap: 4px;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 .mode {
   width: 140px;
+  min-width: 100px;
+  flex: 0 1 140px;
 }
 .ns-selector {
   width: 240px;
+  min-width: 120px;
+  flex: 0 1 240px;
 }
 </style>
