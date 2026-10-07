@@ -145,10 +145,13 @@ logging, policy, backup) are plugins that users install and enable themselves.
 3.   Projects — Project CRD + controller with templates
 4.   Multi-cluster — Cluster CRD + kubeconfig Secrets + cluster switcher + health
 4.5. Plugin framework — plugin CRDs, controller, Marketplace, runtime UI
-     loading, proven by the Monitoring plugin
+     loading, proven by the Monitoring plugin (shown as "Observe")
+4.6. Tekton plugin — Pipelines, runs, task runs, step logs; rerun and cancel;
+     viewing and safe actions only (no Git/registry credentials before auth)
+4.7. Argo CD plugin — GitOps applications (planned after 4.6)
 5.   Auth — Keycloak + AD, impersonation, per-user RBAC, plugin install rights
 6.   Agent + tunnel — outbound agents replace stored kubeconfigs
-7.   More plugins — CI/CD (Tekton), GitOps (Argo CD), logging, policy, backup
+7.   More plugins — logging, policy, backup
 
 ## Working rules
 - Work only on the phase you are asked to do. Do not start later phases.
