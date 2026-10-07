@@ -144,7 +144,7 @@ test('Connect existing on dev-2 to a hand-applied Tekton with a connect-only ins
   // Connect mode only creates the console grant: no workloads, no Secrets.
   expect(installerCan('dev-2', 'create', 'deployments', '-n', 'tekton-pipelines')).toBe('no')
   expect(installerCan('dev-2', 'get', 'secrets', '-n', 'tekton-pipelines')).toBe('no')
-  expect(installerCan('dev-2', 'delete', 'clusterroles', 'tekton-pipelines-controller-cluster-access')).toBe('no')
+  expect(installerCan('dev-2', 'delete', 'clusterroles/tekton-pipelines-controller-cluster-access')).toBe('no')
   await expect.poll(() => pluginInstalls(request, 'dev-2'), { timeout: 60_000 }).toBe('Enabled')
 
   await installFromMarketplace(page, 'tekton', 'dev-2', 'Connect existing')
