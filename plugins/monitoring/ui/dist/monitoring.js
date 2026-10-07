@@ -2895,8 +2895,8 @@ function Oa(e) {
 }
 var ka = M((() => {
 	(function() {
-		return typeof Buffer < "u" && typeof Buffer.from == "function" ? function(e) {
-			return Buffer.from(e).toString("base64");
+		return globalThis.Buffer !== void 0 && typeof globalThis.Buffer.from == "function" ? function(e) {
+			return globalThis.Buffer.from(e).toString("base64");
 		} : typeof btoa == "function" && typeof unescape == "function" && typeof encodeURIComponent == "function" ? function(e) {
 			return btoa(unescape(encodeURIComponent(e)));
 		} : function(e) {

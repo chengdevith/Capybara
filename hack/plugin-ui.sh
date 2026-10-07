@@ -14,6 +14,16 @@ ui="plugins/${plugin}/ui"
 manifest="plugins/${plugin}/plugin.yaml"
 bundle="$(sed -n 's/^  bundle: ui\///p' "$manifest")"
 
+# Before anything else: the bundle's pinned sha256 only reproduces with the
+# pinned Node, so a wrong version must say so (not look like a hash mismatch).
+want="$(tr -d '[:space:]' <"${ui}/.nvmrc")"
+have="$(node -p 'process.versions.node' 2>/dev/null || echo "none")"
+if [[ "$have" != "$want" ]]; then
+  echo "${plugin} UI: needs Node ${want} (pinned in ${ui}/.nvmrc for reproducible bundles); this is Node ${have}." >&2
+  echo "Install and select it, e.g.: nvm install ${want} && nvm use ${want}" >&2
+  exit 1
+fi
+
 [[ -d "${ui}/node_modules" ]] || (cd "$ui" && npm ci --no-audit --no-fund >/dev/null)
 pinned="$(sed -n '/^ui:/,/^[a-z]/s/^  sha256: "\{0,1\}\([0-9a-f]\{64\}\)"\{0,1\}/\1/p' "$manifest")"
 
@@ -30,11 +40,9 @@ case "$cmd" in
     (cd "$ui" && node scripts/check-node.mjs && npx --no-install vite build --outDir "$tmp" --emptyOutDir >/dev/null)
     built="$(shasum -a 256 "${tmp}/$(basename "$bundle")" | cut -d' ' -f1)"
     committed="$(shasum -a 256 "${ui}/${bundle}" | cut -d' ' -f1)"
-    # Browser bundles must not reference Node globals (they throw at runtime).
-    if grep -q 'process\.env' "${ui}/${bundle}"; then
-      echo "${plugin} UI bundle references process.env; define it at build time" >&2
-      exit 1
-    fi
+    # Browser bundles must not reference Node globals (process, Buffer,
+    # global, require): they throw at runtime.
+    (cd "$ui" && node scripts/check-bundle.mjs "$bundle")
     if [[ "$built" != "$pinned" || "$committed" != "$pinned" ]]; then
       echo "${plugin} UI bundle is not reproducible from source: built ${built}, committed ${committed}, pinned ${pinned}" >&2
       echo "run: make plugin-ui PLUGIN=${plugin}" >&2

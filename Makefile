@@ -131,6 +131,7 @@ lint-go: lint-generated lint-plugin-images
 .PHONY: lint-plugin-ui
 lint-plugin-ui:
 	./hack/plugin-ui.sh check monitoring
+	cd plugins/monitoring/ui && node --test scripts/
 	npm --prefix plugins/monitoring/ui run --silent typecheck
 
 # Fails if a plugin's pinned image list no longer matches its chart and preset.

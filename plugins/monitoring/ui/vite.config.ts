@@ -25,8 +25,10 @@ function inlineCSS(): Plugin {
 // and @capybara/sdk at runtime (import map): never bundle them.
 export default defineConfig({
   plugins: [vue(), inlineCSS()],
-  // Library mode leaves process.env in place; ECharts reads NODE_ENV.
-  define: { 'process.env.NODE_ENV': JSON.stringify('production') },
+  // Library mode leaves Node globals in place: ECharts reads NODE_ENV, and
+  // zrender probes Buffer (globalThis.Buffer is undefined in browsers).
+  // make lint rejects bundles with free references to Node globals.
+  define: { 'process.env.NODE_ENV': JSON.stringify('production'), Buffer: 'globalThis.Buffer' },
   resolve: {
     alias: { '@capybara/sdk': fileURLToPath(new URL('../../../sdk/src/index.ts', import.meta.url)) },
   },
