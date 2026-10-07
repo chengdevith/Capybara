@@ -118,12 +118,15 @@ test('a stopped cluster shows as Error while dev-1 keeps working, and recovers',
   await ctx.close()
 })
 
-test('switching clusters keeps the page and shows the environment', async ({ page }) => {
+test('switching clusters keeps the page and shows the environment', async ({ page, request }) => {
+  // Whatever the clusters' environments are now (they can be edited).
+  const envs = Object.fromEntries(((await (await request.get('/api/clusters')).json()) as { id: string; environment: string }[]).map((c) => [c.id, c.environment]))
   await page.goto('/c/dev-1/workloads/pods')
-  await expect(page.getByTestId('current-environment')).toHaveText('dev')
+  await expect(page.getByTestId('current-environment')).toHaveText(envs['dev-1']!)
   await page.getByTestId('cluster-switcher').click()
   await page.locator('.n-base-select-option', { hasText: 'Dev 2' }).click()
   await expect(page).toHaveURL(/\/c\/dev-2\/workloads\/pods$/)
+  await expect(page.getByTestId('current-environment')).toHaveText(envs['dev-2']!)
   await expect(page.getByText('Live', { exact: true })).toBeVisible()
-  await expect(page.getByTestId('prod-masthead')).toHaveCount(0)
+  await expect(page.getByTestId('prod-masthead')).toHaveCount(envs['dev-2'] === 'prod' ? 1 : 0)
 })

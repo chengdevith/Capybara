@@ -21,7 +21,15 @@ export default defineConfig({
   optimizeDeps: {
     // Pre-bundle the lazily loaded editors at startup. Otherwise Vite finds
     // them on first use and reloads the page mid-session.
+    // Also everything plugins reach through the shared modules (the SDK
+    // sources live outside web/), so nothing is discovered at runtime: a
+    // re-optimization while pages are open breaks their lazy imports (504).
+    entries: ['index.html', '../sdk/src/**/*.ts'],
     include: [
+      'vue',
+      'vue-router',
+      'pinia',
+      'naive-ui',
       'monaco-editor/editor/editor.api',
       'monaco-editor/languages/definitions/yaml/register',
       '@xterm/xterm',

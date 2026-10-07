@@ -49,7 +49,9 @@ if [[ -f .local/kubeconfig/capybara-mgmt.yaml ]]; then
   pids+=($!)
 fi
 
-npm --prefix web run dev &
+# --force: rebuild Vite's dependency cache at startup, so a server never
+# starts from a cache another process left stale (lazy imports then 504).
+npm --prefix web run dev -- --force &
 pids+=($!)
 
 echo "==> API http://127.0.0.1:8080  UI http://127.0.0.1:5173  controller running  (Ctrl-C to stop)"

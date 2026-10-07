@@ -12,11 +12,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/capybara/capybara/api/v1alpha1"
 	"github.com/capybara/capybara/deploy"
@@ -40,6 +43,11 @@ func run(args []string) error {
 		return err
 	}
 	logger := newLogger(cfg.LogLevel)
+	// controller-runtime (the mgmt cache) and client-go log through the same
+	// handler; otherwise controller-runtime prints a stack trace on first use.
+	lr := logr.FromSlogHandler(logger.Handler())
+	ctrllog.SetLogger(lr)
+	klog.SetLogger(lr)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
