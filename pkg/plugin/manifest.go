@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/yaml"
 
 	"github.com/capybara/capybara/api/v1alpha1"
@@ -139,6 +140,14 @@ func ParseManifest(raw []byte) (*Manifest, error) {
 		for _, f := range []string{c.Archive, c.Values} {
 			if f != "" && !localPath(f) {
 				add("chart files must be relative paths inside the plugin directory")
+			}
+		}
+		for k, v := range c.NamespaceLabels {
+			if errs := validation.IsQualifiedName(k); len(errs) > 0 {
+				add("chart.namespaceLabels: %q: %s", k, strings.Join(errs, "; "))
+			}
+			if errs := validation.IsValidLabelValue(v); len(errs) > 0 {
+				add("chart.namespaceLabels %s: %s", k, strings.Join(errs, "; "))
 			}
 		}
 		for _, p := range c.RefuseInstallOn {

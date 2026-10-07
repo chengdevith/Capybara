@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -71,8 +72,16 @@ func ensureGeneratedSecrets(ctx context.Context, cs kubernetes.Interface, ns, pl
 	return nil
 }
 
-func ensureNamespace(ctx context.Context, cs kubernetes.Interface, ns string) error {
-	_, err := cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}, metav1.CreateOptions{})
+func ensureNamespace(ctx context.Context, cs kubernetes.Interface, ns string, labels map[string]string) error {
+	_, err := cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns, Labels: labels}}, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) && len(labels) > 0 {
+		patch, err := json.Marshal(map[string]any{"metadata": map[string]any{"labels": labels}})
+		if err != nil {
+			return err
+		}
+		_, err = cs.CoreV1().Namespaces().Patch(ctx, ns, types.MergePatchType, patch, metav1.PatchOptions{FieldManager: "capybara-controller"})
+		return err
+	}
 	if apierrors.IsAlreadyExists(err) || apierrors.IsForbidden(err) {
 		// Forbidden: connect mode may not create namespaces; the service's
 		// namespace exists anyway.

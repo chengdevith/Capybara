@@ -4,9 +4,16 @@
 // property names and strings with these words are fine; so are local
 // variables that happen to share a name.
 //
-//   node scripts/check-bundle.mjs dist/monitoring.js
+// Run from a plugin's ui/ folder (vite comes from that plugin's own,
+// lockfile-pinned node_modules):
+//
+//   node ../../_ui-build/check-bundle.mjs dist/<plugin>.js
 import { readFileSync } from 'node:fs'
-import { parseAst } from 'vite'
+import { createRequire } from 'node:module'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+const { parseAst } = await import(pathToFileURL(createRequire(join(process.cwd(), 'package.json')).resolve('vite')).href)
 
 const FORBIDDEN = new Set(['process', 'Buffer', 'global', 'require'])
 

@@ -14,6 +14,12 @@ ENVTEST_K8S  := 1.37.x
 KUBECONFIGS  := .local/kubeconfig
 CLUSTER      ?= dev-1
 
+# First-party plugins, by what each has (plugins/<name>/...).
+UI_PLUGINS      := $(patsubst plugins/%/ui/package.json,%,$(wildcard plugins/*/ui/package.json))
+BACKEND_PLUGINS := $(patsubst plugins/%/backend/go.mod,%,$(wildcard plugins/*/backend/go.mod))
+IMAGE_PLUGINS   := $(patsubst plugins/%/images.txt,%,$(wildcard plugins/*/images.txt))
+CHART_PLUGINS   := $(patsubst plugins/%/upstream/build.yaml,%,$(wildcard plugins/*/upstream/build.yaml))
+
 .DEFAULT_GOAL := help
 
 .PHONY: help
@@ -70,12 +76,16 @@ generate: ## Regenerate deepcopy code and CRD manifests from api/
 	$(CONTROLLER_GEN) crd paths=./api/... output:crd:dir=deploy/crds
 
 .PHONY: plugin-ui
-plugin-ui: ## Build a plugin's UI bundle and pin its sha256: make plugin-ui [PLUGIN=monitoring] (needs the Node in plugins/<p>/ui/.nvmrc)
-	./hack/plugin-ui.sh build $(or $(PLUGIN),monitoring)
+plugin-ui: ## Build plugin UI bundles and pin their sha256: make plugin-ui [PLUGIN=tekton] (needs the Node in plugins/<p>/ui/.nvmrc)
+	@for p in $(or $(PLUGIN),$(UI_PLUGINS)); do ./hack/plugin-ui.sh build $$p || exit 1; done
+
+.PHONY: plugin-chart
+plugin-chart: ## Rebuild a plugin's chart from its vendored upstream manifest: make plugin-chart PLUGIN=tekton (then pin the printed sha256)
+	@for p in $(or $(PLUGIN),$(CHART_PLUGINS)); do go run ./cmd/plugin-chart -plugin plugins/$$p || exit 1; done
 
 .PHONY: plugin-images
-plugin-images: ## Pull a plugin's pinned images and import them into k3d: make plugin-images [PLUGIN=monitoring] [CLUSTERS="dev-1 dev-2"]
-	./hack/plugin-images.sh $(or $(PLUGIN),monitoring) $(CLUSTERS)
+plugin-images: ## Pull plugins' pinned images and import them into k3d: make plugin-images [PLUGIN=tekton] [CLUSTERS="dev-1 dev-2"]
+	@for p in $(or $(PLUGIN),$(IMAGE_PLUGINS)); do ./hack/plugin-images.sh $$p $(CLUSTERS) || exit 1; done
 
 .PHONY: project-sizes
 project-sizes: ## Push deploy/project-sizes.yaml to the capybara-project-sizes ConfigMap in mgmt
@@ -96,7 +106,7 @@ test: test-go test-web ## Run all tests
 test-go: envtest
 	KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST) use $(ENVTEST_K8S) --bin-dir $(CURDIR)/.local/envtest -p path)" \
 	  go test $(GO_PKGS)
-	cd plugins/monitoring/backend && go test ./...
+	@for p in $(BACKEND_PLUGINS); do (cd plugins/$$p/backend && go test ./...) || exit 1; done
 
 # Controller tests run real kube-apiservers (envtest); binaries go to .local.
 .PHONY: envtest
@@ -111,13 +121,13 @@ test-web: web/node_modules
 e2e: web/node_modules ## Browser end-to-end tests (needs make cluster-up; resets the demo)
 	@test -f $(KUBECONFIGS)/capybara-dev-1.yaml || { echo "run make cluster-up first" >&2; exit 1; }
 	./deploy/samples/demo.sh up
-	./hack/plugin-images.sh monitoring dev-1 dev-2
+	@for p in $(IMAGE_PLUGINS); do ./hack/plugin-images.sh $$p dev-1 dev-2 || exit 1; done
 	cd web && npx playwright install chromium-headless-shell
 	cd web && npx playwright test
 	cd web && npx playwright test -c playwright.plugin-dev.config.ts
 
 .PHONY: lint
-lint: lint-make lint-go lint-web lint-plugin-ui ## Run all linters and type checks
+lint: lint-make lint-go lint-web lint-plugin-ui lint-plugin-charts ## Run all linters and type checks
 
 .PHONY: lint-make
 lint-make:
@@ -126,23 +136,33 @@ lint-make:
 .PHONY: lint-go
 lint-go: lint-generated lint-plugin-images
 	$(GOLANGCI) run $(GO_PKGS)
-	cd plugins/monitoring/backend && go tool -modfile=$(CURDIR)/tools/golangci-lint/go.mod golangci-lint run ./...
+	@for p in $(BACKEND_PLUGINS); do (cd plugins/$$p/backend && go tool -modfile=$(CURDIR)/tools/golangci-lint/go.mod golangci-lint run ./...) || exit 1; done
 
-# Fails unless the committed plugin UI bundle rebuilds byte for byte to its pin.
+# Fails unless every committed plugin UI bundle rebuilds byte for byte to
+# its pin. The shared build checks' own tests run with the first plugin's
+# toolchain (they need its vite).
 .PHONY: lint-plugin-ui
 lint-plugin-ui:
-	./hack/plugin-ui.sh check monitoring
-	cd plugins/monitoring/ui && node --test scripts/
-	npm --prefix plugins/monitoring/ui run --silent typecheck
+	@for p in $(UI_PLUGINS); do \
+	  ./hack/plugin-ui.sh check $$p && npm --prefix plugins/$$p/ui run --silent typecheck || exit 1; \
+	done
+	cd plugins/$(firstword $(UI_PLUGINS))/ui && node --test ../../_ui-build/
 
 # Fails if a plugin's pinned image list no longer matches its chart and preset.
 .PHONY: lint-plugin-images
 lint-plugin-images:
-	@want=$$(go run ./cmd/plugin-images -chart plugins/monitoring/chart/kube-prometheus-stack-91.9.0.tgz \
-	  -values plugins/monitoring/chart/values-small.yaml) && \
-	have=$$(grep -v '^#' plugins/monitoring/images.txt | awk '{print $$1}') && \
-	if [ "$$want" != "$$have" ]; then echo "plugins/monitoring/images.txt does not match the chart's images:" >&2; \
-	  diff <(echo "$$want") <(echo "$$have") >&2; exit 1; fi
+	@for p in $(IMAGE_PLUGINS); do \
+	  want=$$(go run ./cmd/plugin-images -plugin plugins/$$p) && \
+	  have=$$(grep -v '^#' plugins/$$p/images.txt | awk '{print $$1}') && \
+	  if [ "$$want" != "$$have" ]; then echo "plugins/$$p/images.txt does not match the chart's images:" >&2; \
+	    diff <(echo "$$want") <(echo "$$have") >&2; exit 1; fi || exit 1; \
+	done
+
+# Fails unless charts built from vendored upstream manifests rebuild byte
+# for byte (and their sources match the pinned sha256).
+.PHONY: lint-plugin-charts
+lint-plugin-charts:
+	@for p in $(CHART_PLUGINS); do go run ./cmd/plugin-chart -plugin plugins/$$p -check || exit 1; done
 
 # Fails if the committed generated files do not match api/ (and regenerates them).
 .PHONY: lint-generated

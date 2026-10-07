@@ -1,0 +1,6 @@
+{
+  "name": "capybara-plugin-ui-build",
+  "private": true,
+  "type": "module",
+  "description": "Shared build config and checks of first-party plugin UI bundles. No dependencies: each plugin's ui/ provides vite and its plugins from its own lockfile."
+}

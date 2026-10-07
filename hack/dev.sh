@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
-# Runs the API server, the controller and the Vite dev server together.
-# Ctrl-C stops all of them.
+# Runs the API server, the controller, every plugin backend
+# (plugins/*/backend, listening on its dev.addr) and the Vite dev server
+# together. Ctrl-C stops all of them.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+
+backends=() addrs=()
+for d in plugins/*/backend; do
+  [[ -f "$d/go.mod" ]] || continue
+  p="$(basename "$(dirname "$d")")"
+  [[ -f "$d/dev.addr" ]] || { echo "make dev: $d/dev.addr is missing (the backend's local listen address)" >&2; exit 1; }
+  backends+=("$p") addrs+=("$(tr -d '[:space:]' <"$d/dev.addr")")
+done
 
 # Refuse before building or touching anything if Capybara already runs
 # (another make dev, or make e2e): a second Vite would rewrite the shared
 # dependency cache under the running one and break its pages.
 busy=()
-for port in 8080 8091 5173; do
+for port in 8080 5173 "${addrs[@]##*:}"; do
   if owner="$(lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | awk 'NR==2 {print $1 " pid " $2}')" && [[ -n "$owner" ]]; then
     busy+=("${port} (${owner})")
   fi
@@ -32,8 +41,14 @@ mkdir -p .local/bin
 go build -o .local/bin/capybara-server ./cmd/server
 go build -o .local/bin/capybara-controller ./cmd/controller
 # Plugin backends are separate processes, never part of the server.
-(cd plugins/monitoring/backend && go build -o ../../../.local/bin/monitoring-backend .)
-export CAPYBARA_PLUGIN_BACKENDS="${CAPYBARA_PLUGIN_BACKENDS:-monitoring=http://127.0.0.1:8091}"
+pairs=()
+for i in "${!backends[@]}"; do
+  p="${backends[$i]}"
+  (cd "plugins/${p}/backend" && go build -o "../../../.local/bin/${p}-backend" .)
+  pairs+=("${p}=http://${addrs[$i]}")
+done
+default_backends="$(IFS=,; echo "${pairs[*]}")"
+export CAPYBARA_PLUGIN_BACKENDS="${CAPYBARA_PLUGIN_BACKENDS:-$default_backends}"
 
 # The controller needs its CRDs in capybara-mgmt.
 if [[ -f .local/kubeconfig/capybara-mgmt.yaml ]]; then
@@ -54,10 +69,12 @@ trap cleanup INT TERM EXIT
 .local/bin/capybara-server &
 pids+=($!)
 
-# The backend reads the credential the server issues at startup.
-for _ in $(seq 1 50); do [[ -f .local/plugin-backends/monitoring.token ]] && break; sleep 0.1; done
-.local/bin/monitoring-backend &
-pids+=($!)
+# Each backend reads the credential the server issues at startup.
+for p in "${backends[@]}"; do
+  for _ in $(seq 1 50); do [[ -f ".local/plugin-backends/${p}.token" ]] && break; sleep 0.1; done
+  .local/bin/"${p}"-backend &
+  pids+=($!)
+done
 
 if [[ -f .local/kubeconfig/capybara-mgmt.yaml ]]; then
   .local/bin/capybara-controller &

@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -160,11 +161,20 @@ func Images(objs []*unstructured.Unstructured) []string {
 		walk(o.Object)
 		// The operator starts the config reloader and Prometheus itself:
 		// their images are flags on its container.
-		for _, arg := range containerArgs(o) {
+		args := containerArgs(o)
+		for i, arg := range args {
 			for _, flag := range []string{"--prometheus-config-reloader=", "--prometheus-default-base-image="} {
 				if img, ok := strings.CutPrefix(arg, flag); ok && img != "" {
 					seen[img] = true
 				}
+			}
+			// Controllers that start pods name those images in flags
+			// (Tekton: "-entrypoint-image", "<ref>"; or --x-image=<ref>).
+			if imageFlagRE.MatchString(arg) && i+1 < len(args) && args[i+1] != "" {
+				seen[args[i+1]] = true
+			}
+			if k, v, ok := strings.Cut(arg, "="); ok && imageFlagRE.MatchString(k) && v != "" {
+				seen[v] = true
 			}
 		}
 		// Prometheus resources name their image explicitly.
@@ -190,6 +200,9 @@ func isTestHook(o *unstructured.Unstructured) bool {
 	}
 	return false
 }
+
+// imageFlagRE matches command-line flags that take an image reference.
+var imageFlagRE = regexp.MustCompile(`^--?[a-z0-9-]*-image(-[a-z]+)?$`)
 
 func containerArgs(o *unstructured.Unstructured) []string {
 	cs, _, _ := unstructured.NestedSlice(o.Object, "spec", "template", "spec", "containers")
@@ -226,6 +239,27 @@ func chartCRDObjects(ch *chart.Chart) ([]*unstructured.Unstructured, error) {
 			return nil, fmt.Errorf("crd %s: %w", crd.Filename, err)
 		}
 		out = append(out, objs...)
+	}
+	return out, nil
+}
+
+// ChartAPIVersions lists "<group>/<version>" for every served version of
+// the chart's CRDs (crds/ directories, dependencies included).
+func ChartAPIVersions(ch *chart.Chart) ([]string, error) {
+	crds, err := chartCRDObjects(ch)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, c := range crds {
+		group, _, _ := unstructured.NestedString(c.Object, "spec", "group")
+		versions, _, _ := unstructured.NestedSlice(c.Object, "spec", "versions")
+		for _, v := range versions {
+			vm, _ := v.(map[string]any)
+			if name, _ := vm["name"].(string); name != "" && vm["served"] != false {
+				out = append(out, group+"/"+name)
+			}
+		}
 	}
 	return out, nil
 }

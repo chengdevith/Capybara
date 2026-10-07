@@ -44,7 +44,7 @@ chart:
 
 ui:
   bundle: ui/dist/monitoring.js
-  sha256: 651ec07bf6d7bb2c7bde3c06bb888950df71740e623ac91ba6f973e1ffb1b795
+  sha256: 26a6f36a72158e3dd721b6553022a3d6e22e87044e521c57398c15f50b9b1db6
 
 config:
   schema:

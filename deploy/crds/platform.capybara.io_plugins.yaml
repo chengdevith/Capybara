@@ -163,6 +163,14 @@ spec:
                     x-kubernetes-preserve-unknown-fields: true
                   namespace:
                     type: string
+                  namespaceLabels:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      NamespaceLabels are set on the release namespace when the controller
+                      creates it (or added when it exists), e.g. a Pod Security level the
+                      upstream manifest's own Namespace object carried.
+                    type: object
                   refuseInstallOn:
                     description: |-
                       RefuseInstallOn lists platforms where install mode is refused

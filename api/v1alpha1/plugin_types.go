@@ -294,6 +294,11 @@ type ChartRef struct {
 	Values      string `json:"values,omitempty"`
 	ReleaseName string `json:"releaseName"`
 	Namespace   string `json:"namespace"`
+	// NamespaceLabels are set on the release namespace when the controller
+	// creates it (or added when it exists), e.g. a Pod Security level the
+	// upstream manifest's own Namespace object carried.
+	// +optional
+	NamespaceLabels map[string]string `json:"namespaceLabels,omitempty"`
 	// Version of the chart, for display and upgrades.
 	Version string `json:"version"`
 	// InstallValues are merged over the preset per installation; the

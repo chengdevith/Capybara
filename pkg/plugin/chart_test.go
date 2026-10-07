@@ -66,26 +66,58 @@ func TestRenderSmallPreset(t *testing.T) {
 }
 
 func TestImagesMatchPinnedList(t *testing.T) {
-	got := Images(renderMonitoring(t, nil).Objects)
-	raw, err := os.ReadFile("../../plugins/monitoring/images.txt")
-	if err != nil {
-		t.Fatal(err)
+	lists, _ := filepath.Glob("../../plugins/*/images.txt")
+	if len(lists) == 0 {
+		t.Fatalf("image lists: %v", lists)
 	}
-	var want []string
-	for _, line := range strings.Split(string(raw), "\n") {
-		if f := strings.Fields(line); len(f) == 2 && !strings.HasPrefix(line, "#") {
-			if !strings.HasPrefix(f[1], "sha256:") {
-				t.Errorf("%s is not pinned by digest", f[0])
+	for _, list := range lists {
+		dir := filepath.Dir(list)
+		_, spec, err := LoadDir(dir, "builtin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		ch, values, err := LoadInstallChart(dir, spec, "dev-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		apiVersions, err := ChartAPIVersions(ch)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, err := Render(context.Background(), ch, RenderOptions{ReleaseName: spec.Chart.ReleaseName, Namespace: spec.Chart.Namespace,
+			Values: values, KubeVersion: "v1.35.5", APIVersions: apiVersions})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := Images(r.Objects)
+		raw, err := os.ReadFile(list) //nolint:gosec // test fixture
+		if err != nil {
+			t.Fatal(err)
+		}
+		var want []string
+		for _, line := range strings.Split(string(raw), "\n") {
+			f := strings.Fields(line)
+			if len(f) == 0 || strings.HasPrefix(line, "#") {
+				continue
+			}
+			switch {
+			case len(f) == 3 && f[1] == "-" && f[2] == "skip":
+			case len(f) == 2 && strings.HasPrefix(f[1], "sha256:"):
+				if at := strings.LastIndex(f[0], "@"); at >= 0 && f[0][at+1:] != f[1] {
+					t.Errorf("%s: %s: digest column differs from the reference", list, f[0])
+				}
+			default:
+				t.Errorf("%s: %q: want <reference> <sha256:digest>, or <reference> - skip", list, line)
 			}
 			want = append(want, f[0])
 		}
-	}
-	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("images\n got %v\nwant %v", got, want)
-	}
-	for _, img := range got {
-		if strings.Contains(img, "bats") {
-			t.Error("test hook images must not be listed")
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Errorf("%s: images\n got %v\nwant %v", list, got, want)
+		}
+		for _, img := range got {
+			if strings.Contains(img, "bats") {
+				t.Errorf("%s: test hook images must not be listed", list)
+			}
 		}
 	}
 }

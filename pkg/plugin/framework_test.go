@@ -101,7 +101,8 @@ func writeWidgetsPlugin(t *testing.T, root, version, marker string) *v1alpha1.Pl
 	return &v1alpha1.PluginSpec{
 		Name: "widgets", Repository: "builtin", DisplayName: "Widgets", Version: version, ExtensionAPI: 1,
 		Scope: "per-cluster", Modes: []v1alpha1.InstallMode{v1alpha1.ModeInstall, v1alpha1.ModeConnect},
-		Chart: &v1alpha1.ChartRef{Archive: "chart/" + filepath.Base(path), SHA256: hex.EncodeToString(sum[:]), ReleaseName: "widgets", Namespace: "widgets", Version: version},
+		Chart: &v1alpha1.ChartRef{Archive: "chart/" + filepath.Base(path), SHA256: hex.EncodeToString(sum[:]), ReleaseName: "widgets", Namespace: "widgets", Version: version,
+			NamespaceLabels: map[string]string{"pod-security.kubernetes.io/enforce": "restricted"}},
 		Permissions: v1alpha1.PluginPermissions{
 			Install: v1alpha1.RuleSet{ClusterRules: []v1alpha1.PolicyRule{{APIGroups: []string{"*"}, Resources: []string{"*"}, Verbs: []string{"*"}}}},
 			Console: v1alpha1.RuleSet{ClusterRules: []v1alpha1.PolicyRule{{APIGroups: []string{"example.com"}, Resources: []string{"widgets"}, Verbs: []string{"get", "list", "watch", "create"}}}},
@@ -166,6 +167,9 @@ func TestBackendlessPluginWithConsolePermissionsAndCRDUpgrade(t *testing.T) {
 	}
 	if in.Status.Phase != v1alpha1.InstallReady {
 		t.Fatalf("install: %s %q %+v", in.Status.Phase, in.Status.Message, in.Status.Steps)
+	}
+	if ns, err := f.cs.CoreV1().Namespaces().Get(ctx, "widgets", metav1.GetOptions{}); err != nil || ns.Labels["pod-security.kubernetes.io/enforce"] != "restricted" {
+		t.Errorf("release namespace labels = %v, %v", ns.GetLabels(), err)
 	}
 	binding, err := f.cs.RbacV1().ClusterRoleBindings().Get(ctx, "capybara-plugin-widgets-console", metav1.GetOptions{})
 	if err != nil || binding.Subjects[0].Kind != "ServiceAccount" || binding.Subjects[0].Name != "capybara" || binding.Subjects[0].Namespace != "capybara-system" {

@@ -282,7 +282,7 @@ func (r *InstallationReconciler) apply(ctx context.Context, in *v1alpha1.PluginI
 		if err := r.writeStatus(ctx, in, st); err != nil {
 			return err
 		}
-		if err := ensureNamespace(ctx, cs, ns); err != nil {
+		if err := ensureNamespace(ctx, cs, ns, p.Spec.Chart.NamespaceLabels); err != nil {
 			return err
 		}
 		if err := ensureGeneratedSecrets(ctx, cs, ns, p.Name, p.Spec.Chart.GeneratedSecrets); err != nil {

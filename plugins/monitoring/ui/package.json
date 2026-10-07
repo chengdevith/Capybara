@@ -7,7 +7,7 @@
     "node": "26.8.1"
   },
   "scripts": {
-    "build": "node scripts/check-node.mjs && vue-tsc --noEmit && vite build",
+    "build": "node ../../_ui-build/check-node.mjs && vue-tsc --noEmit && vite build",
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {

@@ -37,12 +37,12 @@ case "$cmd" in
   check)
     tmp="$(mktemp -d)"
     trap 'rm -rf "$tmp"' EXIT
-    (cd "$ui" && node scripts/check-node.mjs && npx --no-install vite build --outDir "$tmp" --emptyOutDir >/dev/null)
+    (cd "$ui" && node ../../_ui-build/check-node.mjs && npx --no-install vite build --outDir "$tmp" --emptyOutDir >/dev/null)
     built="$(shasum -a 256 "${tmp}/$(basename "$bundle")" | cut -d' ' -f1)"
     committed="$(shasum -a 256 "${ui}/${bundle}" | cut -d' ' -f1)"
     # Browser bundles must not reference Node globals (process, Buffer,
     # global, require): they throw at runtime.
-    (cd "$ui" && node scripts/check-bundle.mjs "$bundle")
+    (cd "$ui" && node ../../_ui-build/check-bundle.mjs "$bundle")
     if [[ "$built" != "$pinned" || "$committed" != "$pinned" ]]; then
       echo "${plugin} UI bundle is not reproducible from source: built ${built}, committed ${committed}, pinned ${pinned}" >&2
       echo "run: make plugin-ui PLUGIN=${plugin}" >&2

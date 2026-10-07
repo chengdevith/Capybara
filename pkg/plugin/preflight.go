@@ -152,7 +152,7 @@ func preflightInstall(ctx context.Context, in PreflightInput, cs kubernetes.Inte
 		return fmt.Errorf("discovery: %w", err)
 	}
 	if slices.Contains(spec.Chart.RefuseInstallOn, "openshift") && isOpenShift(groups) {
-		problem("this is OpenShift, which ships its own monitoring: use Connect existing (Thanos Querier) instead of installing a second stack")
+		problem("this is OpenShift, which ships its own %s: use Connect existing instead of installing a second one", spec.DisplayName)
 	}
 	ch, values, err := LoadInstallChart(in.PluginDir, spec, in.Cluster)
 	if err != nil {

@@ -117,9 +117,10 @@ export interface PluginComponents {
    */
   LogViewer: Component
   /**
-   * Link to an object's detail page. Props: cluster, resource (a
-   * resource id such as 'core.pods' or '<plugin>.<plural>'), namespace?,
-   * name. Plain text when that page is not registered.
+   * Link to an object's detail page. Props: resource (a resource id such
+   * as 'core.pods' or '<plugin>.<plural>'), namespace?, name, cluster?
+   * (default: the one in the URL). Plain text when that page is not
+   * registered.
    */
   ResourceLink: Component
 }

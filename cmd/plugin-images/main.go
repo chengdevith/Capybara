@@ -1,8 +1,10 @@
-// Command plugin-images lists the container images a plugin chart would run
-// with its preset values, so they can be pulled on the host and imported
-// into k3d (nodes never pull):
+// Command plugin-images lists the container images a plugin's chart would
+// run with its preset values (container images, and images controllers are
+// told to start through -…-image flags), so they can be pulled on the host
+// and imported into k3d (nodes never pull). make lint compares the list with
+// plugins/<name>/images.txt.
 //
-//	go run ./cmd/plugin-images -chart plugins/monitoring/chart/x.tgz -values plugins/monitoring/chart/values-small.yaml
+//	go run ./cmd/plugin-images -plugin plugins/tekton
 package main
 
 import (
@@ -10,45 +12,45 @@ import (
 	"flag"
 	"fmt"
 	"os"
-
-	"sigs.k8s.io/yaml"
+	"path/filepath"
 
 	"github.com/capybara/capybara/pkg/plugin"
 )
 
 func main() {
-	chartPath := flag.String("chart", "", "chart archive (.tgz)")
-	valuesPath := flag.String("values", "", "values file")
+	dir := flag.String("plugin", "", "plugin directory, e.g. plugins/monitoring")
 	kubeVersion := flag.String("kube-version", "v1.35.5", "target Kubernetes version")
 	flag.Parse()
-	if err := run(*chartPath, *valuesPath, *kubeVersion); err != nil {
+	if err := run(*dir, *kubeVersion); err != nil {
 		fmt.Fprintln(os.Stderr, "plugin-images:", err)
 		os.Exit(1)
 	}
 }
 
-func run(chartPath, valuesPath, kubeVersion string) error {
-	archive, err := os.ReadFile(chartPath) //nolint:gosec // developer-supplied path
+func run(dir, kubeVersion string) error {
+	if dir == "" {
+		return fmt.Errorf("-plugin is required")
+	}
+	_, spec, err := plugin.LoadDir(filepath.Clean(dir), "builtin")
 	if err != nil {
 		return err
 	}
-	ch, err := plugin.LoadChart(archive)
+	if spec.Chart == nil {
+		return nil // nothing to install
+	}
+	ch, values, err := plugin.LoadInstallChart(dir, spec, "dev-1")
 	if err != nil {
 		return err
 	}
-	vals := map[string]any{}
-	if valuesPath != "" {
-		raw, err := os.ReadFile(valuesPath) //nolint:gosec // developer-supplied path
-		if err != nil {
-			return err
-		}
-		if err := yaml.Unmarshal(raw, &vals); err != nil {
-			return fmt.Errorf("values: %w", err)
-		}
+	// The chart's own CRDs are served once it is installed: let templates
+	// that check for them (.Capabilities.APIVersions) render as they will.
+	apiVersions, err := plugin.ChartAPIVersions(ch)
+	if err != nil {
+		return err
 	}
 	r, err := plugin.Render(context.Background(), ch, plugin.RenderOptions{
-		ReleaseName: "capybara-monitoring", Namespace: "capybara-monitoring", Values: vals, KubeVersion: kubeVersion,
-		APIVersions: []string{"monitoring.coreos.com/v1"},
+		ReleaseName: spec.Chart.ReleaseName, Namespace: spec.Chart.Namespace, Values: values,
+		KubeVersion: kubeVersion, APIVersions: apiVersions,
 	})
 	if err != nil {
 		return err
