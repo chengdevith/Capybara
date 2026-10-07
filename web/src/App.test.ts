@@ -6,6 +6,7 @@ import App from './App.vue'
 import { createRegistry, registryKey } from './extensions'
 import { registerCoreExtensions } from './extensions/core'
 import { createAppRouter } from './router'
+import { usePluginsStore } from './stores/plugins'
 
 const defaultClusters = [
   { id: 'dev-1', displayName: 'Dev 1', environment: 'dev', status: { phase: 'Connected', version: 'v1.35.5+k3s1', nodeCount: 1 } },
@@ -22,21 +23,23 @@ async function boot(path: string, clusters: unknown[] = defaultClusters) {
         const c = clusters.find((x) => (x as { id: string }).id === overview[1])
         return new Response(JSON.stringify({ ...(c as object), nodes: 1, namespaces: 4, pods: { Running: 3 }, deployments: 2, services: 1, projects: 5 }))
       }
+      if (url === '/api/plugins') return new Response(JSON.stringify([]))
       if (url.startsWith('/healthz')) return new Response(JSON.stringify({ status: 'ok', audit: 'ok', projectConfig: 'ok' }))
       return new Response(JSON.stringify(clusters), { status: 200 })
     }),
   )
   const registry = createRegistry()
   registerCoreExtensions(registry)
+  const pinia = createPinia()
   const router = createAppRouter(registry, createMemoryHistory())
   await router.push(path)
   const wrapper = mount(App, {
     attachTo: document.body,
-    global: { plugins: [createPinia(), router], provide: { [registryKey as symbol]: registry } },
+    global: { plugins: [pinia, router], provide: { [registryKey as symbol]: registry } },
   })
   // Lazy route components and the cluster fetch settle over a few ticks.
   for (let i = 0; i < 5; i++) await flushPromises()
-  return { wrapper, router }
+  return { wrapper, router, pinia }
 }
 
 describe('App (smoke)', () => {
@@ -68,6 +71,21 @@ describe('App (smoke)', () => {
     expect(wrapper.find('[data-test="project-count"]').text()).toBe('5')
     expect(wrapper.find('[data-test="theme-switcher"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="prod-masthead"]').exists()).toBe(false)
+  })
+
+  it('says when an enabled plugin\'s UI failed to load, on that cluster only', async () => {
+    const { wrapper, pinia, router } = await boot('/c/dev-1/home')
+    const plugins = usePluginsStore(pinia)
+    plugins.catalog = [{
+      name: 'monitoring', spec: {} as never, status: { available: true }, trusted: true,
+      installations: [{ id: 'monitoring.dev-1', uid: 'u', config: {}, spec: { plugin: 'monitoring', cluster: 'dev-1', mode: 'install', enabled: true, version: '0.1.0' }, status: { phase: 'Ready' } }],
+    }]
+    plugins.setLoadError('monitoring', 'bundle sha256 does not match')
+    await flushPromises()
+    expect(wrapper.find('[data-test="plugin-load-error"]').text()).toContain('bundle sha256 does not match')
+    await router.push('/c/dev-2/home')
+    await flushPromises()
+    expect(wrapper.find('[data-test="plugin-load-error"]').exists()).toBe(false)
   })
 
   it('marks a prod cluster in the top bar', async () => {

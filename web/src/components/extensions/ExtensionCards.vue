@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import ExtensionHost from './ExtensionHost.vue'
 import { NCard } from 'naive-ui'
-import { computed, defineAsyncComponent, type Component } from 'vue'
+import { computed } from 'vue'
 import { useExtensionContext } from '@/composables/useExtensionContext'
-import { byOrder, useRegistry, type LazyComponent } from '@/extensions'
+import { byOrder, useRegistry } from '@/extensions'
 
 // Renders the cards an extension point contributes (core or plugins),
 // passing `data` as props to each.
@@ -11,15 +12,6 @@ const props = defineProps<{ type: 'cluster-overview-card' | 'project-overview-ca
 const registry = useRegistry()
 const ctx = useExtensionContext()
 const cards = computed(() => registry.active(props.type, ctx.value).sort(byOrder))
-const components = new Map<string, Component>()
-function cardComponent(id: string, load: LazyComponent): Component {
-  let c = components.get(id)
-  if (!c) {
-    c = defineAsyncComponent(load)
-    components.set(id, c)
-  }
-  return c
-}
 </script>
 
 <template>
@@ -30,8 +22,11 @@ function cardComponent(id: string, load: LazyComponent): Component {
     size="small"
     :data-test="`card-${card.id}`"
   >
-    <component
-      :is="cardComponent(card.id, card.component)"
+    <ExtensionHost
+      :id="card.id"
+      :source="card.source"
+      :label="`${card.title} card`"
+      :component="card.component"
       v-bind="data"
     />
   </NCard>

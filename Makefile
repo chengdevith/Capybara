@@ -114,6 +114,7 @@ e2e: web/node_modules ## Browser end-to-end tests (needs make cluster-up; resets
 	./hack/plugin-images.sh monitoring dev-1 dev-2
 	cd web && npx playwright install chromium-headless-shell
 	cd web && npx playwright test
+	cd web && npx playwright test -c playwright.plugin-dev.config.ts
 
 .PHONY: lint
 lint: lint-make lint-go lint-web lint-plugin-ui ## Run all linters and type checks

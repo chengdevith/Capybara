@@ -1,3 +1,4 @@
+import { defineComponent, h } from 'vue'
 import {
   createRouter,
   createWebHistory,
@@ -5,6 +6,7 @@ import {
   type Router,
   type RouterHistory,
 } from 'vue-router'
+import ExtensionHost from '@/components/extensions/ExtensionHost.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import ClusterScope from '@/components/layout/ClusterScope.vue'
 import NotFound from '@/components/layout/NotFound.vue'
@@ -61,11 +63,23 @@ function structuralRoutes(registry: ExtensionRegistry, contextFor: ContextFor): 
   ]
 }
 
+// A page renders through ExtensionHost, so a page that fails to load or
+// render shows an error instead of an empty content area.
+function hostFor(ext: Registered<RouteExtension>) {
+  return defineComponent({
+    name: `ExtensionRoute`,
+    inheritAttrs: false,
+    setup(_props, { attrs }) {
+      return () => h(ExtensionHost, { ...attrs, id: ext.id, source: ext.source, label: `${ext.title ?? ext.id} page`, component: ext.component })
+    },
+  })
+}
+
 function toRecord(ext: Registered<RouteExtension>): RouteRecordRaw {
   return {
     path: ext.path,
     name: ext.id,
-    component: ext.component,
+    component: hostFor(ext),
     props: ext.props ?? false,
     meta: { extension: ext.id, title: ext.title, parent: ext.parent },
   }

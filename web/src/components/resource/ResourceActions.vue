@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { NButton, NDropdown, type DropdownOption } from 'naive-ui'
-import { computed, defineAsyncComponent, h, shallowRef, type Component } from 'vue'
+import { computed, h, shallowRef } from 'vue'
 import type { KubeObject } from '@/api/k8s'
-import { resourceActions, useRegistry } from '@/extensions'
+import ExtensionHost from '@/components/extensions/ExtensionHost.vue'
+import { resourceActions, useRegistry, type Registered, type ResourceActionExtension } from '@/extensions'
 import { useExtensionContext } from '@/composables/useExtensionContext'
 import type { ResourceDef } from './types'
 
@@ -22,17 +23,9 @@ const options = computed<DropdownOption[]>(() =>
   })),
 )
 
-const components = new Map<string, Component>()
-const open = shallowRef<Component | null>(null)
+const open = shallowRef<Registered<ResourceActionExtension> | null>(null)
 function choose(key: string) {
-  const a = actions.value.find((x) => x.id === key)
-  if (!a) return
-  let c = components.get(a.id)
-  if (!c) {
-    c = defineAsyncComponent(a.component)
-    components.set(a.id, c)
-  }
-  open.value = c
+  open.value = actions.value.find((x) => x.id === key) ?? null
 }
 function close() {
   open.value = null
@@ -52,9 +45,12 @@ const trigger = () =>
   >
     <component :is="trigger" />
   </NDropdown>
-  <component
-    :is="open"
+  <ExtensionHost
     v-if="open"
+    :id="open.id"
+    :source="open.source"
+    :label="open.label"
+    :component="open.component"
     :cluster="cluster"
     :resource="resource"
     :object="object"

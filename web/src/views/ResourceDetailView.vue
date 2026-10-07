@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { NAlert, NBreadcrumb, NBreadcrumbItem, NCard, NH2, NResult, NSpin, NTabPane, NTabs, NTag } from 'naive-ui'
-import { computed, defineAsyncComponent, ref, watch, type Component } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import LiveIndicator from '@/components/resource/LiveIndicator.vue'
 import ResourceActions from '@/components/resource/ResourceActions.vue'
@@ -8,7 +8,8 @@ import { listRouteOf, type ResourceDef } from '@/components/resource/types'
 import { statusTag } from '@/components/resource/render'
 import { useExtensionContext } from '@/composables/useExtensionContext'
 import { useLiveList } from '@/composables/useLiveList'
-import { detailTabs, useRegistry, type LazyComponent } from '@/extensions'
+import ExtensionHost from '@/components/extensions/ExtensionHost.vue'
+import { detailTabs, useRegistry } from '@/extensions'
 
 // The one detail page. Tabs come from resource-detail-tab extensions.
 const props = defineProps<{ resource: ResourceDef }>()
@@ -47,15 +48,6 @@ watch(object, (o) => {
 })
 
 const tabs = computed(() => detailTabs(registry, props.resource.type.kind, ctx.value))
-const components = new Map<string, Component>()
-function tabComponent(id: string, load: LazyComponent): Component {
-  let c = components.get(id)
-  if (!c) {
-    c = defineAsyncComponent(load)
-    components.set(id, c)
-  }
-  return c
-}
 
 const activeTab = computed({
   get: () => {
@@ -159,8 +151,11 @@ const status = computed(() => (object.value && props.resource.status ? props.res
           :tab="tab.label"
           display-directive="show:lazy"
         >
-          <component
-            :is="tabComponent(tab.id, tab.component)"
+          <ExtensionHost
+            :id="tab.id"
+            :source="tab.source"
+            :label="`${tab.label} tab`"
+            :component="tab.component"
             :cluster="ctx.cluster"
             :resource="resource"
             :object="object"

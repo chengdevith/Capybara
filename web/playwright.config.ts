@@ -5,6 +5,8 @@ import { defineConfig } from '@playwright/test'
 // shared cluster state, so they run one at a time.
 export default defineConfig({
   testDir: 'e2e',
+  // Broken dev bundles need a server with --plugin-dev-dir: see playwright.plugin-dev.config.ts.
+  testIgnore: 'plugin-errors.spec.ts',
   globalSetup: './e2e/global-setup.ts',
   timeout: 90_000,
   expect: { timeout: 20_000 },

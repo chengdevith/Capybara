@@ -4,12 +4,18 @@ import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useExtensionContext } from '@/composables/useExtensionContext'
 import { useClustersStore } from '@/stores/clusters'
 import { useHealthStore } from '@/stores/health'
+import { usePluginsStore } from '@/stores/plugins'
 import AppSidebar from './AppSidebar.vue'
 import TopBar from './TopBar.vue'
 
 const clusters = useClustersStore()
 const health = useHealthStore()
 const ctx = useExtensionContext()
+const plugins = usePluginsStore()
+// Plugins enabled on this cluster whose UI bundle failed to load.
+const brokenPlugins = computed(() =>
+  [...plugins.enabledOn(ctx.value.cluster)].filter((n) => plugins.loadErrors[n]).map((n) => ({ name: n, error: plugins.loadErrors[n] })),
+)
 const prod = computed(() => clusters.byId(ctx.value.cluster)?.environment === 'prod')
 onMounted(() => {
   void clusters.ensureLoaded()
@@ -65,6 +71,16 @@ onBeforeUnmount(() => {
         >
           {{ health.projectConfigNotice }}. Fix the capybara-project-sizes ConfigMap in capybara-mgmt
           (<code>make project-sizes</code>).
+        </NAlert>
+        <NAlert
+          v-for="b in brokenPlugins"
+          :key="b.name"
+          type="warning"
+          :title="`The ${b.name} plugin's UI could not be loaded`"
+          class="audit-banner"
+          data-test="plugin-load-error"
+        >
+          {{ b.error }}. Its pages, tabs and cards are missing on this cluster; the tool itself is not affected.
         </NAlert>
         <RouterView />
       </NLayoutContent>
