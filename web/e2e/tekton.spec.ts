@@ -85,7 +85,9 @@ test('an installer made for another plugin is refused, with the fix shown and ke
   await card.getByTestId('cancel-request').click()
   await page.getByTestId('confirm-cancel').click()
   await expect(card).toHaveCount(0, { timeout: 60_000 })
-  expect(() => kubectl('dev-1', 'get', 'ns', 'tekton-pipelines')).toThrow()
+  // Nothing was deployed (the namespace may remain from an earlier install: uninstall keeps it).
+  expect(kubectl('dev-1', 'get', 'deploy,secret', '-n', 'tekton-pipelines', '-l', 'owner=helm', '-o', 'name', '--ignore-not-found')).toBe('')
+  expect(kubectl('dev-1', 'get', 'deploy', '-n', 'tekton-pipelines', '-o', 'name', '--ignore-not-found')).toBe('')
 })
 
 test('install on dev-1 from the Marketplace', async ({ page, request }) => {
