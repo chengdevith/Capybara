@@ -32,7 +32,12 @@ const project = (name: string, cluster: string, extra: Partial<Project['spec']> 
   },
 })
 
-const projects = [project('shop', 'dev-1', { displayName: 'Shop' }), project('billing', 'dev-2')]
+const shop = project('shop', 'dev-1', { displayName: 'Shop' })
+shop.status!.podSecurity = {
+  enforce: 'baseline', warn: 'restricted', checkedAt: new Date().toISOString(),
+  violations: ['existing pods in namespace "shop" violate the new PodSecurity enforce level "baseline:latest"', 'legacy-agent: privileged'],
+}
+const projects = [shop, project('billing', 'dev-2')]
 const sizes = {
   S: { quota: { pods: '10', 'limits.cpu': '2', 'limits.memory': '4Gi' }, limits: {} },
   M: { quota: { pods: '30', 'limits.cpu': '8', 'limits.memory': '16Gi' }, limits: {} },
@@ -141,6 +146,15 @@ describe('Projects UI', () => {
     expect(table).toContain('pods')
     expect(body()).toContain('Current usage is above the new limits') // 20 pods > 10, 6Gi > 4Gi
     expect(document.querySelectorAll('[data-test="usage-table"] tr.over')).toHaveLength(2)
+  })
+
+  it('shows the Pod Security level and the pods that violated it when it was set', async () => {
+    const { wrapper } = await boot('/c/dev-1/projects/shop')
+    await vi.waitFor(() => expect(wrapper.find('[data-test="pod-security"]').exists()).toBe(true))
+    expect(wrapper.find('[data-test="pod-security"]').text()).toBe('baseline')
+    const v = wrapper.find('[data-test="pod-security-violations"]').text()
+    expect(v).toContain('legacy-agent: privileged')
+    expect(v).toContain('fail on their next restart or rollout')
   })
 
   it('the top-bar selector can switch to Projects and filter by a Project namespace', async () => {

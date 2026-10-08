@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -286,6 +287,13 @@ func TestCreateProducesAllResources(t *testing.T) {
 	if ns.Labels[v1alpha1.LabelProject] != name || ns.Annotations[v1alpha1.AnnotationProjectUID] != string(got.UID) {
 		t.Errorf("namespace labels %v annotations %v", ns.Labels, ns.Annotations)
 	}
+	if ns.Labels[LabelPodSecurityEnforce] != "baseline" || ns.Labels[LabelPodSecurityWarn] != "restricted" {
+		t.Errorf("pod security labels %v", ns.Labels)
+	}
+	if ps := got.Status.PodSecurity; ps == nil || ps.Enforce != "baseline" || len(ps.Violations) != 0 ||
+		!meta.IsStatusConditionTrue(got.Status.Conditions, v1alpha1.ConditionPodSecurity) {
+		t.Errorf("pod security status %+v %+v", got.Status.PodSecurity, got.Status.Conditions)
+	}
 	if _, err := env.managed.CoreV1().ResourceQuotas(name).Get(ctx, QuotaName, metav1.GetOptions{}); err != nil {
 		t.Error(err)
 	}
@@ -489,5 +497,42 @@ func TestDeleteRemovesOwnedNamespaceAndAuditsIt(t *testing.T) {
 	}
 	if !deleted || !removed {
 		t.Errorf("audit: delete-namespace=%v namespace-removed=%v (both linked to req-doomed)", deleted, removed)
+	}
+}
+
+// Labelling a namespace that already runs a privileged pod: the dry run
+// returns Kubernetes' warning about it and changes nothing.
+func TestPodSecurityDryRunReportsExistingViolations(t *testing.T) {
+	requireEnv(t)
+	ctx := context.Background()
+	name := uniq("psa")
+	if _, err := env.managed.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	privileged := true
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "root-tool", Namespace: name}, Spec: corev1.PodSpec{Containers: []corev1.Container{{
+		Name: "c", Image: "busybox:1.36", SecurityContext: &corev1.SecurityContext{Privileged: &privileged},
+	}}}}
+	if _, err := env.managed.CoreV1().Pods(name).Create(ctx, pod, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	ns := corev1ac.Namespace(name).WithLabels(PodSecurityLabels)
+	warnings, err := podSecurityDryRun(ctx, env.managed, ns)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(warnings, "\n"), "root-tool") {
+		t.Errorf("warnings = %q", warnings)
+	}
+	got, _ := env.managed.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
+	if got.Labels[LabelPodSecurityEnforce] != "" {
+		t.Error("the dry run changed the namespace")
+	}
+
+	var st v1alpha1.ProjectStatus
+	recordPodSecurity(&st, warnings, 3)
+	c := meta.FindStatusCondition(st.Conditions, v1alpha1.ConditionPodSecurity)
+	if c == nil || c.Status != metav1.ConditionFalse || c.Reason != v1alpha1.ReasonExistingViolations || !strings.Contains(c.Message, "root-tool") {
+		t.Errorf("condition = %+v", c)
 	}
 }

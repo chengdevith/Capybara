@@ -186,6 +186,32 @@ spec:
                 - Error
                 - Terminating
                 type: string
+              podSecurity:
+                description: |-
+                  PodSecurity: the namespace's Pod Security levels and any existing
+                  pods that violated them when they were applied.
+                properties:
+                  checkedAt:
+                    description: CheckedAt is when the levels were applied (after
+                      a dry run).
+                    format: date-time
+                    type: string
+                  enforce:
+                    type: string
+                  violations:
+                    description: |-
+                      Violations are Kubernetes' warnings about pods that existed then and
+                      violate the enforced level (at most 50).
+                    items:
+                      type: string
+                    type: array
+                  warn:
+                    type: string
+                required:
+                - checkedAt
+                - enforce
+                - warn
+                type: object
               resources:
                 description: Resources the controller manages in the cluster.
                 items:

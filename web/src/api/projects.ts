@@ -34,6 +34,8 @@ export interface Project extends KubeObject {
     observedGeneration?: number
     conditions?: Condition[]
     resources?: ManagedResource[]
+    /** Pod Security levels on the namespace, and pods that violated them when set. */
+    podSecurity?: { enforce: string; warn: string; checkedAt: string; violations?: string[] }
   }
 }
 

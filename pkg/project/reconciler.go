@@ -149,6 +149,15 @@ func (r *Reconciler) ensure(ctx context.Context, p *v1alpha1.Project, st *v1alph
 	}
 
 	d := Build(p, size, cfg.IngressSources)
+	// Setting Pod Security levels on an existing namespace: ask first what
+	// they mean for the pods already there (they are applied anyway).
+	labelled := ns != nil && podSecurityApplied(ns.Labels)
+	var violations []string
+	if ns != nil && !labelled {
+		if violations, err = podSecurityDryRun(rctx, cs, d.Namespace); err != nil {
+			return r.classify(st, err)
+		}
+	}
 	if err := apply(rctx, cs, d, ns == nil); err != nil {
 		if apierrors.IsAlreadyExists(err) {
 			// Created by someone else between our check and our create.
@@ -158,6 +167,11 @@ func (r *Reconciler) ensure(ctx context.Context, p *v1alpha1.Project, st *v1alph
 		return r.classify(st, err)
 	}
 
+	if !labelled || st.PodSecurity == nil {
+		recordPodSecurity(st, violations, p.Generation)
+	} else {
+		podSecurityCondition(st, p.Generation)
+	}
 	st.Phase = v1alpha1.PhaseReady
 	st.Resources = Resources(p)
 	meta.SetStatusCondition(&st.Conditions, metav1.Condition{

@@ -92,6 +92,10 @@ const (
 const (
 	ConditionReady            = "Ready"
 	ConditionClusterReachable = "ClusterReachable"
+	// ConditionPodSecurity: the namespace's Pod Security labels are set;
+	// False when pods that existed then violate the enforced level (they
+	// keep running, but fail on their next restart or rollout).
+	ConditionPodSecurity = "PodSecurity"
 
 	ReasonReconciled         = "Reconciled"
 	ReasonClusterUnreachable = "ClusterUnreachable"
@@ -103,7 +107,28 @@ const (
 	ReasonApplyFailed        = "ApplyFailed"
 	ReasonTerminating        = "Terminating"
 	ReasonReachable          = "Reachable"
+	ReasonEnforced           = "Enforced"
+	ReasonExistingViolations = "ExistingPodsViolate"
 )
+
+// Pod Security levels every Project namespace gets.
+const (
+	PodSecurityEnforce = "baseline"
+	PodSecurityWarn    = "restricted"
+)
+
+// PodSecurityStatus records the Pod Security levels set on the namespace and
+// what Kubernetes reported about existing pods when they were set.
+type PodSecurityStatus struct {
+	Enforce string `json:"enforce"`
+	Warn    string `json:"warn"`
+	// CheckedAt is when the levels were applied (after a dry run).
+	CheckedAt metav1.Time `json:"checkedAt"`
+	// Violations are Kubernetes' warnings about pods that existed then and
+	// violate the enforced level (at most 50).
+	// +optional
+	Violations []string `json:"violations,omitempty"`
+}
 
 // ManagedResource is one resource the controller created in the cluster.
 type ManagedResource struct {
@@ -133,6 +158,11 @@ type ProjectStatus struct {
 	// Resources the controller manages in the cluster.
 	// +optional
 	Resources []ManagedResource `json:"resources,omitempty"`
+
+	// PodSecurity: the namespace's Pod Security levels and any existing
+	// pods that violated them when they were applied.
+	// +optional
+	PodSecurity *PodSecurityStatus `json:"podSecurity,omitempty"`
 }
 
 // Project is a namespace in a managed cluster with a quota preset, limits,

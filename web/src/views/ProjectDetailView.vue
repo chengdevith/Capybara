@@ -154,6 +154,30 @@ const namespaceLink = computed(() =>
           <NDescriptionsItem label="Size">
             {{ project.spec.size }}
           </NDescriptionsItem>
+          <NDescriptionsItem
+            v-if="project.status?.podSecurity"
+            label="Pod Security"
+          >
+            <span data-test="pod-security">{{ project.status.podSecurity.enforce }}</span>
+            <span class="muted"> (pods above it are refused; {{ project.status.podSecurity.warn }} is warned about)</span>
+            <NAlert
+              v-if="project.status.podSecurity.violations?.length"
+              type="warning"
+              class="psa"
+              title="Pods that were running when this was set violate it"
+              data-test="pod-security-violations"
+            >
+              They keep running, but will fail on their next restart or rollout.
+              <ul>
+                <li
+                  v-for="v in project.status.podSecurity.violations"
+                  :key="v"
+                >
+                  {{ v }}
+                </li>
+              </ul>
+            </NAlert>
+          </NDescriptionsItem>
           <NDescriptionsItem label="Reconciled">
             <span v-if="upToDate">Up to date (generation {{ project.metadata.generation }})</span>
             <span v-else>Updating: generation {{ project.metadata.generation }}, last reconciled
@@ -222,6 +246,9 @@ const namespaceLink = computed(() =>
 </template>
 
 <style scoped>
+.psa {
+  margin-top: 6px;
+}
 .crumbs {
   margin-bottom: 8px;
 }

@@ -43,6 +43,19 @@ func Labels(p *v1alpha1.Project) map[string]string {
 	}
 }
 
+// PodSecurityLabels are set on every Project namespace: pods must meet the
+// baseline level; restricted violations are reported as warnings.
+var PodSecurityLabels = map[string]string{
+	LabelPodSecurityEnforce: v1alpha1.PodSecurityEnforce,
+	LabelPodSecurityWarn:    v1alpha1.PodSecurityWarn,
+}
+
+// Pod Security admission labels.
+const (
+	LabelPodSecurityEnforce = "pod-security.kubernetes.io/enforce"
+	LabelPodSecurityWarn    = "pod-security.kubernetes.io/warn"
+)
+
 // Annotations every remote resource of p carries.
 func Annotations(p *v1alpha1.Project) map[string]string {
 	return map[string]string{v1alpha1.AnnotationProjectUID: string(p.UID)}
@@ -54,7 +67,7 @@ func Build(p *v1alpha1.Project, size SizeSpec, sources []IngressSource) Desired 
 	labels, ann := Labels(p), Annotations(p)
 
 	d := Desired{
-		Namespace: corev1ac.Namespace(ns).WithLabels(labels).WithAnnotations(ann),
+		Namespace: corev1ac.Namespace(ns).WithLabels(labels).WithLabels(PodSecurityLabels).WithAnnotations(ann),
 		Quota: corev1ac.ResourceQuota(QuotaName, ns).WithLabels(labels).WithAnnotations(ann).
 			WithSpec(corev1ac.ResourceQuotaSpec().WithHard(size.Quota.DeepCopy())),
 		LimitRange: corev1ac.LimitRange(LimitRangeName, ns).WithLabels(labels).WithAnnotations(ann).
