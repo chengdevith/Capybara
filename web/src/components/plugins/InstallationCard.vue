@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NAlert, NButton, NCard, NModal, NSpace, NStep, NSteps, NSwitch, NTag, useMessage } from 'naive-ui'
+import { NAlert, NButton, NCard, NModal, NSpace, NStep, NSteps, NSwitch, NTag, useMessage, useThemeVars } from 'naive-ui'
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { hasData, uninstallPlugin, updateInstallation, type CatalogEntry, type Installation } from '@/api/plugins'
@@ -19,6 +19,13 @@ const phase = computed(() => (inst.value.deleting ? 'Uninstalling' : (inst.value
 const steps = computed(() => view.value.steps)
 const current = computed(() => currentStep(steps.value))
 const stepStatus = computed(() => (phase.value === 'Error' ? 'error' : current.value > steps.value.length ? 'finish' : 'process'))
+// Finished steps in the theme's success green (Naive uses the primary colour).
+const themeVars = useThemeVars()
+const stepsTheme = computed(() => ({
+  indicatorTextColorFinish: themeVars.value.successColor,
+  indicatorBorderColorFinish: themeVars.value.successColor,
+  splitorColorFinish: themeVars.value.successColor,
+}))
 const upgradable = computed(
   () => view.value.deployed && props.plugin.spec.version !== inst.value.spec.version && props.plugin.status.available,
 )
@@ -132,6 +139,7 @@ async function change(c: { enabled?: boolean; version?: string }) {
       <NSteps
         :current="current"
         :status="stepStatus"
+        :theme-overrides="stepsTheme"
         size="small"
       >
         <NStep
@@ -235,7 +243,11 @@ async function change(c: { enabled?: boolean; version?: string }) {
 /* Many steps do not fit narrow cards: scroll them, never clip. */
 .steps {
   overflow-x: auto;
-  padding-bottom: 4px;
+  /* Room for the indicators' borders: a scroll box clips at its edges. */
+  padding: 2px 2px 4px;
+}
+.steps :deep(.n-step-indicator) {
+  flex-shrink: 0;
 }
 .steps :deep(.n-steps) {
   min-width: max-content;
