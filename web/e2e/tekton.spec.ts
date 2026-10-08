@@ -157,7 +157,7 @@ test('create a Task and a Pipeline in the editor, start a run from the form, see
   await expect(page.locator('[data-test="graph-node-build"][data-state="Succeeded"]')).toBeVisible({ timeout: 180_000 })
   await page.getByTestId('graph-node-build').click()
   await expect(page.getByTestId('log-output')).toContainText('Building billing', { timeout: 60_000 })
-  const run = page.url().split('/').at(-1)!
+  const run = new URL(page.url()).pathname.split('/').at(-1)!
   expect(kubectl('dev-1', '-n', NS, 'get', 'pipelinerun', run, '-o', 'jsonpath={.spec.taskRunTemplate.serviceAccountName}')).toBe('pipeline')
 
   // Core's YAML tab is read-only for Tekton kinds, with a way to the editor.
