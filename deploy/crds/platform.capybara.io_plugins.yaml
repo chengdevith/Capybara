@@ -79,6 +79,14 @@ spec:
                       description: 'Patch: the JSON merge patch.'
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
+                    policy:
+                      description: |-
+                        Policy the result of a copy must pass (as for objects). Copies are
+                        then allowed only in Project namespaces.
+                      type: string
+                    projectOnly:
+                      description: 'ProjectOnly: only in Project namespaces.'
+                      type: boolean
                     resource:
                       type: string
                     title:
@@ -261,6 +269,73 @@ spec:
               name:
                 description: Name is the plugin's name (the Plugin object's name).
                 type: string
+              objects:
+                description: Objects the console may write in Project namespaces.
+                items:
+                  description: |-
+                    PluginObject is a kind the console may create, update or delete in
+                    Project namespaces, through core (validated against Policy, dry-run,
+                    audited). Plugin code never decides what is written.
+                  properties:
+                    audit:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Audit maps a verb to the audited action name (default: the verb);
+                        audited as <plugin>.<action>, e.g. create of pipelineruns as "start".
+                      type: object
+                    group:
+                      type: string
+                    kind:
+                      type: string
+                    name:
+                      description: Name identifies it in the API (usually the plural,
+                        e.g. "tasks").
+                      type: string
+                    policy:
+                      description: Policy names an entry of the plugin's policies
+                        every write must pass.
+                      type: string
+                    references:
+                      description: |-
+                        References are other plugin objects this one names (same
+                        namespace). On create they are loaded and must pass their policy.
+                      items:
+                        description: ObjectReference says the value at Path names
+                          an Object in the same namespace.
+                        properties:
+                          object:
+                            type: string
+                          path:
+                            type: string
+                        required:
+                        - object
+                        - path
+                        type: object
+                      type: array
+                    resource:
+                      type: string
+                    verbs:
+                      items:
+                        description: ObjectVerb is a write the console may make on
+                          a plugin object.
+                        enum:
+                        - create
+                        - update
+                        - delete
+                        type: string
+                      type: array
+                    version:
+                      type: string
+                  required:
+                  - group
+                  - kind
+                  - name
+                  - resource
+                  - verbs
+                  - version
+                  type: object
+                type: array
               permissions:
                 description: PluginPermissions are everything a plugin may do, shown
                   before install.
@@ -445,6 +520,62 @@ spec:
                           type: object
                         type: array
                     type: object
+                  project:
+                    description: |-
+                      Project is granted to Capybara's own account in each Project namespace
+                      of a cluster where the plugin is installed: a ClusterRole
+                      capybara-plugin-<name>-project, bound there by a RoleBinding of the
+                      same name. It also creates the listed ServiceAccounts there.
+                    properties:
+                      rules:
+                        description: Rules granted to Capybara's account in each Project
+                          namespace.
+                        items:
+                          description: |-
+                            PolicyRule mirrors an RBAC rule (kept here so this package depends only
+                            on apimachinery).
+                          properties:
+                            apiGroups:
+                              items:
+                                type: string
+                              type: array
+                            resourceNames:
+                              items:
+                                type: string
+                              type: array
+                            resources:
+                              items:
+                                type: string
+                              type: array
+                            verbs:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - verbs
+                          type: object
+                        type: array
+                      serviceAccounts:
+                        description: |-
+                          ServiceAccounts created in each Project namespace, with no
+                          permissions of their own.
+                        items:
+                          description: ProjectServiceAccount is a ServiceAccount a
+                            plugin creates per Project.
+                          properties:
+                            automountToken:
+                              description: 'AutomountToken: whether pods using it
+                                get an API token (default no).'
+                              type: boolean
+                            name:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                    required:
+                    - rules
+                    type: object
                   services:
                     description: |-
                       What the plugin backend may reach in a cluster where the plugin is
@@ -511,6 +642,73 @@ spec:
                       - paths
                       type: object
                     type: array
+                type: object
+              policies:
+                additionalProperties:
+                  description: ObjectPolicy is a closed set of rules over an object's
+                    fields.
+                  properties:
+                    include:
+                      description: Include other policies' rules first.
+                      items:
+                        type: string
+                      type: array
+                    rules:
+                      items:
+                        description: |-
+                          ObjectRule applies to every value matching Path: dotted segments, "*"
+                          any map key or list element, "**" any depth (zero or more levels).
+                          Exactly one of Deny, Allow, Default, AllowKeys/ExactlyOneOf, WithinQuota
+                          or CountQuota is set.
+                        properties:
+                          allow:
+                            description: 'Allow: a match must be one of these values.'
+                            items:
+                              type: string
+                            type: array
+                          allowKeys:
+                            description: |-
+                              AllowKeys/ExactlyOneOf: a match is a map with only these keys, and
+                              exactly one of ExactlyOneOf.
+                            items:
+                              type: string
+                            type: array
+                          countQuota:
+                            description: 'CountQuota: the number of matches must fit
+                              within this quota resource.'
+                            type: string
+                          default:
+                            description: 'Default: set this value when the (exact)
+                              path is absent.'
+                            type: string
+                          deny:
+                            description: 'Deny: a match is a violation (only when
+                              it equals Equals, if set).'
+                            type: boolean
+                          equals:
+                            type: string
+                          exactlyOneOf:
+                            items:
+                              type: string
+                            type: array
+                          message:
+                            description: Message shown for a violation.
+                            type: string
+                          path:
+                            type: string
+                          withinQuota:
+                            description: |-
+                              WithinQuota: the matches (quantities) must sum to within what the
+                              namespace's ResourceQuotas still allow for this resource.
+                            type: string
+                        required:
+                        - path
+                        type: object
+                      type: array
+                  required:
+                  - rules
+                  type: object
+                description: Policies referenced by objects (and actions), by name.
                 type: object
               repository:
                 type: string

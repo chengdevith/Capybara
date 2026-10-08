@@ -1,20 +1,23 @@
 # Pipelines (id: tekton): Tekton Pipelines, installed from the vendored
 # upstream release, or connected to a Tekton already in the cluster.
-# Viewing and safe actions only (ADR 0007): no Git, registry or credential
-# management before Phase 5.
+# Tasks, Pipelines and runs can be created, edited and started in Project
+# namespaces, within the guardrails below (ADR 0008); no Git, registry or
+# credential management before Phase 5.
 name: tekton
 displayName: Pipelines
-version: 0.1.0
+version: 0.2.0
 description: >-
-  Tekton Pipelines: Pipelines, PipelineRuns and TaskRuns with step logs;
-  rerun or cancel a run; the latest runs on each Project. Installs Tekton
+  Tekton Pipelines: create and edit Tasks and Pipelines, start runs from a
+  form, and follow PipelineRuns and TaskRuns with a graph and step logs, in
+  Project namespaces; rerun or cancel a run; the latest runs on each
+  Project. Installs Tekton
   Pipelines v1.17.0 (only the cluster resolver enabled), or connects to a
   Tekton already in the cluster (on OpenShift: OpenShift Pipelines; never
   install a second one there).
 icon: icon.svg
 extensionApi: 1
-# Uses registerResource, LogViewer, ResourceLink, useLiveList (1.1).
-minExtensionApi: "1.1"
+# Uses the YAML editor and diff, and pluginObjects (1.2).
+minExtensionApi: "1.2"
 scope: per-cluster
 modes: [install, connect]
 extensionPoints: [nav-section, nav-item, route, resource-detail-tab, resource-action, project-overview-card]
@@ -90,18 +93,133 @@ permissions:
   # adds creating that ClusterRole and binding, and holding what it grants).
   connect: {}
   # Granted to Capybara's own account on the cluster while the plugin is
-  # installed (ClusterRole capybara-plugin-tekton-console): reading Tekton's
-  # resources, and the two declared actions. create on PipelineRuns lets a
-  # run use any ServiceAccount in its namespace (Tekton does not check that
-  # the creator may); see ADR 0007.
+  # installed (ClusterRole capybara-plugin-tekton-console): reading only.
   console:
     clusterRules:
       - apiGroups: [tekton.dev]
         resources: [pipelines, pipelineruns, tasks, taskruns, customruns, stepactions]
         verbs: [get, list, watch]
+  # Writes, only in Project namespaces: a ClusterRole
+  # capybara-plugin-tekton-project bound to Capybara's account by a
+  # RoleBinding in each Project namespace, plus the Project's "pipeline"
+  # ServiceAccount (no permissions, no API token) that every run started
+  # from Capybara uses. Creating a PipelineRun could otherwise use any
+  # ServiceAccount in the namespace (Tekton does not check that the creator
+  # may); the run policy below pins it. See ADR 0008.
+  project:
+    rules:
+      - apiGroups: [tekton.dev]
+        resources: [tasks, pipelines]
+        verbs: [create, update, delete]
       - apiGroups: [tekton.dev]
         resources: [pipelineruns]
-        verbs: [create, patch]
+        verbs: [create, patch, delete]
+    serviceAccounts:
+      - name: pipeline
+
+# Kinds the console may write in Project namespaces. Core validates every
+# write against the named policy, dry-runs it, and audits it as
+# tekton.<verb> (creating a PipelineRun: tekton.start).
+objects:
+  - name: tasks
+    group: tekton.dev
+    version: v1
+    resource: tasks
+    kind: Task
+    verbs: [create, update, delete]
+    policy: workload
+  - name: pipelines
+    group: tekton.dev
+    version: v1
+    resource: pipelines
+    kind: Pipeline
+    verbs: [create, update, delete]
+    policy: workload
+    references:
+      - {path: "spec.tasks.*.taskRef.name", object: tasks}
+      - {path: "spec.finally.*.taskRef.name", object: tasks}
+  - name: pipelineruns
+    group: tekton.dev
+    version: v1
+    resource: pipelineruns
+    kind: PipelineRun
+    verbs: [create, delete]
+    policy: run
+    audit: {create: start}
+    # Starting a run checks the Pipeline and its Tasks as they are now
+    # (they may have been changed outside Capybara).
+    references:
+      - {path: "spec.pipelineRef.name", object: pipelines}
+
+# The guardrails (ADR 0008). "**" matches at any depth, so inline taskSpec
+# and pipelineSpec are covered as well.
+policies:
+  # Tasks, Pipelines, and every task or pipeline spec inside a run.
+  workload:
+    rules:
+      # No Secrets read through the environment: steps, the step template,
+      # sidecars.
+      - {path: "**.steps.*.env.*.valueFrom.secretKeyRef", deny: true, message: "steps may not read Secrets (secretKeyRef)"}
+      - {path: "**.steps.*.envFrom.*.secretRef", deny: true, message: "steps may not read Secrets (envFrom)"}
+      - {path: "**.stepTemplate.env.*.valueFrom.secretKeyRef", deny: true, message: "the step template may not read Secrets (secretKeyRef)"}
+      - {path: "**.stepTemplate.envFrom.*.secretRef", deny: true, message: "the step template may not read Secrets (envFrom)"}
+      - {path: "**.sidecars.*.env.*.valueFrom.secretKeyRef", deny: true, message: "sidecars may not read Secrets (secretKeyRef)"}
+      - {path: "**.sidecars.*.envFrom.*.secretRef", deny: true, message: "sidecars may not read Secrets (envFrom)"}
+      # Security settings beyond Pod Security "baseline": steps, the step
+      # template, sidecars.
+      - {path: "**.steps.*.securityContext.privileged", deny: true, equals: "true", message: "privileged steps are not allowed"}
+      - {path: "**.steps.*.securityContext.capabilities.add", deny: true, message: "steps may not add capabilities"}
+      - {path: "**.stepTemplate.securityContext.privileged", deny: true, equals: "true", message: "a privileged step template is not allowed"}
+      - {path: "**.stepTemplate.securityContext.capabilities.add", deny: true, message: "the step template may not add capabilities"}
+      - {path: "**.sidecars.*.securityContext.privileged", deny: true, equals: "true", message: "privileged sidecars are not allowed"}
+      - {path: "**.sidecars.*.securityContext.capabilities.add", deny: true, message: "sidecars may not add capabilities"}
+      - {path: "**.sidecars.*.ports.*.hostPort", deny: true, message: "sidecars may not use host ports"}
+      # Task volumes (steps and sidecars mount these), in a Task and in
+      # inline task specs: no Secrets, projected tokens or host paths.
+      - path: "spec.volumes.*"
+        allowKeys: [name]
+        exactlyOneOf: [emptyDir, configMap, persistentVolumeClaim]
+        message: "volumes may only be emptyDir, configMap or persistentVolumeClaim (no Secrets, projected or host volumes)"
+      - path: "**.taskSpec.volumes.*"
+        allowKeys: [name]
+        exactlyOneOf: [emptyDir, configMap, persistentVolumeClaim]
+        message: "volumes may only be emptyDir, configMap or persistentVolumeClaim (no Secrets, projected or host volumes)"
+      # StepActions are not supported yet (simpler than validating them).
+      - {path: "**.steps.*.ref", deny: true, message: "StepAction references (step ref) are not supported yet"}
+      # Only Tasks and Pipelines in the same namespace, by name.
+      - {path: "**.taskRef.resolver", deny: true, message: "remote resolvers are not allowed; name a Task in this namespace"}
+      - {path: "**.taskRef.params", deny: true, message: "remote resolvers are not allowed; name a Task in this namespace"}
+      - {path: "**.taskRef.bundle", deny: true, message: "bundles are not allowed; name a Task in this namespace"}
+      - {path: "**.taskRef.apiVersion", deny: true, message: "custom tasks are not allowed"}
+      - {path: "**.taskRef.kind", allow: [Task], message: "only Tasks (kind: Task)"}
+      - {path: "**.pipelineRef.resolver", deny: true, message: "remote resolvers are not allowed; name a Pipeline in this namespace"}
+      - {path: "**.pipelineRef.params", deny: true, message: "remote resolvers are not allowed; name a Pipeline in this namespace"}
+      - {path: "**.pipelineRef.bundle", deny: true, message: "bundles are not allowed; name a Pipeline in this namespace"}
+  # PipelineRuns started (or rerun) from Capybara.
+  run:
+    include: [workload]
+    rules:
+      # Always the Project's "pipeline" ServiceAccount.
+      - {path: spec.taskRunTemplate.serviceAccountName, default: pipeline}
+      - {path: spec.taskRunTemplate.serviceAccountName, allow: [pipeline], message: "runs started from Capybara use the Project's pipeline ServiceAccount"}
+      - {path: "spec.taskRunSpecs.*.serviceAccountName", allow: [pipeline], message: "runs started from Capybara use the Project's pipeline ServiceAccount"}
+      # Pod templates: no Secret volumes or environment, no host network,
+      # no image pull Secrets.
+      - path: "**.podTemplate.volumes.*"
+        allowKeys: [name]
+        exactlyOneOf: [emptyDir, configMap, persistentVolumeClaim]
+        message: "pod template volumes may only be emptyDir, configMap or persistentVolumeClaim (no Secrets)"
+      - {path: "**.podTemplate.env.*.valueFrom.secretKeyRef", deny: true, message: "the pod template may not read Secrets"}
+      - {path: "**.podTemplate.imagePullSecrets", deny: true, message: "image pull Secrets are not allowed"}
+      - {path: "**.podTemplate.hostNetwork", deny: true, equals: "true", message: "host network is not allowed"}
+      # Workspaces: emptyDir, a volume claim within the Project's quota, or
+      # a ConfigMap; never a Secret.
+      - path: "spec.workspaces.*"
+        allowKeys: [name, subPath]
+        exactlyOneOf: [emptyDir, volumeClaimTemplate, configMap]
+        message: "workspaces may only be emptyDir, a volumeClaimTemplate or a configMap (no Secrets)"
+      - {path: "spec.workspaces.*.volumeClaimTemplate.spec.resources.requests.storage", withinQuota: requests.storage, message: "the volume claims exceed the Project's storage quota"}
+      - {path: "spec.workspaces.*.volumeClaimTemplate", countQuota: persistentvolumeclaims, message: "too many volume claims for the Project's quota"}
 
 # Writes the console may make, only as declared here (core runs them,
 # audited as tekton.<action>).
@@ -113,6 +231,10 @@ actions:
     resource: pipelineruns
     kind: PipelineRun
     type: copy
+    # Only in Project namespaces, and the copy must pass the run policy (a
+    # run naming another ServiceAccount is refused: start a new one).
+    projectOnly: true
+    policy: run
     # A new run of the same pipeline (an inline pipelineSpec only when the
     # original had one); never its status or cancel state.
     copyFields: [spec.pipelineRef, spec.pipelineSpec, spec.params, spec.workspaces, spec.taskRunTemplate, spec.timeouts]
@@ -125,6 +247,7 @@ actions:
     type: patch
     patch: {spec: {status: Cancelled}}
     when: {type: Succeeded, status: [Unknown]}
+    projectOnly: true
     danger: true
 
 steps:

@@ -26,7 +26,7 @@ import (
 // declares the lowest 1.M it works with (minExtensionApi).
 const (
 	ExtensionAPIVersion = 1 // major
-	ExtensionAPIMinor   = 1
+	ExtensionAPIMinor   = 2
 )
 
 // CheckExtensionAPI says why a plugin needing major and min ("1.M", empty
@@ -55,26 +55,28 @@ const maxIconBytes = 16 << 10
 
 // Manifest is plugins/<name>/plugin.yaml.
 type Manifest struct {
-	Name                string                     `json:"name"`
-	DisplayName         string                     `json:"displayName"`
-	Version             string                     `json:"version"`
-	Description         string                     `json:"description,omitempty"`
-	Icon                string                     `json:"icon,omitempty"`
-	ExtensionAPI        int                        `json:"extensionApi"`
-	MinExtensionAPI     string                     `json:"minExtensionApi,omitempty"`
-	Scope               string                     `json:"scope"`
-	Modes               []v1alpha1.InstallMode     `json:"modes"`
-	ExtensionPoints     []string                   `json:"extensionPoints,omitempty"`
-	Backend             string                     `json:"backend,omitempty"`
-	Chart               *v1alpha1.ChartRef         `json:"chart,omitempty"`
-	UI                  *v1alpha1.UIBundle         `json:"ui,omitempty"`
-	Config              *ConfigSection             `json:"config,omitempty"`
-	ConnectNamespaceKey string                     `json:"connectNamespaceKey,omitempty"`
-	Permissions         v1alpha1.PluginPermissions `json:"permissions,omitempty"`
-	Steps               []v1alpha1.InstallStep     `json:"steps,omitempty"`
-	Dependencies        []string                   `json:"dependencies,omitempty"`
-	Actions             []v1alpha1.PluginAction    `json:"actions,omitempty"`
-	Detect              *v1alpha1.Detect           `json:"detect,omitempty"`
+	Name                string                           `json:"name"`
+	DisplayName         string                           `json:"displayName"`
+	Version             string                           `json:"version"`
+	Description         string                           `json:"description,omitempty"`
+	Icon                string                           `json:"icon,omitempty"`
+	ExtensionAPI        int                              `json:"extensionApi"`
+	MinExtensionAPI     string                           `json:"minExtensionApi,omitempty"`
+	Scope               string                           `json:"scope"`
+	Modes               []v1alpha1.InstallMode           `json:"modes"`
+	ExtensionPoints     []string                         `json:"extensionPoints,omitempty"`
+	Backend             string                           `json:"backend,omitempty"`
+	Chart               *v1alpha1.ChartRef               `json:"chart,omitempty"`
+	UI                  *v1alpha1.UIBundle               `json:"ui,omitempty"`
+	Config              *ConfigSection                   `json:"config,omitempty"`
+	ConnectNamespaceKey string                           `json:"connectNamespaceKey,omitempty"`
+	Permissions         v1alpha1.PluginPermissions       `json:"permissions,omitempty"`
+	Steps               []v1alpha1.InstallStep           `json:"steps,omitempty"`
+	Dependencies        []string                         `json:"dependencies,omitempty"`
+	Actions             []v1alpha1.PluginAction          `json:"actions,omitempty"`
+	Objects             []v1alpha1.PluginObject          `json:"objects,omitempty"`
+	Policies            map[string]v1alpha1.ObjectPolicy `json:"policies,omitempty"`
+	Detect              *v1alpha1.Detect                 `json:"detect,omitempty"`
 }
 
 // ConfigSection holds the installation config schema.
@@ -194,8 +196,11 @@ func ParseManifest(raw []byte) (*Manifest, error) {
 	if m.MinExtensionAPI != "" && !regexp.MustCompile(`^\d+\.\d+$`).MatchString(m.MinExtensionAPI) {
 		add("minExtensionApi must look like 1.1")
 	}
+	problems = append(problems, validateProjectAccess(m.Permissions.Project)...)
+	problems = append(problems, validatePolicies(m.Policies)...)
+	problems = append(problems, validateObjects(m.Objects, m.Policies, m.Permissions.Project)...)
 	for _, a := range m.Actions {
-		problems = append(problems, validateAction(a, m.Permissions.Console)...)
+		problems = append(problems, validateAction(a, m.Permissions, m.Policies)...)
 	}
 	if d := m.Detect; d != nil {
 		for _, r := range d.APIResources {
@@ -270,8 +275,9 @@ func validateStep(st v1alpha1.InstallStep, services []v1alpha1.ServiceAccess) []
 }
 
 // validateAction checks an action is well formed and that the console
-// permissions allow it (create for copy, patch for patch).
-func validateAction(a v1alpha1.PluginAction, console v1alpha1.RuleSet) []string {
+// permissions allow it (create for copy, patch for patch), or for a
+// Project-only action, the per-Project grant.
+func validateAction(a v1alpha1.PluginAction, perms v1alpha1.PluginPermissions, policies map[string]v1alpha1.ObjectPolicy) []string {
 	var problems []string
 	add := func(format string, args ...any) {
 		problems = append(problems, fmt.Sprintf("action %q: "+format, append([]any{a.Name}, args...)...))
@@ -301,8 +307,104 @@ func validateAction(a v1alpha1.PluginAction, console v1alpha1.RuleSet) []string 
 	default:
 		add("unknown type %q", a.Type)
 	}
-	if !allows(toRBAC(console.ClusterRules), a.Group, a.Resource, verb) {
+	if a.Policy != "" {
+		if _, ok := policies[a.Policy]; !ok {
+			add("no policy %q", a.Policy)
+		}
+		if !a.ProjectOnly {
+			add("an action with a policy must be projectOnly")
+		}
+	}
+	if a.ProjectOnly {
+		if perms.Project == nil || !allows(toRBAC(perms.Project.Rules), a.Group, a.Resource, verb) {
+			add("permissions.project must allow %s on %s", verb, a.Resource)
+		}
+	} else if !allows(toRBAC(perms.Console.ClusterRules), a.Group, a.Resource, verb) {
 		add("permissions.console must allow %s on %s", verb, a.Resource)
+	}
+	return problems
+}
+
+func validateProjectAccess(pa *v1alpha1.ProjectAccess) []string {
+	if pa == nil {
+		return nil
+	}
+	var problems []string
+	if len(pa.Rules) == 0 {
+		problems = append(problems, "permissions.project needs rules")
+	}
+	for _, sa := range pa.ServiceAccounts {
+		if !dnsRE.MatchString(sa.Name) {
+			problems = append(problems, fmt.Sprintf("permissions.project: service account %q is not a DNS name", sa.Name))
+		}
+	}
+	return problems
+}
+
+func validatePolicies(policies map[string]v1alpha1.ObjectPolicy) []string {
+	var problems []string
+	for name, p := range policies {
+		if _, err := ResolvePolicy(policies, name); err != nil {
+			problems = append(problems, err.Error())
+		}
+		for i, r := range p.Rules {
+			at := fmt.Sprintf("policy %q rule %d", name, i)
+			if err := ValidatePath(r.Path); err != nil {
+				problems = append(problems, at+": "+err.Error())
+			}
+			kinds := 0
+			for _, set := range []bool{r.Deny, len(r.Allow) > 0, r.Default != "", len(r.AllowKeys) > 0 || len(r.ExactlyOneOf) > 0, r.WithinQuota != "", r.CountQuota != ""} {
+				if set {
+					kinds++
+				}
+			}
+			if kinds != 1 {
+				problems = append(problems, at+": needs exactly one of deny, allow, default, allowKeys/exactlyOneOf, withinQuota, countQuota")
+			}
+			if r.Equals != "" && !r.Deny {
+				problems = append(problems, at+": equals goes with deny")
+			}
+		}
+	}
+	return problems
+}
+
+func validateObjects(objects []v1alpha1.PluginObject, policies map[string]v1alpha1.ObjectPolicy, project *v1alpha1.ProjectAccess) []string {
+	var problems []string
+	names := map[string]bool{}
+	for _, o := range objects {
+		names[o.Name] = true
+	}
+	for _, o := range objects {
+		add := func(format string, args ...any) {
+			problems = append(problems, fmt.Sprintf("object %q: "+format, append([]any{o.Name}, args...)...))
+		}
+		if !dnsRE.MatchString(o.Name) || !dnsRE.MatchString(o.Resource) || o.Version == "" || o.Kind == "" {
+			add("needs a name, group, version, resource and kind")
+		}
+		if len(o.Verbs) == 0 {
+			add("needs verbs")
+		}
+		if o.Policy != "" {
+			if _, ok := policies[o.Policy]; !ok {
+				add("no policy %q", o.Policy)
+			}
+		}
+		for _, v := range o.Verbs {
+			if project == nil || !allows(toRBAC(project.Rules), o.Group, o.Resource, string(v)) {
+				add("permissions.project must allow %s on %s", v, o.Resource)
+			}
+		}
+		for verb, action := range o.Audit {
+			if !slices.Contains(o.Verbs, v1alpha1.ObjectVerb(verb)) || !nameRE.MatchString(action) {
+				add("audit maps %q to %q: needs a declared verb and a DNS-label action", verb, action)
+			}
+		}
+		for _, ref := range o.References {
+			if err := ValidatePath(ref.Path); err != nil || !names[ref.Object] {
+				add("reference %q -> %q: needs a valid path and a declared object", ref.Path, ref.Object)
+			}
+		}
 	}
 	return problems
 }
@@ -326,6 +428,7 @@ func LoadDir(dir, repository string) (*Manifest, *v1alpha1.PluginSpec, error) {
 		Chart: m.Chart, UI: m.UI, Backend: m.Backend, Permissions: m.Permissions, Steps: m.Steps,
 		Dependencies: m.Dependencies, ConnectNamespaceKey: m.ConnectNamespaceKey,
 		MinExtensionAPI: m.MinExtensionAPI, Actions: m.Actions, Detect: m.Detect,
+		Objects: m.Objects, Policies: m.Policies,
 	}
 	if m.Config != nil {
 		b, _ := json.Marshal(m.Config.Schema)

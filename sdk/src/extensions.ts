@@ -14,8 +14,10 @@ export const EXTENSION_API_VERSION = 1
  * 1.0  extension points, register()
  * 1.1  registerResource(), components (LogViewer, ResourceLink),
  *      composables (useLiveList), pluginAction()
+ * 1.2  components (YamlEditor, YamlDiff), pluginObjects (validate,
+ *      create, update, remove, cleanup) for declared plugin objects
  */
-export const EXTENSION_API_MINOR = 1
+export const EXTENSION_API_MINOR = 2
 
 /** What an extension's `when` predicate can look at. */
 export interface ExtensionContext {

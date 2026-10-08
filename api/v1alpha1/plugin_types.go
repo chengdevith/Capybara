@@ -191,6 +191,114 @@ type PluginPermissions struct {
 	// actions. Only ClusterRules are used.
 	// +optional
 	Console RuleSet `json:"console,omitempty"`
+	// Project is granted to Capybara's own account in each Project namespace
+	// of a cluster where the plugin is installed: a ClusterRole
+	// capybara-plugin-<name>-project, bound there by a RoleBinding of the
+	// same name. It also creates the listed ServiceAccounts there.
+	// +optional
+	Project *ProjectAccess `json:"project,omitempty"`
+}
+
+// ProjectAccess is what a plugin gets in every Project namespace.
+type ProjectAccess struct {
+	// Rules granted to Capybara's account in each Project namespace.
+	Rules []PolicyRule `json:"rules"`
+	// ServiceAccounts created in each Project namespace, with no
+	// permissions of their own.
+	// +optional
+	ServiceAccounts []ProjectServiceAccount `json:"serviceAccounts,omitempty"`
+}
+
+// ProjectServiceAccount is a ServiceAccount a plugin creates per Project.
+type ProjectServiceAccount struct {
+	Name string `json:"name"`
+	// AutomountToken: whether pods using it get an API token (default no).
+	// +optional
+	AutomountToken bool `json:"automountToken,omitempty"`
+}
+
+// ObjectVerb is a write the console may make on a plugin object.
+// +kubebuilder:validation:Enum=create;update;delete
+type ObjectVerb string
+
+// Object verbs.
+const (
+	ObjectCreate ObjectVerb = "create"
+	ObjectUpdate ObjectVerb = "update"
+	ObjectDelete ObjectVerb = "delete"
+)
+
+// PluginObject is a kind the console may create, update or delete in
+// Project namespaces, through core (validated against Policy, dry-run,
+// audited). Plugin code never decides what is written.
+type PluginObject struct {
+	// Name identifies it in the API (usually the plural, e.g. "tasks").
+	Name     string       `json:"name"`
+	Group    string       `json:"group"`
+	Version  string       `json:"version"`
+	Resource string       `json:"resource"`
+	Kind     string       `json:"kind"`
+	Verbs    []ObjectVerb `json:"verbs"`
+	// Policy names an entry of the plugin's policies every write must pass.
+	// +optional
+	Policy string `json:"policy,omitempty"`
+	// Audit maps a verb to the audited action name (default: the verb);
+	// audited as <plugin>.<action>, e.g. create of pipelineruns as "start".
+	// +optional
+	Audit map[string]string `json:"audit,omitempty"`
+	// References are other plugin objects this one names (same
+	// namespace). On create they are loaded and must pass their policy.
+	// +optional
+	References []ObjectReference `json:"references,omitempty"`
+}
+
+// ObjectReference says the value at Path names an Object in the same namespace.
+type ObjectReference struct {
+	Path   string `json:"path"`
+	Object string `json:"object"`
+}
+
+// ObjectPolicy is a closed set of rules over an object's fields.
+type ObjectPolicy struct {
+	// Include other policies' rules first.
+	// +optional
+	Include []string     `json:"include,omitempty"`
+	Rules   []ObjectRule `json:"rules"`
+}
+
+// ObjectRule applies to every value matching Path: dotted segments, "*"
+// any map key or list element, "**" any depth (zero or more levels).
+// Exactly one of Deny, Allow, Default, AllowKeys/ExactlyOneOf, WithinQuota
+// or CountQuota is set.
+type ObjectRule struct {
+	Path string `json:"path"`
+	// Deny: a match is a violation (only when it equals Equals, if set).
+	// +optional
+	Deny bool `json:"deny,omitempty"`
+	// +optional
+	Equals string `json:"equals,omitempty"`
+	// Allow: a match must be one of these values.
+	// +optional
+	Allow []string `json:"allow,omitempty"`
+	// Default: set this value when the (exact) path is absent.
+	// +optional
+	Default string `json:"default,omitempty"`
+	// AllowKeys/ExactlyOneOf: a match is a map with only these keys, and
+	// exactly one of ExactlyOneOf.
+	// +optional
+	AllowKeys []string `json:"allowKeys,omitempty"`
+	// +optional
+	ExactlyOneOf []string `json:"exactlyOneOf,omitempty"`
+	// WithinQuota: the matches (quantities) must sum to within what the
+	// namespace's ResourceQuotas still allow for this resource.
+	// +optional
+	WithinQuota string `json:"withinQuota,omitempty"`
+	// CountQuota: the number of matches must fit within this quota resource.
+	// +optional
+	CountQuota string `json:"countQuota,omitempty"`
+	// Message shown for a violation.
+	// +optional
+	Message string `json:"message,omitempty"`
 }
 
 // ActionType is what a declared plugin action does.
@@ -238,6 +346,13 @@ type PluginAction struct {
 	// When: only for objects matching this condition.
 	// +optional
 	When *ActionCondition `json:"when,omitempty"`
+	// Policy the result of a copy must pass (as for objects). Copies are
+	// then allowed only in Project namespaces.
+	// +optional
+	Policy string `json:"policy,omitempty"`
+	// ProjectOnly: only in Project namespaces.
+	// +optional
+	ProjectOnly bool `json:"projectOnly,omitempty"`
 	// Danger: shown in red and confirmed.
 	// +optional
 	Danger bool `json:"danger,omitempty"`
@@ -415,6 +530,12 @@ type PluginSpec struct {
 	Steps []InstallStep `json:"steps,omitempty"`
 	// +optional
 	Actions []PluginAction `json:"actions,omitempty"`
+	// Objects the console may write in Project namespaces.
+	// +optional
+	Objects []PluginObject `json:"objects,omitempty"`
+	// Policies referenced by objects (and actions), by name.
+	// +optional
+	Policies map[string]ObjectPolicy `json:"policies,omitempty"`
 	// +optional
 	Detect *Detect `json:"detect,omitempty"`
 	// Namespace for connect mode's backend account when the config does not

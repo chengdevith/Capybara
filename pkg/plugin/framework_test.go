@@ -33,7 +33,8 @@ func TestCheckExtensionAPI(t *testing.T) {
 		{1, "", true},
 		{1, "1.0", true},
 		{1, "1.1", true},
-		{1, "1.2", false},
+		{1, "1.2", true},
+		{1, "1.3", false},
 		{2, "", false},
 		{1, "2.0", false},
 		{1, "x", false},
@@ -43,7 +44,7 @@ func TestCheckExtensionAPI(t *testing.T) {
 			t.Errorf("%d %q: %q", c.major, c.min, why)
 		}
 	}
-	if why := CheckExtensionAPI(1, "1.9"); !strings.Contains(why, "needs extension API 1.9; this Capybara provides 1.1") {
+	if why := CheckExtensionAPI(1, "1.9"); !strings.Contains(why, "needs extension API 1.9; this Capybara provides 1.2") {
 		t.Errorf("message = %q", why)
 	}
 }
