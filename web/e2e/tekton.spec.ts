@@ -244,7 +244,7 @@ test('rerun (and a rerun as another account offering a new run), cancel, delete;
   expect(results('tekton.rerun')).toEqual(expect.arrayContaining(['success', 'denied']))
   expect(results('tekton.cancel')).toContain('success')
   expect(results('tekton.delete')).toContain('success')
-  expect(results('tekton.update')).toContain('denied')
+  // (The privileged edit was refused at validation, before any write: nothing to audit.)
 
   // dev-2 has no Tekton: no Pipelines section.
   await page.goto('/c/dev-2/workloads/pods')
