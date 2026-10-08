@@ -22,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -361,7 +362,7 @@ func TestProjectAccessFollowsProjects(t *testing.T) {
 		ServiceAccounts: []v1alpha1.ProjectServiceAccount{{Name: "pipeline"}},
 		// One generated object per Project, in the plugin's namespace (as
 		// Argo CD's AppProject is).
-		Objects: []v1alpha1.ProjectObject{{InPluginNamespace: true, Template: runtime.RawExtension{Raw: []byte(
+		Objects: []v1alpha1.ProjectObject{{InPluginNamespace: true, Resource: "configmaps", Template: runtime.RawExtension{Raw: []byte(
 			`{"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": "project-{{project}}"}, "data": {"ns": "{{namespace}}", "cluster": "{{cluster}}", "home": "{{pluginNamespace}}"}}`)}}},
 	}
 	p := &v1alpha1.Plugin{ObjectMeta: metav1.ObjectMeta{Name: "widgets"}, Spec: *spec}
@@ -480,14 +481,26 @@ func TestInstallerRulesSufficeForProjectAccess(t *testing.T) {
 	spec := &v1alpha1.PluginSpec{Name: "widgets", Permissions: v1alpha1.PluginPermissions{Project: &v1alpha1.ProjectAccess{
 		Rules:           []v1alpha1.PolicyRule{{APIGroups: []string{"example.com"}, Resources: []string{"widgets"}, Verbs: []string{"create", "update", "delete"}}},
 		ServiceAccounts: []v1alpha1.ProjectServiceAccount{{Name: "pipeline"}},
+		Objects: []v1alpha1.ProjectObject{{InPluginNamespace: true, Resource: "configmaps", Template: runtime.RawExtension{Raw: []byte(
+			`{"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": "project-{{project}}"}}`)}}},
 	}}}
-	rules, _ := InstallerRules(spec, v1alpha1.ModeConnect, nil, "")
+	rules, nsRules := InstallerRules(spec, v1alpha1.ModeConnect, nil, "widgets-home")
 	role := &rbacv1.ClusterRole{ObjectMeta: metav1.ObjectMeta{Name: "test-installer"}, Rules: rules}
 	if _, err := f.cs.RbacV1().ClusterRoles().Create(ctx, role, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.cs.RbacV1().ClusterRoleBindings().Create(ctx, &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: "test-installer"},
 		RoleRef:  rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: "test-installer"},
+		Subjects: []rbacv1.Subject{{Kind: "User", APIGroup: rbacv1.GroupName, Name: "least-installer"}}}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	// Namespace rules: a Role in the plugin's namespace.
+	_ = f.c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "widgets-home"}})
+	if _, err := f.cs.RbacV1().Roles("widgets-home").Create(ctx, &rbacv1.Role{ObjectMeta: metav1.ObjectMeta{Name: "test-installer"}, Rules: nsRules}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.cs.RbacV1().RoleBindings("widgets-home").Create(ctx, &rbacv1.RoleBinding{ObjectMeta: metav1.ObjectMeta{Name: "test-installer"},
+		RoleRef:  rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "Role", Name: "test-installer"},
 		Subjects: []rbacv1.Subject{{Kind: "User", APIGroup: rbacv1.GroupName, Name: "least-installer"}}}, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
@@ -500,6 +513,13 @@ func TestInstallerRulesSufficeForProjectAccess(t *testing.T) {
 	res, err := syncProjectAccess(ctx, cs, "widgets", "dev-1", "system:serviceaccount:capybara-system:capybara", spec.Permissions.Project, []string{"team-z"})
 	if err != nil || len(res.Granted) != 1 {
 		t.Fatalf("grant as the installer: %+v %v", res, err)
+	}
+	dyn := dynamic.NewForConfigOrDie(u.Config())
+	if problems, err := syncProjectObjects(ctx, dyn, "widgets", "dev-1", "widgets-home", spec.Permissions.Project.Objects, []ProjectRef{{Name: "team-z", Namespace: "team-z"}}); err != nil || len(problems) > 0 {
+		t.Fatalf("generated objects as the installer: %v %v", problems, err)
+	}
+	if _, err := syncProjectObjects(ctx, dyn, "widgets", "dev-1", "widgets-home", spec.Permissions.Project.Objects, nil); err != nil {
+		t.Fatalf("remove generated objects as the installer: %v", err)
 	}
 	if _, err := syncProjectAccess(ctx, cs, "widgets", "dev-1", "", spec.Permissions.Project, nil); err != nil {
 		t.Fatalf("revoke as the installer: %v", err)

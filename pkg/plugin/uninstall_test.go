@@ -226,3 +226,23 @@ func TestAPIRefusesUninstallWhileBlockersExist(t *testing.T) {
 		t.Fatalf("uninstall without Gadgets: %d %v", code, body)
 	}
 }
+
+// A patch's null (merge patch: remove the field, e.g. turning auto-sync
+// off) survives storage in the Plugin CRD.
+func TestActionPatchKeepsNull(t *testing.T) {
+	f := newEnv(t)
+	p := &v1alpha1.Plugin{ObjectMeta: metav1.ObjectMeta{Name: "nulls"}, Spec: v1alpha1.PluginSpec{Name: "nulls", DisplayName: "Nulls", Version: "1.0.0",
+		ExtensionAPI: 1, Scope: "per-cluster", Modes: []v1alpha1.InstallMode{v1alpha1.ModeConnect},
+		Actions: []v1alpha1.PluginAction{{Name: "off", Title: "Off", Group: "argoproj.io", Version: "v1alpha1", Resource: "applications", Kind: "Application",
+			Type: v1alpha1.ActionPatch, Patch: &runtime.RawExtension{Raw: []byte(`{"spec":{"syncPolicy":{"automated":null}}}`)}}}}}
+	if err := f.c.Create(f.ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	var got v1alpha1.Plugin
+	if err := f.c.Get(f.ctx, types.NamespacedName{Name: "nulls"}, &got); err != nil {
+		t.Fatal(err)
+	}
+	if raw := string(got.Spec.Actions[0].Patch.Raw); raw != `{"spec":{"syncPolicy":{"automated":null}}}` {
+		t.Errorf("stored patch = %s", raw)
+	}
+}

@@ -212,8 +212,13 @@ func conditionBlocks(obj *unstructured.Unstructured, when *v1alpha1.ActionCondit
 		return ""
 	}
 	for _, f := range when.Absent {
-		if v, ok, _ := unstructured.NestedFieldNoCopy(obj.Object, strings.Split(f, ".")...); ok && v != nil {
+		if v, ok, _ := unstructured.NestedFieldNoCopy(obj.Object, SplitDotted(f)...); ok && v != nil {
 			return f + " is set"
+		}
+	}
+	for _, f := range when.Present {
+		if v, ok, _ := unstructured.NestedFieldNoCopy(obj.Object, SplitDotted(f)...); !ok || v == nil {
+			return f + " is not set"
 		}
 	}
 	if when.Type == "" {
@@ -231,6 +236,26 @@ func conditionBlocks(obj *unstructured.Unstructured, when *v1alpha1.ActionCondit
 		return ""
 	}
 	return fmt.Sprintf("%s is %s", when.Type, status)
+}
+
+// SplitDotted splits a dotted path; "\." is a dot inside a key (e.g.
+// data.application\.namespaces).
+func SplitDotted(path string) []string {
+	var out []string
+	var cur strings.Builder
+	for i := 0; i < len(path); i++ {
+		switch {
+		case path[i] == '\\' && i+1 < len(path) && path[i+1] == '.':
+			cur.WriteByte('.')
+			i++
+		case path[i] == '.':
+			out = append(out, cur.String())
+			cur.Reset()
+		default:
+			cur.WriteByte(path[i])
+		}
+	}
+	return append(out, cur.String())
 }
 
 // needsConfirm: the action asks for the name (always, or for one input value).

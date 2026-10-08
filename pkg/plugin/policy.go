@@ -73,7 +73,7 @@ func SubstituteRules(rules []v1alpha1.ObjectRule, vars map[string]string) []v1al
 	}
 	out := make([]v1alpha1.ObjectRule, len(rules))
 	for i, r := range rules {
-		r.Equals, r.Default, r.Match = fill(r.Equals, false), fill(r.Default, false), fill(r.Match, true)
+		r.Equals, r.Default, r.Match, r.Message = fill(r.Equals, false), fill(r.Default, false), fill(r.Match, true), fill(r.Message, false)
 		allow := make([]string, len(r.Allow))
 		for j, a := range r.Allow {
 			allow[j] = fill(a, false)

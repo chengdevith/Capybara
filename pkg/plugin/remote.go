@@ -202,8 +202,9 @@ func ServiceProxyPath(s Service, pathAndQuery string) string {
 }
 
 // ForeignObjects lists objects of the given CRDs not created by the
-// release (namespace/name of the Helm release annotations), sorted.
-func ForeignObjects(ctx context.Context, dyn dynamic.Interface, crdNames []string, release, releaseNS string) ([]string, error) {
+// release (namespace/name of the Helm release annotations) nor labelled as
+// the plugin's (generated per-Project objects, chart hooks), sorted.
+func ForeignObjects(ctx context.Context, dyn dynamic.Interface, crdNames []string, plugin, release, releaseNS string) ([]string, error) {
 	crdGVR := schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"}
 	var out []string
 	for _, name := range crdNames {
@@ -228,6 +229,9 @@ func ForeignObjects(ctx context.Context, dyn dynamic.Interface, crdNames []strin
 		for _, o := range list.Items {
 			a := o.GetAnnotations()
 			if a["meta.helm.sh/release-name"] == release && a["meta.helm.sh/release-namespace"] == releaseNS {
+				continue
+			}
+			if o.GetLabels()[v1alpha1.LabelPlugin] == plugin {
 				continue
 			}
 			ref := o.GetName()
@@ -557,7 +561,7 @@ func fieldCheck(ctx context.Context, cfg *rest.Config, checks []v1alpha1.FieldCh
 			}
 		}
 		for _, o := range objs {
-			v, ok, _ := unstructured.NestedFieldNoCopy(o.Object, strings.Split(c.Path, ".")...)
+			v, ok, _ := unstructured.NestedFieldNoCopy(o.Object, SplitDotted(c.Path)...)
 			if !ok {
 				continue
 			}

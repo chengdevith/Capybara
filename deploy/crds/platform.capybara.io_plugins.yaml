@@ -147,6 +147,11 @@ spec:
                           items:
                             type: string
                           type: array
+                        present:
+                          description: 'Present: dotted paths that must be set.'
+                          items:
+                            type: string
+                          type: array
                         status:
                           items:
                             type: string
@@ -208,7 +213,8 @@ spec:
                   installValues:
                     description: |-
                       InstallValues are merged over the preset per installation; the
-                      string "{{cluster}}" is replaced by the cluster id.
+                      string "{{cluster}}" is replaced by the cluster id, and
+                      "{{config.<key>}}" by that installation config value.
                     type: object
                     x-kubernetes-preserve-unknown-fields: true
                   namespace:
@@ -632,10 +638,17 @@ spec:
                                 InPluginNamespace: created in the plugin's namespace (the tool's own,
                                 e.g. argocd), not the Project's.
                               type: boolean
+                            resource:
+                              description: |-
+                                Resource (plural) of the template's kind: the installer's permissions
+                                for it are derived from this (get, list, create, patch, delete; in
+                                the plugin's namespace when InPluginNamespace).
+                              type: string
                             template:
                               type: object
                               x-kubernetes-preserve-unknown-fields: true
                           required:
+                          - resource
                           - template
                           type: object
                         type: array
@@ -868,8 +881,8 @@ spec:
                                 type: string
                               path:
                                 description: |-
-                                  Path (dotted) whose value (a string, or a list's items) must contain
-                                  Contains.
+                                  Path (dotted; "\." for a dot inside a key) whose value (a string,
+                                  a comma-separated list, or a list's items) must contain Contains.
                                 type: string
                               resource:
                                 type: string

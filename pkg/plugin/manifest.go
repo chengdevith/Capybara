@@ -361,10 +361,10 @@ func validateAction(a v1alpha1.PluginAction, perms v1alpha1.PluginPermissions, p
 		add("confirmName names undeclared input %q", c.Input)
 	}
 	if w := a.When; w != nil {
-		if w.Type == "" && len(w.Absent) == 0 {
-			add("when needs a condition type or absent fields")
+		if w.Type == "" && len(w.Absent) == 0 && len(w.Present) == 0 {
+			add("when needs a condition type, absent or present fields")
 		}
-		for _, f := range w.Absent {
+		for _, f := range append(slices.Clone(w.Absent), w.Present...) {
 			if err := ValidatePath(f); err != nil {
 				add("when.absent %q: %v", f, err)
 			}

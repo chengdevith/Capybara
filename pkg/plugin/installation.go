@@ -20,12 +20,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -341,19 +338,6 @@ func (r *InstallationReconciler) projects(ctx context.Context, clusterID string)
 	return out, nil
 }
 
-// projectObjectClients reaches a cluster for generated per-Project objects.
-func projectObjectClients(cfg *rest.Config) (dynamic.Interface, meta.RESTMapper, error) {
-	dyn, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		return nil, nil, err
-	}
-	dc, err := discovery.NewDiscoveryClientForConfig(cfg)
-	if err != nil {
-		return nil, nil, err
-	}
-	return dyn, restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc)), nil
-}
-
 // syncProjects keeps the plugin's per-Project access in step with the
 // cluster's Projects (with the installer credential) and reports it in the
 // ProjectAccess condition.
@@ -365,11 +349,11 @@ func (r *InstallationReconciler) syncProjectObjects(ctx context.Context, in *v1a
 	if err != nil {
 		return nil, err
 	}
-	dyn, mapper, err := projectObjectClients(inst)
+	dyn, err := dynamic.NewForConfig(inst)
 	if err != nil {
 		return nil, err
 	}
-	return syncProjectObjects(ctx, dyn, mapper, p.Name, in.Spec.Cluster, ns, p.Spec.Permissions.Project.Objects, projects)
+	return syncProjectObjects(ctx, dyn, p.Name, in.Spec.Cluster, ns, p.Spec.Permissions.Project.Objects, projects)
 }
 
 func (r *InstallationReconciler) syncProjects(ctx context.Context, in *v1alpha1.PluginInstallation, p *v1alpha1.Plugin,
@@ -783,7 +767,7 @@ func (r *InstallationReconciler) scanCRDs(ctx context.Context, in *v1alpha1.Plug
 	if err != nil {
 		return nil, nil, err
 	}
-	foreign, err := ForeignObjects(ctx, dyn, crds, p.Spec.Chart.ReleaseName, p.Spec.Chart.Namespace)
+	foreign, err := ForeignObjects(ctx, dyn, crds, p.Name, p.Spec.Chart.ReleaseName, p.Spec.Chart.Namespace)
 	return crds, foreign, err
 }
 
@@ -984,7 +968,7 @@ func (r *InstallationReconciler) removeCRDs(ctx context.Context, ref string, in 
 		return err
 	}
 	op := audit.Op{Cluster: in.Spec.Cluster, Kind: "CustomResourceDefinition", Name: strings.Join(crds, ","), Action: "remove-crds", Ref: ref}
-	foreign, err := ForeignObjects(ctx, dyn, crds, p.Spec.Chart.ReleaseName, p.Spec.Chart.Namespace)
+	foreign, err := ForeignObjects(ctx, dyn, crds, p.Name, p.Spec.Chart.ReleaseName, p.Spec.Chart.Namespace)
 	if err != nil {
 		return err
 	}

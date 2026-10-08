@@ -87,6 +87,13 @@ func TestNeedsConfirmAndConditions(t *testing.T) {
 	if why := conditionBlocks(app, rollback); why != "spec.sources is set" {
 		t.Errorf("rollback of a multi-source app: %q", why)
 	}
+	selfHeal := &v1alpha1.ActionCondition{Present: []string{"spec.syncPolicy.automated"}}
+	if why := conditionBlocks(app, selfHeal); why != "spec.syncPolicy.automated is not set" {
+		t.Errorf("self-heal without auto-sync: %q", why)
+	}
+	if got := SplitDotted(`data.application\.namespaces`); len(got) != 2 || got[1] != "application.namespaces" {
+		t.Errorf("SplitDotted = %q", got)
+	}
 	// Status conditions still work, and both parts must hold.
 	run := &unstructured.Unstructured{Object: map[string]any{"status": map[string]any{"conditions": []any{map[string]any{"type": "Succeeded", "status": "True"}}}}}
 	if why := conditionBlocks(run, &v1alpha1.ActionCondition{Type: "Succeeded", Status: []string{"Unknown"}}); why != "Succeeded is True" {

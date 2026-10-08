@@ -303,6 +303,9 @@ func TestForeignObjects(t *testing.T) {
 		if ours {
 			o.SetAnnotations(map[string]string{"meta.helm.sh/release-name": "rel", "meta.helm.sh/release-namespace": "monitoring"})
 		}
+		if name == "generated" {
+			o.SetLabels(map[string]string{v1alpha1.LabelPlugin: "monitoring"})
+		}
 		var err error
 		for i := 0; i < 20; i++ {
 			if _, err = widgets.Namespace(ns).Create(ctx, o, metav1.CreateOptions{}); err == nil {
@@ -314,7 +317,8 @@ func TestForeignObjects(t *testing.T) {
 	}
 	mk("monitoring", "mine", true)
 	mk("default", "theirs", false)
-	got, err := ForeignObjects(ctx, dyn, []string{"widgets.example.com", "missing.example.com"}, "rel", "monitoring")
+	mk("default", "generated", false)
+	got, err := ForeignObjects(ctx, dyn, []string{"widgets.example.com", "missing.example.com"}, "monitoring", "rel", "monitoring")
 	if err != nil {
 		t.Fatal(err)
 	}

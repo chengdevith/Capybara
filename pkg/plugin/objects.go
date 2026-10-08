@@ -193,8 +193,14 @@ func (t *target) prepare(raw map[string]any, name string) (*unstructured.Unstruc
 	}
 	u.SetNamespace(t.ns)
 	for _, f := range []string{"uid", "resourceVersion", "creationTimestamp", "generation", "managedFields", "selfLink",
-		"deletionTimestamp", "deletionGracePeriodSeconds", "ownerReferences", "finalizers"} {
+		"deletionTimestamp", "deletionGracePeriodSeconds", "ownerReferences"} {
 		unstructured.RemoveNestedField(u.Object, "metadata", f)
+	}
+	// Finalizers are the user's choice only for kinds with delete modes
+	// (e.g. whether deleting an Application deletes what it deployed); the
+	// policy limits which. Elsewhere they are the server's.
+	if len(t.object.DeleteModes) == 0 {
+		unstructured.RemoveNestedField(u.Object, "metadata", "finalizers")
 	}
 	delete(u.Object, "status")
 	if name != "" {

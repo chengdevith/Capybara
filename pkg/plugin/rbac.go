@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/capybara/capybara/api/v1alpha1"
 )
@@ -175,6 +176,17 @@ func InstallerRules(spec *v1alpha1.PluginSpec, mode v1alpha1.InstallMode, servic
 			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"rolebindings"}, Verbs: []string{"create", "list"}},
 			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"rolebindings"}, ResourceNames: []string{role}, Verbs: []string{"get", "patch", "delete"}},
 		)
+		// Generated per-Project objects: in the plugin's namespace, or in
+		// Project namespaces (anywhere).
+		for _, o := range pa.Objects {
+			gv, _ := schema.ParseGroupVersion(projectObjectAPIVersion(o))
+			rule := rbacv1.PolicyRule{APIGroups: []string{gv.Group}, Resources: []string{o.Resource}, Verbs: []string{"get", "list", "create", "patch", "delete"}}
+			if o.InPluginNamespace {
+				ns = append(ns, rule)
+			} else {
+				cluster = append(cluster, rule)
+			}
+		}
 		if len(accounts) > 0 {
 			cluster = append(cluster,
 				rbacv1.PolicyRule{APIGroups: []string{""}, Resources: []string{"serviceaccounts"}, Verbs: []string{"create", "list"}},

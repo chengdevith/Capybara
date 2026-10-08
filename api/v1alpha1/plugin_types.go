@@ -220,6 +220,10 @@ type ProjectObject struct {
 	// e.g. argocd), not the Project's.
 	// +optional
 	InPluginNamespace bool `json:"inPluginNamespace,omitempty"`
+	// Resource (plural) of the template's kind: the installer's permissions
+	// for it are derived from this (get, list, create, patch, delete; in
+	// the plugin's namespace when InPluginNamespace).
+	Resource string `json:"resource"`
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:validation:Type=object
@@ -381,8 +385,9 @@ const (
 )
 
 // ActionCondition limits an action to objects whose status condition has
-// one of the given statuses (e.g. Succeeded=Unknown: still running), and
-// none of whose Absent fields is set. Both parts are optional.
+// one of the given statuses (e.g. Succeeded=Unknown: still running), none
+// of whose Absent fields and all of whose Present fields are set. Every
+// part is optional.
 type ActionCondition struct {
 	// +optional
 	Type string `json:"type,omitempty"`
@@ -391,6 +396,9 @@ type ActionCondition struct {
 	// Absent: dotted paths that must not be set (e.g. no automated sync).
 	// +optional
 	Absent []string `json:"absent,omitempty"`
+	// Present: dotted paths that must be set.
+	// +optional
+	Present []string `json:"present,omitempty"`
 }
 
 // ActionInput is a typed value a patch action takes from the request: the
@@ -522,7 +530,8 @@ type ChartRef struct {
 	// Version of the chart, for display and upgrades.
 	Version string `json:"version"`
 	// InstallValues are merged over the preset per installation; the
-	// string "{{cluster}}" is replaced by the cluster id.
+	// string "{{cluster}}" is replaced by the cluster id, and
+	// "{{config.<key>}}" by that installation config value.
 	// +optional
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
@@ -595,8 +604,8 @@ type FieldCheck struct {
 	// Name, or "" for every object of the resource in the namespace.
 	// +optional
 	Name string `json:"name,omitempty"`
-	// Path (dotted) whose value (a string, or a list's items) must contain
-	// Contains.
+	// Path (dotted; "\." for a dot inside a key) whose value (a string,
+	// a comma-separated list, or a list's items) must contain Contains.
 	Path     string `json:"path"`
 	Contains string `json:"contains"`
 }
