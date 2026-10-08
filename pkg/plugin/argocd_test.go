@@ -191,6 +191,10 @@ func TestArgoCDProjectAppProject(t *testing.T) {
 	if !allows(ns, "argoproj.io", "appprojects", "create") {
 		t.Error("connect installer cannot create the generated AppProjects")
 	}
+	// Install mode: no Role in a namespace that does not exist yet.
+	if _, ns := InstallerRules(spec, v1alpha1.ModeInstall, nil, "argocd"); len(ns) != 0 {
+		t.Errorf("install-mode namespace rules = %v", ns)
+	}
 }
 
 // Capybara never holds a write permission on ApplicationSets.

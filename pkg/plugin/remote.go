@@ -481,9 +481,15 @@ func syncProjectAccess(ctx context.Context, cs kubernetes.Interface, plugin, clu
 			}
 		}
 	}
-	accounts, err := cs.CoreV1().ServiceAccounts("").List(ctx, selector)
-	if err != nil {
-		return res, fmt.Errorf("list project service accounts: %w", err)
+	// Only plugins that declare ServiceAccounts create them (and may list
+	// them: the installer's rules are derived from the manifest).
+	var accounts corev1.ServiceAccountList
+	if pa != nil && len(pa.ServiceAccounts) > 0 {
+		list, err := cs.CoreV1().ServiceAccounts("").List(ctx, selector)
+		if err != nil {
+			return res, fmt.Errorf("list project service accounts: %w", err)
+		}
+		accounts = *list
 	}
 	for _, a := range accounts.Items {
 		if !want[a.Namespace] {

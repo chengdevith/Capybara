@@ -524,6 +524,33 @@ func TestInstallerRulesSufficeForProjectAccess(t *testing.T) {
 	if _, err := syncProjectAccess(ctx, cs, "widgets", "dev-1", "", spec.Permissions.Project, nil); err != nil {
 		t.Fatalf("revoke as the installer: %v", err)
 	}
+	// Without declared ServiceAccounts the installer gets no rights on
+	// them, and needs none.
+	noAccounts := &v1alpha1.ProjectAccess{Rules: spec.Permissions.Project.Rules}
+	gadgets := &v1alpha1.PluginSpec{Name: "gadgets", Permissions: v1alpha1.PluginPermissions{Project: noAccounts}}
+	gRules, _ := InstallerRules(gadgets, v1alpha1.ModeConnect, nil, "")
+	if allows(gRules, "", "serviceaccounts", "list") {
+		t.Fatal("rules for a plugin without ServiceAccounts grant listing them")
+	}
+	if _, err := f.cs.RbacV1().ClusterRoles().Create(ctx, &rbacv1.ClusterRole{ObjectMeta: metav1.ObjectMeta{Name: "gadgets-installer"}, Rules: gRules}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.cs.RbacV1().ClusterRoleBindings().Create(ctx, &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: "gadgets-installer"},
+		RoleRef:  rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: "gadgets-installer"},
+		Subjects: []rbacv1.Subject{{Kind: "User", APIGroup: rbacv1.GroupName, Name: "gadgets-installer"}}}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	gu, err := f.env.AddUser(envtest.User{Name: "gadgets-installer"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gcs := kubernetes.NewForConfigOrDie(gu.Config())
+	if _, err := syncProjectAccess(ctx, gcs, "gadgets", "dev-1", "system:serviceaccount:capybara-system:capybara", noAccounts, []string{"team-z"}); err != nil {
+		t.Fatalf("grant without ServiceAccounts: %v", err)
+	}
+	if _, err := syncProjectAccess(ctx, gcs, "gadgets", "dev-1", "", noAccounts, nil); err != nil {
+		t.Fatalf("revoke without ServiceAccounts: %v", err)
+	}
 	// It may not bind any other role.
 	_, err = cs.RbacV1().RoleBindings("team-z").Create(ctx, &rbacv1.RoleBinding{ObjectMeta: metav1.ObjectMeta{Name: ProjectRole("widgets")},
 		RoleRef:  rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: "cluster-admin"},

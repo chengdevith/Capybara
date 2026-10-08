@@ -176,14 +176,19 @@ func InstallerRules(spec *v1alpha1.PluginSpec, mode v1alpha1.InstallMode, servic
 			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"rolebindings"}, Verbs: []string{"create", "list"}},
 			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"rolebindings"}, ResourceNames: []string{role}, Verbs: []string{"get", "patch", "delete"}},
 		)
-		// Generated per-Project objects: in the plugin's namespace, or in
-		// Project namespaces (anywhere).
+		// Generated per-Project objects: in the plugin's namespace (a Role
+		// there in connect mode; install mode's rules are cluster-wide, and
+		// the namespace does not exist before the install), or in Project
+		// namespaces (anywhere).
 		for _, o := range pa.Objects {
 			gv, _ := schema.ParseGroupVersion(projectObjectAPIVersion(o))
 			rule := rbacv1.PolicyRule{APIGroups: []string{gv.Group}, Resources: []string{o.Resource}, Verbs: []string{"get", "list", "create", "patch", "delete"}}
-			if o.InPluginNamespace {
+			switch {
+			case o.InPluginNamespace && mode == v1alpha1.ModeConnect:
 				ns = append(ns, rule)
-			} else {
+			case !slices.ContainsFunc(rule.Verbs, func(v string) bool { return !allows(cluster, gv.Group, o.Resource, v) }):
+				// already granted
+			default:
 				cluster = append(cluster, rule)
 			}
 		}
