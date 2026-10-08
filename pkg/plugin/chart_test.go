@@ -200,6 +200,20 @@ func TestInstallerCanScanChartCRDs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// And the CRDs the templates render (Argo CD's).
+		ch, values, err := LoadInstallChart(dir, spec, "dev-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, err := Render(context.Background(), ch, RenderOptions{ReleaseName: spec.Chart.ReleaseName, Namespace: spec.Chart.Namespace, Values: values, KubeVersion: "v1.35.5"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, o := range r.Objects {
+			if o.GetKind() == "CustomResourceDefinition" {
+				crds = append(crds, o)
+			}
+		}
 		rules, _ := InstallerRules(spec, v1alpha1.ModeInstall, nil, spec.Chart.Namespace)
 		for _, c := range crds {
 			group, _, _ := unstructured.NestedString(c.Object, "spec", "group")

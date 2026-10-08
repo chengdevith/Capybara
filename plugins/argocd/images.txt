@@ -1,0 +1,7 @@
+# Images of the GitOps (Argo CD) plugin, pinned by digest (the chart
+# references them by tag). Names must match
+# `go run ./cmd/plugin-images -plugin plugins/argocd` (checked by make lint).
+# Imported into k3d by make plugin-images PLUGIN=argocd.
+# Format: <reference as the chart uses it> <digest to pull> [skip]
+ecr-public.aws.com/docker/library/redis:8.6.4-alpine sha256:2cc044fc5a07c9b701f8f1255a309ae9ad7856e694ac03513bf3648c01e40763
+quay.io/argoproj/argocd:v3.5.4 sha256:49dff79439bb38b1b942b19a113fe1fec7e6b6c671ddf9fe6a4a7c46bde0b77b

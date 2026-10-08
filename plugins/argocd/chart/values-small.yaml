@@ -1,0 +1,106 @@
+# Capybara's preset for the argo-cd chart 10.10.1 (Argo CD v3.5.4) on k3d:
+# the application controller, repo server and Redis only. Capybara's
+# console is the UI, so there is no Argo CD API server, Dex or
+# notifications; ApplicationSets are not offered (no replicas, and
+# Capybara grants no permission on them). See ADR 0009.
+
+# Argo CD's own names (argocd-cm, argocd-application-controller, ...).
+fullnameOverride: argocd
+
+crds:
+  install: true
+  # Helm's keep policy on every CRD: uninstalling never deletes the CRDs
+  # (and with them every Application). Capybara requires it for templated
+  # CRDs; removing them is a separate, confirmed choice.
+  keep: true
+
+global:
+  # Pod Security "restricted" on the argocd namespace: every component
+  # runs as non-root with no privilege escalation, all capabilities
+  # dropped and the runtime's default seccomp profile.
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
+configs:
+  params:
+    # Applications may live in any namespace; which ones a Project's
+    # Applications may use is decided by its generated AppProject
+    # (sourceNamespaces: the Project's namespace only).
+    application.namespaces: "*"
+  cm:
+    # Capybara's GitOps tab finds an Application's resources by this
+    # annotation (argocd.argoproj.io/tracking-id).
+    application.resourceTrackingMethod: annotation
+    # No local users: there is no Argo CD API server.
+    admin.enabled: "false"
+  # argocd-secret holds the server's signing key (unused without a
+  # server); no credentials are put into it.
+  secret:
+    createSecret: true
+
+server:
+  enabled: false
+
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+applicationSet:
+  replicas: 0
+
+redis-ha:
+  enabled: false
+
+# The Redis password comes from a Secret Capybara generates before
+# installing (generatedSecrets in plugin.yaml), not a pre-install Job.
+redisSecretInit:
+  enabled: false
+
+redis:
+  enabled: true
+  existingSecret: argocd-redis
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}
+    limits: {memory: 128Mi}
+
+controller:
+  replicas: 1
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 512Mi}
+
+repoServer:
+  replicas: 1
+  resources:
+    requests: {cpu: 20m, memory: 64Mi}
+    limits: {memory: 256Mi}
+
+# The "default" AppProject, locked: no sources, destinations or kinds, and
+# no Applications outside the argocd namespace (sourceNamespaces empty).
+# Every Project's Applications use their own generated
+# capybara-<project> AppProject instead. A post-install/upgrade hook,
+# because the AppProject CRD only exists once the chart's CRDs are applied;
+# re-created on each upgrade so it cannot drift.
+extraObjects:
+  - apiVersion: argoproj.io/v1alpha1
+    kind: AppProject
+    metadata:
+      name: default
+      namespace: argocd
+      labels:
+        platform.capybara.io/plugin: argocd
+      annotations:
+        helm.sh/hook: post-install,post-upgrade
+        helm.sh/hook-delete-policy: before-hook-creation
+    spec:
+      description: Locked by Capybara. Applications use their Project's AppProject (capybara-<project>).
+      sourceRepos: []
+      destinations: []
+      sourceNamespaces: []
+      clusterResourceWhitelist: []
+      namespaceResourceBlacklist:
+        - {group: "*", kind: "*"}
