@@ -203,13 +203,19 @@ browser ─▶ /api/clusters/<id>/plugin-actions/<plugin>/<action> (audited) ─
 
 - **Manifest** (`plugins/<name>/plugin.yaml`): name, version, extension API
   (major and `minExtensionApi`), modes, chart (archive + sha256, preset
-  values, install values with `{{cluster}}`, generated Secrets,
+  values, install values with `{{cluster}}` and `{{config.<key>}}`,
+  generated Secrets,
   `namespaceLabels`, `refuseInstallOn`), UI bundle + sha256, backend,
   permissions (install and connect rule sets for the installer; `console`
   rules granted to Capybara's own account; services the backend may
   reach), `actions` (declared copy/patch writes), `detect` (what an
   existing install serves), config schema (small JSON Schema subset),
-  steps (`helm`, `workload`, `service`, `apiResource`, `dryRun` checks).
+  steps (`helm`, `workload`, `service`, `apiResource`, `dryRun`, `field`
+  checks; `informational` steps show "Off" and never hold back Ready),
+  `uninstallBlockers` (kinds whose objects must be deleted first).
+- **Templated CRDs**: a chart may render CRDs from `templates/` only with
+  `helm.sh/resource-policy: keep` (pre-flight); the CRD scan includes them,
+  and objects labelled as the plugin's are not counted as foreign.
 - **Charts from upstream YAML**: `plugins/<name>/upstream/build.yaml` and
   `cmd/plugin-chart` build a deterministic chart from a vendored, pinned
   manifest; `make lint` checks it reproduces.
@@ -232,20 +238,43 @@ browser ─▶ /api/clusters/<id>/plugin-actions/<plugin>/<action> (audited) ─
   TaskRun Logs tab with step logs, image pull problems, Rerun, Cancel,
   Delete, Clean up runs, a Project card with the latest runs. Writes only
   in Project namespaces (ADR 0008).
+- **GitOps** (id `argocd`, no backend): the argo-cd chart 10.10.1 (Argo CD
+  v3.5.4) with a small preset (controller, repo server, Redis; no API
+  server, Dex, notifications or ApplicationSets; CRDs kept; a locked
+  `default` AppProject as a hook), or Connect existing (view-only unless it
+  accepts Applications in any namespace). A generated AppProject
+  `capybara-<project>` per Project. UI `plugins/argocd/ui`: Applications
+  (form or YAML), Argo CD projects, Resources and History tabs, a GitOps tab
+  on managed objects, Sync/Refresh/Sync policy/Edit/Delete actions, a
+  Project card (ADR 0009).
 - **Per-Project access** (`permissions.project`): a ClusterRole
   `capybara-plugin-<name>-project` bound to Capybara's account in each
   Ready Project namespace, plus declared ServiceAccounts (no permissions
   or token), kept in step with Projects by the installation controller.
+  `objects`: templates applied once per Project with the installer
+  credential (`{{project}}`, `{{namespace}}`, `{{cluster}}`,
+  `{{pluginNamespace}}`), labelled `platform.capybara.io/project-object`,
+  never adopting existing objects; the installer's rules for them are
+  derived from the manifest.
 - **Plugin objects** (`objects`, `policies`):
   `/api/clusters/{id}/plugin-objects/{plugin}/{object}/{namespace}[/{name}]`
   (`_validate`, `_cleanup`). Core checks the declaration, the Project
   namespace, the policy (closed-set rules over field paths), quota, the
   Project ServiceAccounts, referenced objects, then dry-runs and audits
   each write. Core's generic Edit YAML and Delete refuse governed kinds.
+  Policy values take `{{project}}`, `{{namespace}}`, `{{cluster}}`; a
+  `match` rule checks a regular expression. `deleteModes` set or remove
+  finalizers before a delete (the mode is required and audited);
+  `requiresStep` makes writes wait for an installation step.
+- **Actions** take typed `inputs` filled into the declared patch
+  (`$(inputs.x)`, `$(user)`), `confirmName` (always, or for one input
+  value), `when` (status condition, `absent` and `present` fields) and
+  `requiresStep`.
 - See ADR 0006 for the security decisions (installer credential, backend
   credentials, bundle trust, shared modules), ADR 0007 for console
   permissions, declared actions, upstream charts and API minor versions,
-  and ADR 0008 for writes in Project namespaces before auth.
+  ADR 0008 for writes in Project namespaces before auth, and ADR 0009 for
+  GitOps and uninstall safety.
 
 ## Projects (api/v1alpha1, pkg/project, cmd/controller)
 
