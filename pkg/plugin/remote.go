@@ -511,9 +511,18 @@ func syncProjectAccess(ctx context.Context, cs kubernetes.Interface, plugin, clu
 // tool under them would orphan them or, if their CRD went too, delete them
 // (and with a cascade finalizer, what they deployed). Each line names the
 // object; flagged ones carry the blocker's finalizer.
-func UninstallBlockers(ctx context.Context, dyn dynamic.Interface, blockers []v1alpha1.UninstallBlocker) ([]string, error) {
+func UninstallBlockers(ctx context.Context, dyn dynamic.Interface, cs kubernetes.Interface, blockers []v1alpha1.UninstallBlocker) ([]string, error) {
 	var out []string
 	for _, b := range blockers {
+		// Not served: nothing can block. (Listing an unserved kind can be
+		// refused as forbidden before Kubernetes looks for the kind.)
+		served, err := APIResourceServed(cs, b.Group+"/"+b.Resource)
+		if err != nil {
+			return nil, fmt.Errorf("discover %s: %w", b.Resource, err)
+		}
+		if !served {
+			continue
+		}
 		list, err := dyn.Resource(schema.GroupVersionResource{Group: b.Group, Version: b.Version, Resource: b.Resource}).List(ctx, metav1.ListOptions{})
 		if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
 			continue // the kind is not served: nothing can block

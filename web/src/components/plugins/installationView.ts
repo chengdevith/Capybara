@@ -15,6 +15,8 @@ export interface InstallationView {
   steps: StepStatus[]
   /** For a refusal that names its fix: the command to run. */
   fixCommand?: string
+  /** The stored installer credential reaches another cluster. */
+  otherCluster?: boolean
 }
 
 const PREFLIGHT_STEP = 'preflight'
@@ -46,6 +48,7 @@ export function installationView(i: Installation): InstallationView {
         ...steps.map((s) => ({ ...s, state: 'Pending' as const, message: undefined })),
       ],
       fixCommand: /(hack\/capybara-sa\.sh [^;\n]+?)\s*$/.exec(i.status.message ?? '')?.[1],
+      otherCluster: /is for a different cluster/.test(i.status.message ?? ''),
     }
   }
   const tones: Record<string, Tone> = { Ready: 'success', Disabled: 'default', Error: 'error', Installing: 'info', Uninstalling: 'warning', Pending: 'default' }

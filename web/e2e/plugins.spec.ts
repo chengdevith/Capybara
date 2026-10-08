@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { expect, test, type Page } from '@playwright/test'
 import { DEMO_NS, kubectl, runningDemoPods } from './kube'
 import { cleanup, connectFlags, installerCan, installerFile, installFromMarketplace as install, phase, sa, sampleProm, setInstaller } from './plugin-helpers'
@@ -45,6 +46,19 @@ test('install on dev-1 from the Marketplace with an installer credential set in 
   await expect(page.getByTestId('install-submit')).toBeDisabled()
 
   sa('dev-1', '--installer', 'monitoring', '--duration', '1h')
+  // dev-1's credential offered for dev-2: the test says it is for another
+  // cluster, it cannot be saved there, and the API refuses it.
+  await page.goto('/clusters/dev-2')
+  await page.getByTestId('set-installer').click()
+  await page.getByTestId('kubeconfig-file').setInputFiles(installerFile('dev-1'))
+  await page.getByTestId('test-connection').click()
+  await expect(page.getByTestId('test-failed')).toContainText('different cluster')
+  await expect(page.getByTestId('save-installer')).toBeDisabled()
+  await page.keyboard.press('Escape')
+  const wrong = await page.request.put('/api/clusters/dev-2/installer', { data: { kubeconfig: readFileSync(installerFile('dev-1'), 'utf8') } })
+  expect(wrong.status()).toBe(400)
+  expect(await wrong.text()).toContain('hack/capybara-sa.sh dev-2 --installer')
+
   await page.goto('/clusters/dev-1')
   await expect(page.getByTestId('plugin-installs')).toHaveText('Disabled')
   await page.getByTestId('set-installer').click()

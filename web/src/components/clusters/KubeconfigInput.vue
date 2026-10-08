@@ -7,6 +7,9 @@ import { testKubeconfig, validateKubeconfig, type KubeconfigSummary, type TestRe
 // Paste or pick a kubeconfig, then Parse (validated on the server) and
 // Test connection. The text stays in this component and in the requests;
 // it is never logged or stored in the browser.
+// cluster: the registered cluster the kubeconfig is for (an installer
+// credential); the test then fails if it reaches another cluster.
+const props = defineProps<{ cluster?: string }>()
 const emit = defineEmits<{ change: [state: { kubeconfig: string; summary: KubeconfigSummary | null; test: TestResult | null }] }>()
 
 const MAX_BYTES = 256 * 1024
@@ -45,7 +48,7 @@ async function parse() {
 async function runTest() {
   busy.value = 'test'
   try {
-    test.value = await testKubeconfig(text.value)
+    test.value = await testKubeconfig(text.value, props.cluster)
   } catch (e) {
     fail(e)
   } finally {

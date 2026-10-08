@@ -145,7 +145,7 @@ func UpdateInfo(ctx context.Context, c client.Client, id string, displayName *st
 // cluster's installer Secret (created or replaced), referenced from the
 // Cluster. Only the plugin controller ever reads it.
 func SetInstaller(ctx context.Context, c client.Client, id string, raw []byte, opts ValidateOptions) (*Summary, error) {
-	_, summary, err := ParseKubeconfig(raw, opts)
+	instCfg, summary, err := RESTConfigFromKubeconfig(raw, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -155,6 +155,14 @@ func SetInstaller(ctx context.Context, c client.Client, id string, raw []byte, o
 			return nil, ErrNotFound
 		}
 		return nil, err
+	}
+	// It must reach this cluster, not another one.
+	reg, err := RegisteredConfig(ctx, c, &cl, opts)
+	if err != nil {
+		return nil, err
+	}
+	if err := SameCluster(reg, instCfg); err != nil {
+		return nil, &ValidationError{Problems: []string{fmt.Sprintf("%v; make one for %s with: hack/capybara-sa.sh %s --installer <plugin>", err, id, id)}}
 	}
 	name := InstallerSecretName(id)
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: v1alpha1.SystemNamespace, Name: name}}

@@ -42,6 +42,15 @@ describe('installationView', () => {
     expect(v.fixCommand).toBe('hack/capybara-sa.sh dev-1 --installer tekton')
   })
 
+  it('a credential for another cluster is refused, says so, and names its fix', () => {
+    const i = refused()
+    i.status.message =
+      'pre-flight refused: the installer credential stored for dev-1 is for a different cluster (it reaches server 127.0.0.1:6552, whose certificate authority is not this cluster\'s (127.0.0.1:6551)); make dev-1\'s own with: hack/capybara-sa.sh dev-1 --installer tekton'
+    const v = installationView(i)
+    expect(v).toMatchObject({ refused: true, label: 'Refused', otherCluster: true, fixCommand: 'hack/capybara-sa.sh dev-1 --installer tekton' })
+    expect(installationView(refused()).otherCluster).toBe(false)
+  })
+
   it('a refusal without a command (e.g. OpenShift) has no fix command', () => {
     const i = refused()
     i.status.message = 'pre-flight refused: this is OpenShift, which ships its own Pipelines: use Connect existing instead'

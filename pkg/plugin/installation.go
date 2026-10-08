@@ -253,7 +253,7 @@ func (r *InstallationReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		return fail(err.Error())
 	}
-	inst, instSummary, instErr := r.Installers.Get(in.Spec.Cluster)
+	inst, instSummary, instErr := r.installer(in.Spec.Cluster)
 
 	// Apply when the version, mode or config changed (never just because
 	// it was enabled or disabled).
@@ -261,6 +261,13 @@ func (r *InstallationReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if st.AppliedHash != hash {
 		if !p.Status.Available {
 			return fail(fmt.Sprintf("plugin %s cannot be installed: %s", p.Name, p.Status.Problem))
+		}
+		// A credential for another cluster is refused like a failed
+		// pre-flight (nothing applied), with the command that fixes it.
+		if errors.Is(instErr, cluster.ErrOtherCluster) {
+			setCond(st, ConditionPreflight, metav1.ConditionFalse, "Refused", instErr.Error())
+			return fail(fmt.Sprintf("pre-flight refused: the installer credential stored for %s is for a different cluster (%v); make %s's own with: hack/capybara-sa.sh %s --installer %s%s",
+				in.Spec.Cluster, strings.TrimPrefix(instErr.Error(), cluster.ErrOtherCluster.Error()+": "), in.Spec.Cluster, in.Spec.Cluster, p.Name, connectFlags(in.Spec.Mode, cfg, &p.Spec)))
 		}
 		if instErr != nil {
 			return fail(fmt.Sprintf("cannot apply: %v", instErr))
@@ -320,6 +327,24 @@ func (r *InstallationReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		r.syncProjects(ctx, &in, &p, inst, instErr, st)
 	}
 	return r.checkSteps(ctx, &in, &p, services, st, tokenWarn)
+}
+
+// installer is the cluster's installer credential, only if it reaches that
+// cluster (cluster.ErrOtherCluster otherwise: e.g. dev-1's kubeconfig set
+// on dev-2 would install into dev-1).
+func (r *InstallationReconciler) installer(id string) (*rest.Config, *cluster.Summary, error) {
+	inst, summary, err := r.Installers.Get(id)
+	if err != nil {
+		return nil, summary, err
+	}
+	reg, err := r.Clusters.RESTConfig(id)
+	if err != nil {
+		return nil, summary, fmt.Errorf("cluster %s is not available: %w", id, err)
+	}
+	if err := cluster.SameCluster(reg, inst); err != nil {
+		return nil, summary, err
+	}
+	return inst, summary, nil
 }
 
 // projects lists the Ready Projects on a cluster, by namespace.
@@ -755,7 +780,7 @@ func (r *InstallationReconciler) scanCRDs(ctx context.Context, in *v1alpha1.Plug
 	if pluginErr != nil || in.Spec.Mode != v1alpha1.ModeInstall || p.Spec.Chart == nil {
 		return nil, nil, errors.New("only installed charts have CRDs to remove")
 	}
-	inst, _, err := r.Installers.Get(in.Spec.Cluster)
+	inst, _, err := r.installer(in.Spec.Cluster)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -862,7 +887,11 @@ func (r *InstallationReconciler) uninstall(ctx context.Context, in *v1alpha1.Plu
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		found, err := UninstallBlockers(ctx, dyn, p.Spec.UninstallBlockers)
+		cs, err := kubernetes.NewForConfig(cfg)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		found, err := UninstallBlockers(ctx, dyn, cs, p.Spec.UninstallBlockers)
 		if err != nil {
 			return r.blocked(ctx, in, st, "cannot check what blocks the uninstall: "+err.Error())
 		}
@@ -870,7 +899,7 @@ func (r *InstallationReconciler) uninstall(ctx context.Context, in *v1alpha1.Plu
 			return r.blocked(ctx, in, st, blockersMessage(p.Spec.UninstallBlockers, found))
 		}
 	}
-	inst, _, err := r.Installers.Get(in.Spec.Cluster)
+	inst, _, err := r.installer(in.Spec.Cluster)
 	if err != nil {
 		return r.blocked(ctx, in, st, "cannot uninstall: "+err.Error())
 	}

@@ -2,8 +2,16 @@ package plugin
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/hex"
+	"encoding/pem"
+	"errors"
+	"math/big"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,8 +23,10 @@ import (
 	chartcommon "helm.sh/helm/v4/pkg/chart/common"
 	chart "helm.sh/helm/v4/pkg/chart/v2"
 	chartutil "helm.sh/helm/v4/pkg/chart/v2/util"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,6 +34,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	dynfake "k8s.io/client-go/dynamic/fake"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/capybara/capybara/api/v1alpha1"
 )
@@ -208,7 +221,10 @@ func TestAPIRefusesUninstallWhileBlockersExist(t *testing.T) {
 	f := newAPI(t, p, in)
 	dyn := dynfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{gadgetGVR: "GadgetList"},
 		gadget("g1", gadgetFinalizer), gadget("g2"))
-	f.api.Dynamic = fakeDyn{c: dyn}
+	// Discovery serves gadgets.
+	cs := k8sfake.NewClientset()
+	cs.Resources = []*metav1.APIResourceList{{GroupVersion: "example.com/v1", APIResources: []metav1.APIResource{{Name: "gadgets", Kind: "Gadget", Namespaced: true}}}}
+	f.api.Dynamic = fakeObjectClusters{dyn: dyn, cs: cs}
 	q := url.Values{"confirm": {"gadgets.dev-1"}, "uid": {"u1"}}
 	code, body := f.do(t, http.MethodDelete, "/api/plugins/installations/gadgets.dev-1?"+q.Encode(), nil)
 	blockers, _ := body["blockers"].([]any)
@@ -218,6 +234,24 @@ func TestAPIRefusesUninstallWhileBlockersExist(t *testing.T) {
 	if got := strings.Join(f.actions(t), " "); got != "uninstall=failure" {
 		t.Errorf("audit = %s", got)
 	}
+
+	// The kind not served on the cluster (e.g. the tool never got there):
+	// nothing can block, although listing it is refused as forbidden.
+	served := cs.Resources
+	cs.Resources = nil
+	dyn.PrependReactor("list", "gadgets", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, apierrors.NewForbidden(schema.GroupResource{Group: "example.com", Resource: "gadgets"}, "", errors.New("no access"))
+	})
+	found, err := UninstallBlockers(context.Background(), dyn, cs, p.Spec.UninstallBlockers)
+	if err != nil || len(found) != 0 {
+		t.Fatalf("unserved kind: %v %v", found, err)
+	}
+	// Served but forbidden: an error, not "nothing blocks".
+	cs.Resources = served
+	if _, err := UninstallBlockers(context.Background(), dyn, cs, p.Spec.UninstallBlockers); !apierrors.IsForbidden(errors.Unwrap(err)) {
+		t.Errorf("served but forbidden: %v", err)
+	}
+	dyn.ReactionChain = dyn.ReactionChain[1:]
 
 	// None left: accepted.
 	_ = dyn.Resource(gadgetGVR).Namespace("default").Delete(context.Background(), "g1", metav1.DeleteOptions{})
@@ -244,5 +278,79 @@ func TestActionPatchKeepsNull(t *testing.T) {
 	}
 	if raw := string(got.Spec.Actions[0].Patch.Raw); raw != `{"spec":{"syncPolicy":{"automated":null}}}` {
 		t.Errorf("stored patch = %s", raw)
+	}
+}
+
+// otherCA is a certificate authority no test cluster uses.
+func otherCA(t *testing.T) []byte {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tpl := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "other-ca"}, NotBefore: time.Now(), NotAfter: time.Now().Add(time.Hour),
+		IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign}
+	der, err := x509.CreateCertificate(rand.Reader, tpl, tpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+}
+
+// An installer credential stored for one cluster that reaches another (its
+// certificate authority is not this cluster's) is refused like a failed
+// pre-flight, with the command that fixes it; nothing is applied, and an
+// uninstall says why it cannot proceed instead of acting on that cluster.
+func TestInstallerForAnotherClusterIsRefused(t *testing.T) {
+	f := newEnv(t)
+	ctx := f.ctx
+	root := t.TempDir()
+	f.r.PluginsDir = root
+	spec := writeWidgetsPlugin(t, root, "1.0.0", "one")
+	p := &v1alpha1.Plugin{ObjectMeta: metav1.ObjectMeta{Name: "widgets"}, Spec: *spec}
+	if err := f.c.Create(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	p.Status.Available = true
+	_ = f.c.Status().Update(ctx, p)
+
+	u, err := f.env.AddUser(envtest.User{Name: "installer-admin", Groups: []string{"system:masters"}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rc := u.Config()
+	rc.CAData = otherCA(t)
+	f.installers.Set("dev-2", &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{ResourceVersion: "other"},
+		Type:       v1alpha1.InstallerSecretType,
+		Data:       map[string][]byte{v1alpha1.KubeconfigKey: kubeconfigBytes(t, rc)},
+	})
+	in := &v1alpha1.PluginInstallation{ObjectMeta: metav1.ObjectMeta{Name: "widgets.dev-2"},
+		Spec: v1alpha1.PluginInstallationSpec{Plugin: "widgets", Cluster: "dev-2", Mode: v1alpha1.ModeInstall, Enabled: true, Version: "1.0.0"}}
+	if err := f.c.Create(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	f.reconcile(t, "widgets.dev-2")
+	got := f.reconcile(t, "widgets.dev-2")
+	c := meta.FindStatusCondition(got.Status.Conditions, ConditionPreflight)
+	if got.Status.Phase != v1alpha1.InstallError || c == nil || c.Status != metav1.ConditionFalse ||
+		!strings.Contains(got.Status.Message, "pre-flight refused: the installer credential stored for dev-2 is for a different cluster") ||
+		!strings.HasSuffix(got.Status.Message, "hack/capybara-sa.sh dev-2 --installer widgets") {
+		t.Fatalf("status: %s %q %+v", got.Status.Phase, got.Status.Message, c)
+	}
+	if got.Status.InstalledVersion != "" {
+		t.Error("marked installed")
+	}
+	if _, err := f.cs.CoreV1().ConfigMaps("widgets").Get(ctx, "widgets-config", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Error("the chart was applied")
+	}
+	// Uninstall: removing the request needs no credential (nothing was
+	// installed), so it goes.
+	if err := f.c.Delete(ctx, &got); err != nil {
+		t.Fatal(err)
+	}
+	f.reconcile(t, "widgets.dev-2")
+	if err := f.c.Get(ctx, types.NamespacedName{Name: "widgets.dev-2"}, &got); !apierrors.IsNotFound(err) {
+		t.Errorf("refused request not removed: %q", got.Status.Message)
 	}
 }

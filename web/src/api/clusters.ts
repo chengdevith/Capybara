@@ -78,8 +78,9 @@ export async function validateKubeconfig(kubeconfig: string): Promise<Kubeconfig
 }
 
 /** Connects with a kubeconfig and reports what it can do. Nothing is stored. */
-export function testKubeconfig(kubeconfig: string): Promise<TestResult> {
-  return apiSend<TestResult>('POST', '/api/clusters/_test', { kubeconfig })
+/** Tests a kubeconfig; with `cluster`, it must also reach that registered cluster. */
+export function testKubeconfig(kubeconfig: string, cluster?: string): Promise<TestResult> {
+  return apiSend<TestResult>('POST', '/api/clusters/_test', { kubeconfig, ...(cluster ? { cluster } : {}) })
 }
 
 export interface RegisterRequest {

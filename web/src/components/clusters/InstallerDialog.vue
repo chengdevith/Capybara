@@ -51,7 +51,10 @@ async function save() {
       declared permissions with <code>hack/capybara-sa.sh {{ cluster.id }} --installer &lt;plugin&gt;</code> (add
       <code>--connect --set …</code> for a connect-only role).
     </NAlert>
-    <KubeconfigInput @change="(s) => (state = s)" />
+    <KubeconfigInput
+      :cluster="cluster.id"
+      @change="(s) => (state = s)"
+    />
     <NAlert
       v-if="error"
       type="error"

@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -184,11 +185,32 @@ func TestAPIRegisterUpdateRotate(t *testing.T) {
 func TestAPIInstallerCredential(t *testing.T) {
 	cl := &v1alpha1.Cluster{ObjectMeta: metav1.ObjectMeta{Name: "dev-9", UID: "u9"},
 		Spec: v1alpha1.ClusterSpec{Environment: v1alpha1.EnvDev, KubeconfigSecret: v1alpha1.SecretRef{Name: "dev-9-kubeconfig"}}}
-	f := newAPIFixture(t, cl)
+	// The cluster as registered, and its certificate authority.
+	registered := good(t, nil)
+	loaded, _ := clientcmd.Load(registered)
+	ca := loaded.Clusters["c"].CertificateAuthorityData
+	regSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: v1alpha1.SystemNamespace, Name: "dev-9-kubeconfig"},
+		Type: v1alpha1.KubeconfigSecretType, Data: map[string][]byte{v1alpha1.KubeconfigKey: registered}}
+	f := newAPIFixture(t, cl, regSecret)
 	ctx := context.Background()
 	raw := good(t, func(c *clientcmdapi.Config) {
+		c.Clusters["c"].CertificateAuthorityData = ca
 		c.AuthInfos["u"].Token = jwt("system:serviceaccount:capybara-system:capybara-installer", time.Now().Add(time.Hour))
 	})
+
+	// Another cluster's credential (its own certificate authority, another
+	// server) is refused: it would install there.
+	other := good(t, func(c *clientcmdapi.Config) {
+		c.Clusters["c"].Server = "https://127.0.0.1:6551"
+		c.AuthInfos["u"].Token = jwt("system:serviceaccount:capybara-system:capybara-installer", time.Now().Add(time.Hour))
+	})
+	if code, body := f.do(t, http.MethodPut, "/api/clusters/dev-9/installer", map[string]string{"kubeconfig": string(other)}); code != http.StatusBadRequest ||
+		!strings.Contains(body, "different cluster") || !strings.Contains(body, "127.0.0.1:6551") || !strings.Contains(body, "hack/capybara-sa.sh dev-9 --installer") {
+		t.Fatalf("another cluster's credential: %d %s", code, body)
+	}
+	if err := f.mgmt.Get(ctx, types.NamespacedName{Namespace: v1alpha1.SystemNamespace, Name: "dev-9-installer"}, &corev1.Secret{}); err == nil {
+		t.Fatal("a refused credential was stored")
+	}
 
 	code, body := f.do(t, http.MethodPut, "/api/clusters/dev-9/installer", map[string]string{"kubeconfig": string(raw)})
 	if code != http.StatusOK || !strings.Contains(body, "capybara-installer") {
@@ -209,7 +231,10 @@ func TestAPIInstallerCredential(t *testing.T) {
 	if code, _ := f.do(t, http.MethodPut, "/api/clusters/dev-9/installer", map[string]string{"kubeconfig": string(raw)}); code != http.StatusOK {
 		t.Fatalf("replace: %d", code)
 	}
-	bad := good(t, func(c *clientcmdapi.Config) { c.AuthInfos["u"].Exec = &clientcmdapi.ExecConfig{Command: "sh"} })
+	bad := good(t, func(c *clientcmdapi.Config) {
+		c.Clusters["c"].CertificateAuthorityData = ca
+		c.AuthInfos["u"].Exec = &clientcmdapi.ExecConfig{Command: "sh"}
+	})
 	if code, _ := f.do(t, http.MethodPut, "/api/clusters/dev-9/installer", map[string]string{"kubeconfig": string(bad)}); code != http.StatusBadRequest {
 		t.Errorf("exec plugin accepted: %d", code)
 	}
@@ -228,7 +253,7 @@ func TestAPIInstallerCredential(t *testing.T) {
 	for _, r := range f.records(t) {
 		actions = append(actions, r.Action+"="+string(r.Result))
 	}
-	if strings.Join(actions, " ") != "remove-installer=success set-installer=failure set-installer=success set-installer=success" {
+	if strings.Join(actions, " ") != "remove-installer=success set-installer=failure set-installer=success set-installer=success set-installer=failure" {
 		t.Errorf("audit = %v", actions)
 	}
 	f.noLeak(t, body)

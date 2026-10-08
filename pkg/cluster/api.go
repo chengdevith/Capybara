@@ -121,6 +121,9 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 
 type kubeconfigBody struct {
 	Kubeconfig string `json:"kubeconfig"`
+	// Cluster (test only): the registered cluster the kubeconfig is meant
+	// for (e.g. an installer credential); it must reach that cluster.
+	Cluster string `json:"cluster,omitempty"`
 }
 
 // validate parses and summarises a kubeconfig. Nothing is stored.
@@ -143,6 +146,9 @@ type Check struct {
 	Name    string `json:"name"`
 	Allowed bool   `json:"allowed"`
 }
+
+// ReasonOtherCluster means the kubeconfig works, but for another cluster.
+const ReasonOtherCluster = "OtherCluster"
 
 // TestResult is what a connection test found.
 type TestResult struct {
@@ -204,6 +210,21 @@ func (a *API) test(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res.OK, res.Identity = true, identity
+	if b.Cluster != "" && a.Mgmt != nil {
+		var cl v1alpha1.Cluster
+		if err := a.Mgmt.Get(ctx, types.NamespacedName{Name: b.Cluster}, &cl); err != nil {
+			writeErr(w, ErrNotFound)
+			return
+		}
+		reg, err := RegisteredConfig(ctx, a.Mgmt, &cl, a.Opts)
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		if err := SameCluster(reg, rc); err != nil {
+			res.OK, res.Reason, res.Message = false, ReasonOtherCluster, fmt.Sprintf("%v: it is not a credential for %s", err, b.Cluster)
+		}
+	}
 	if v, err := cs.Discovery().ServerVersion(); err == nil {
 		res.Version = v.GitVersion
 	}

@@ -161,7 +161,13 @@ async function change(c: { enabled?: boolean; version?: string }) {
       <template v-if="view.fixCommand">
         <ol class="fix">
           <li>
-            Give the installer this plugin's permissions:
+            <template v-if="view.otherCluster">
+              The stored installer credential is for another cluster (it would install there). Make one for
+              {{ inst.spec.cluster }} itself:
+            </template>
+            <template v-else>
+              Give the installer this plugin's permissions:
+            </template>
             <div class="cmd">
               <code data-test="fix-command">{{ view.fixCommand }}</code>
               <NButton

@@ -47,7 +47,7 @@ type API struct {
 	Bundles *Bundles
 	// Dynamic reads clusters with Capybara's account (uninstall blockers);
 	// nil skips that check here (the controller still makes it).
-	Dynamic DynamicClients
+	Dynamic ObjectClusters
 }
 
 // Register adds the routes. The backend proxy (proxy.go) registers
@@ -527,7 +527,11 @@ func (a *API) remove(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return "", errorf(http.StatusServiceUnavailable, "cluster %s is not available", in.Spec.Cluster)
 			}
-			found, err := UninstallBlockers(ctx, dyn, p.Spec.UninstallBlockers)
+			cs, err := a.Dynamic.Client(in.Spec.Cluster)
+			if err != nil {
+				return "", errorf(http.StatusServiceUnavailable, "cluster %s is not available", in.Spec.Cluster)
+			}
+			found, err := UninstallBlockers(ctx, dyn, cs, p.Spec.UninstallBlockers)
 			if err != nil {
 				return "", err
 			}
