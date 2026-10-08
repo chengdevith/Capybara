@@ -531,6 +531,10 @@ func (a *API) remove(w http.ResponseWriter, r *http.Request) {
 		} else if in.Spec.Mode == v1alpha1.ModeInstall {
 			detail += "; CRDs kept"
 		}
+		if in.Status.AppliedHash == "" && in.Status.InstalledVersion == "" {
+			// Never applied (e.g. refused by the pre-flight): a cancelled request.
+			detail = "request cancelled; nothing was deployed"
+		}
 		patch := client.MergeFrom(in.DeepCopy())
 		if in.Annotations == nil {
 			in.Annotations = map[string]string{}

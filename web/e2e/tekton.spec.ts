@@ -62,14 +62,22 @@ test('an installer made for another plugin is refused, with the fix shown and ke
   const res = await request.post('/api/plugins/installations', { data: { plugin: 'tekton', cluster: 'dev-1', mode: 'install' } })
   expect(res.ok(), await res.text()).toBe(true)
   await page.goto('/marketplace/tekton')
-  await expect(phase(page, 'dev-1')).toHaveText('Error', { timeout: 60_000 })
-  await expect(page.getByTestId('installation-message')).toContainText('hack/capybara-sa.sh dev-1 --installer tekton')
+  const card = page.getByTestId('installation-dev-1')
+  await expect(phase(page, 'dev-1')).toHaveText('Refused', { timeout: 60_000 })
+  // A request, not an installation: no UI switch, no Uninstall, the fix spelled out.
+  await expect(card.getByTestId('installation-subtitle')).toHaveText('install requested · v0.1.0')
+  await expect(card.getByTestId('installation-enabled')).toHaveCount(0)
+  await expect(card.getByTestId('uninstall')).toHaveCount(0)
+  await expect(card.getByTestId('fix-command')).toHaveText('hack/capybara-sa.sh dev-1 --installer tekton')
+  await expect(card.getByTestId('step-preflight')).toBeVisible()
   // It stays refused (no retry loop flipping it back to Installing).
   await page.waitForTimeout(10_000)
-  await expect(phase(page, 'dev-1')).toHaveText('Error')
-  const inst = (await (await request.get('/api/plugins/installations/tekton.dev-1')).json()) as { uid: string }
-  await request.delete(`/api/plugins/installations/tekton.dev-1?confirm=tekton.dev-1&uid=${inst.uid}&keepData=false`)
-  await expect(page.getByTestId('installation-dev-1')).toHaveCount(0, { timeout: 60_000 })
+  await expect(phase(page, 'dev-1')).toHaveText('Refused')
+  // Cancelling removes the request; nothing was deployed.
+  await card.getByTestId('cancel-request').click()
+  await page.getByTestId('confirm-cancel').click()
+  await expect(card).toHaveCount(0, { timeout: 60_000 })
+  expect(() => kubectl('dev-1', 'get', 'ns', 'tekton-pipelines')).toThrow()
 })
 
 test('install on dev-1 from the Marketplace', async ({ page, request }) => {

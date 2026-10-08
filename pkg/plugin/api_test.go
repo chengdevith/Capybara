@@ -531,3 +531,19 @@ func TestPathAllowed(t *testing.T) {
 		t.Error("/ allows everything")
 	}
 }
+
+// Removing an installation the pre-flight refused (nothing applied) is a
+// cancelled request, and the audit says so.
+func TestCancelRefusedRequest(t *testing.T) {
+	in := &v1alpha1.PluginInstallation{ObjectMeta: metav1.ObjectMeta{Name: "monitoring.dev-1", UID: "u1"},
+		Spec:   v1alpha1.PluginInstallationSpec{Plugin: "monitoring", Cluster: "dev-1", Mode: v1alpha1.ModeInstall, Version: "0.1.0"},
+		Status: v1alpha1.PluginInstallationStatus{Phase: v1alpha1.InstallError, Message: "pre-flight refused: ..."}}
+	f := newAPI(t, testPlugin(t), in)
+	if code, b := f.do(t, http.MethodDelete, "/api/plugins/installations/monitoring.dev-1?confirm=monitoring.dev-1&uid=u1&keepData=false", nil); code != http.StatusOK {
+		t.Fatalf("cancel: %d %v", code, b)
+	}
+	recs, _ := f.store.List(context.Background(), audit.Filter{})
+	if len(recs) == 0 || recs[0].Detail != "request cancelled; nothing was deployed" {
+		t.Errorf("audit = %+v", recs)
+	}
+}

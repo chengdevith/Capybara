@@ -289,3 +289,24 @@ func TestInstallationEventsIgnoreStatusWrites(t *testing.T) {
 		}
 	}
 }
+
+// A refused request deployed nothing: cancelling it needs no installer
+// credential (the user may not have a working one; that is why it failed).
+func TestCancelRefusedRequestNeedsNoInstaller(t *testing.T) {
+	f := newEnv(t)
+	ctx := f.ctx
+	in := &v1alpha1.PluginInstallation{ObjectMeta: metav1.ObjectMeta{Name: "monitoring.dev-2", Finalizers: []string{v1alpha1.FinalizerPluginUninstall}},
+		Spec: v1alpha1.PluginInstallationSpec{Plugin: "monitoring", Cluster: "dev-2", Mode: v1alpha1.ModeInstall, Enabled: true, Version: "0.1.0"}}
+	if err := f.c.Create(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	in.Status.Phase, in.Status.Message = v1alpha1.InstallError, "pre-flight refused"
+	_ = f.c.Status().Update(ctx, in)
+	if err := f.c.Delete(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	f.reconcile(t, "monitoring.dev-2")
+	if err := f.c.Get(ctx, types.NamespacedName{Name: "monitoring.dev-2"}, &v1alpha1.PluginInstallation{}); !apierrors.IsNotFound(err) {
+		t.Errorf("refused request not removed without an installer: %v", err)
+	}
+}
