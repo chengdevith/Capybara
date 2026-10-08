@@ -36,7 +36,7 @@ interface Res {
 }
 const entry = computed(() =>
   ((app.value?.status?.resources as Res[] | undefined) ?? []).find(
-    (r) => r.kind === props.object.kind && r.name === props.object.metadata.name && (r.namespace ?? '') === (props.object.metadata.namespace ?? ''),
+    (r) => r.kind === (props.object.kind ?? claim.value?.kind) && r.name === props.object.metadata.name && (r.namespace ?? '') === (props.object.metadata.namespace ?? ''),
   ),
 )
 const selfHeal = computed(() => !!app.value?.spec?.syncPolicy?.automated?.selfHeal)

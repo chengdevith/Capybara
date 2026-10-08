@@ -50,7 +50,7 @@ chart:
 
 ui:
   bundle: ui/dist/argocd.js
-  sha256: 156671acdadc1d79f5b8d6b5339194deb51d68e70aaf8126e346dce2af3916a6
+  sha256: 1365bbe56834a4efc5a2ea06f02957f6286a5d11976924f2da27242041f5ebe0
 
 # An existing Argo CD: connect needs Applications served; install is refused
 # when its CRDs belong to another install, or OpenShift GitOps' namespace

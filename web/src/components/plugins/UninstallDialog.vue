@@ -166,7 +166,7 @@ async function submit() {
       </div>
     </template>
     <p v-else>
-      Removes the plugin's account from the cluster. The connected Prometheus is not touched.
+      Removes the plugin's account and grants from the cluster. The connected tool and what it manages are not touched.
     </p>
     <p>Type <strong>{{ inst.id }}</strong> to confirm.</p>
     <NInput

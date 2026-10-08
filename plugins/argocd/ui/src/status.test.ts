@@ -24,7 +24,11 @@ test('refusals are explained in Project terms', () => {
   assert.match(explainRefusal('resource rbac.authorization.k8s.io:RoleBinding is not permitted in project capybara-team-a'), /RoleBindings are refused/)
   assert.match(explainRefusal('resource :ResourceQuota is not permitted in project capybara-team-a'), /quota, limits and network policies/)
   assert.match(explainRefusal('cluster level Namespace "x" can not be managed when in namespaced mode'), /^$/)
-  assert.match(explainRefusal('resource :Namespace is not permitted in project capybara-team-a: cluster level resources are not allowed'), /Cluster-scoped/)
+  // Argo CD's own wording (v3.5).
+  assert.match(explainRefusal('resource :Namespace is not permitted in project capybara-team-a'), /Cluster-scoped/)
+  assert.match(explainRefusal('resource rbac.authorization.k8s.io:ClusterRole is not permitted in project capybara-team-a'), /Cluster-scoped/)
+  assert.match(explainRefusal('resource :LimitRange is not permitted in project capybara-team-a'), /quota, limits/)
+  assert.match(explainRefusal('resource example.com:Widget is not permitted in project capybara-team-a'), /^Widget is not allowed/)
   assert.match(explainRefusal('namespace kube-system is not permitted in project capybara-team-a'), /Project's own namespace/)
   assert.match(explainRefusal('pods "x" is forbidden: exceeded quota: capybara-project-quota'), /quota does not allow/)
   assert.equal(explainRefusal('successfully synced (all tasks run)'), '')
@@ -32,8 +36,8 @@ test('refusals are explained in Project terms', () => {
 
 test('which Application manages an object', () => {
   const obj = (annotations?: Record<string, string>, labels?: Record<string, string>) => ({ metadata: { name: 'web', namespace: 'team-a', annotations, labels } })
-  assert.deepEqual(managedBy(obj({ 'argocd.argoproj.io/tracking-id': 'team-a_guestbook:apps/Deployment:team-a/web' })), { namespace: 'team-a', name: 'guestbook', via: 'annotation' })
-  assert.deepEqual(managedBy(obj({ 'argocd.argoproj.io/tracking-id': 'guestbook:apps/Deployment:team-a/web' })), { namespace: 'argocd', name: 'guestbook', via: 'annotation' })
+  assert.deepEqual(managedBy(obj({ 'argocd.argoproj.io/tracking-id': 'team-a_guestbook:apps/Deployment:team-a/web' })), { namespace: 'team-a', name: 'guestbook', via: 'annotation', kind: 'Deployment' })
+  assert.deepEqual(managedBy(obj({ 'argocd.argoproj.io/tracking-id': 'guestbook:apps/Deployment:team-a/web' })), { namespace: 'argocd', name: 'guestbook', via: 'annotation', kind: 'Deployment' })
   assert.deepEqual(managedBy(obj(undefined, { 'app.kubernetes.io/instance': 'team-a_guestbook' })), { namespace: 'team-a', name: 'guestbook', via: 'label' })
   // A Helm release's instance label is not Argo CD's.
   assert.equal(managedBy(obj(undefined, { 'app.kubernetes.io/instance': 'web', 'app.kubernetes.io/managed-by': 'Helm' })), null)

@@ -36,18 +36,30 @@ export function shortRevision(rev: string | undefined): string {
  * it is not one of these. Argo CD checks each resource against the
  * Project's AppProject when it syncs.
  */
+// Kinds that are never namespaced (Argo CD names them the same way as
+// refused namespaced kinds: "resource <group>:<Kind> is not permitted").
+const CLUSTER_KINDS = new Set([
+  'Namespace', 'ClusterRole', 'ClusterRoleBinding', 'CustomResourceDefinition', 'PersistentVolume', 'StorageClass',
+  'PriorityClass', 'ValidatingWebhookConfiguration', 'MutatingWebhookConfiguration', 'APIService', 'IngressClass',
+  'RuntimeClass', 'Node', 'CSIDriver', 'VolumeSnapshotClass', 'ClusterIssuer',
+])
+
 export function explainRefusal(message: string): string {
   const m = message ?? ''
-  if (/RoleBinding/.test(m) && /not permitted|is not allowed|blacklist|denied/i.test(m)) {
+  const kind = /resource [^\s:]*:(\w+) is not permitted/.exec(m)?.[1]
+  if (kind === 'RoleBinding' || (/RoleBinding/.test(m) && /not permitted|is not allowed|denied/i.test(m))) {
     return 'RoleBindings are refused in Projects: a chart that needs one cannot be deployed through GitOps yet (roles are granted per user from Phase 5).'
   }
-  if (/(ResourceQuota|LimitRange|NetworkPolicy)/.test(m) && /not permitted|is not allowed|blacklist/i.test(m)) {
+  if (kind && ['ResourceQuota', 'LimitRange', 'NetworkPolicy'].includes(kind)) {
     return "A Project's quota, limits and network policies are set by Capybara; an Application may not change them."
   }
-  if (/cluster level|cluster-scoped|cluster scoped/i.test(m) && /not permitted|is not allowed/i.test(m)) {
+  if ((kind && CLUSTER_KINDS.has(kind)) || (/cluster level|cluster-scoped|cluster scoped/i.test(m) && /not permitted|is not allowed/i.test(m))) {
     return 'Cluster-scoped resources (namespaces, CRDs, ClusterRoles, …) are refused: an Application deploys only into its Project namespace.'
   }
-  if (/namespace .* is not permitted|destination .* is not permitted|not permitted in project/i.test(m)) {
+  if (kind) {
+    return `${kind} is not allowed in this Project's Argo CD project.`
+  }
+  if (/namespace .* is not permitted|destination .* is not permitted/i.test(m)) {
     return "Every resource must go into the Project's own namespace on this cluster."
   }
   if (/exceeded quota|forbidden: exceeded/i.test(m)) {
@@ -76,13 +88,14 @@ export const TRACKING_ANNOTATION = 'argocd.argoproj.io/tracking-id'
  * "<namespace>_<name>" for Applications outside Argo CD's namespace), or the
  * app.kubernetes.io/instance label (label tracking). null: not managed.
  */
-export function managedBy(o: Obj, argoNamespace = 'argocd'): { namespace: string; name: string; via: 'annotation' | 'label' } | null {
+export function managedBy(o: Obj, argoNamespace = 'argocd'): { namespace: string; name: string; via: 'annotation' | 'label'; kind?: string } | null {
   const id = o.metadata.annotations?.[TRACKING_ANNOTATION]
   if (id) {
-    const app = id.split(':')[0] ?? ''
+    const [app = '', groupKind = ''] = id.split(':')
+    const kind = groupKind.split('/').pop() || undefined
     if (app) {
       const i = app.indexOf('_')
-      return i > 0 ? { namespace: app.slice(0, i), name: app.slice(i + 1), via: 'annotation' } : { namespace: argoNamespace, name: app, via: 'annotation' }
+      return i > 0 ? { namespace: app.slice(0, i), name: app.slice(i + 1), via: 'annotation', kind } : { namespace: argoNamespace, name: app, via: 'annotation', kind }
     }
   }
   const instance = o.metadata.labels?.['app.kubernetes.io/instance']
