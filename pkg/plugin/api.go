@@ -45,6 +45,9 @@ type API struct {
 	Logger   *slog.Logger
 	// Bundles serves UI bundles (bundle.go); nil disables them.
 	Bundles *Bundles
+	// Dynamic reads clusters with Capybara's account (uninstall blockers);
+	// nil skips that check here (the controller still makes it).
+	Dynamic DynamicClients
 }
 
 // Register adds the routes. The backend proxy (proxy.go) registers
@@ -515,6 +518,22 @@ func (a *API) remove(w http.ResponseWriter, r *http.Request) {
 		}
 		if q.Get("uid") != string(in.UID) {
 			return "", errorf(http.StatusConflict, "the installation changed since it was loaded (uid mismatch); reload and try again")
+		}
+		// Objects that must be gone first (install mode: the tool goes).
+		var p v1alpha1.Plugin
+		if in.Spec.Mode == v1alpha1.ModeInstall && in.Status.InstalledVersion != "" && a.Dynamic != nil &&
+			a.Mgmt.Get(ctx, types.NamespacedName{Name: in.Spec.Plugin}, &p) == nil && len(p.Spec.UninstallBlockers) > 0 {
+			dyn, err := a.Dynamic.Dynamic(in.Spec.Cluster)
+			if err != nil {
+				return "", errorf(http.StatusServiceUnavailable, "cluster %s is not available", in.Spec.Cluster)
+			}
+			found, err := UninstallBlockers(ctx, dyn, p.Spec.UninstallBlockers)
+			if err != nil {
+				return "", err
+			}
+			if len(found) > 0 {
+				return "", &apiError{status: http.StatusConflict, msg: blockersMessage(p.Spec.UninstallBlockers, found), extra: map[string]any{"blockers": found}}
+			}
 		}
 		keep := q.Get("keepData") == "true"
 		crds := q.Get("removeCRDs")

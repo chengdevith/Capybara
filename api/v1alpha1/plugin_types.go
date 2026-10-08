@@ -207,6 +207,23 @@ type ProjectAccess struct {
 	// permissions of their own.
 	// +optional
 	ServiceAccounts []ProjectServiceAccount `json:"serviceAccounts,omitempty"`
+	// Objects generated per Project (e.g. an Argo CD AppProject), with the
+	// installer credential. In the template, "{{project}}", "{{namespace}}"
+	// (the Project's), "{{cluster}}" and "{{pluginNamespace}}" are replaced.
+	// +optional
+	Objects []ProjectObject `json:"objects,omitempty"`
+}
+
+// ProjectObject is a template applied once per Project.
+type ProjectObject struct {
+	// InPluginNamespace: created in the plugin's namespace (the tool's own,
+	// e.g. argocd), not the Project's.
+	// +optional
+	InPluginNamespace bool `json:"inPluginNamespace,omitempty"`
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:validation:Type=object
+	Template runtime.RawExtension `json:"template"`
 }
 
 // ProjectServiceAccount is a ServiceAccount a plugin creates per Project.
@@ -254,6 +271,25 @@ type PluginObject struct {
 	// per group (needs the delete verb).
 	// +optional
 	Cleanup *ObjectCleanup `json:"cleanup,omitempty"`
+	// DeleteModes, when declared, must be chosen on delete (e.g. whether the
+	// tool also removes what the object deployed).
+	// +optional
+	DeleteModes []DeleteMode `json:"deleteModes,omitempty"`
+	// RequiresStep: writes need this installation step to pass (e.g. the
+	// tool accepts objects in Project namespaces).
+	// +optional
+	RequiresStep string `json:"requiresStep,omitempty"`
+}
+
+// DeleteMode is one way of deleting an object: finalizers set or removed
+// first (merge patch), then the delete.
+type DeleteMode struct {
+	Name  string `json:"name"`
+	Title string `json:"title"`
+	// +optional
+	EnsureFinalizers []string `json:"ensureFinalizers,omitempty"`
+	// +optional
+	RemoveFinalizers []string `json:"removeFinalizers,omitempty"`
 }
 
 // ObjectCleanup says how objects are grouped and when one is finished.
@@ -263,6 +299,19 @@ type ObjectCleanup struct {
 	// FinishedCondition: an object is finished once this status condition
 	// is True or False (not Unknown).
 	FinishedCondition string `json:"finishedCondition"`
+}
+
+// UninstallBlocker is a kind whose objects must be gone before uninstall.
+type UninstallBlocker struct {
+	Group    string `json:"group"`
+	Version  string `json:"version"`
+	Resource string `json:"resource"`
+	Kind     string `json:"kind"`
+	// Message: what to do instead.
+	Message string `json:"message"`
+	// FlagFinalizer: objects carrying it are marked (e.g. cascade).
+	// +optional
+	FlagFinalizer string `json:"flagFinalizer,omitempty"`
 }
 
 // ObjectReference says the value at Path names an Object in the same namespace.
@@ -309,6 +358,10 @@ type ObjectRule struct {
 	// CountQuota: the number of matches must fit within this quota resource.
 	// +optional
 	CountQuota string `json:"countQuota,omitempty"`
+	// Match: a match must match this regular expression (Go syntax,
+	// anchored by the author).
+	// +optional
+	Match string `json:"match,omitempty"`
 	// Message shown for a violation.
 	// +optional
 	Message string `json:"message,omitempty"`
@@ -328,10 +381,42 @@ const (
 )
 
 // ActionCondition limits an action to objects whose status condition has
-// one of the given statuses (e.g. Succeeded=Unknown: still running).
+// one of the given statuses (e.g. Succeeded=Unknown: still running), or
+// whose field is absent (Field with Absent).
 type ActionCondition struct {
-	Type   string   `json:"type"`
-	Status []string `json:"status"`
+	// +optional
+	Type string `json:"type,omitempty"`
+	// +optional
+	Status []string `json:"status,omitempty"`
+	// Field (dotted path) and Absent: only when that field is not set.
+	// +optional
+	Field string `json:"field,omitempty"`
+	// +optional
+	Absent bool `json:"absent,omitempty"`
+}
+
+// ActionInput is a typed value a patch action takes from the request: the
+// patch's "$(inputs.<name>)" string values are replaced by it (a missing
+// optional input removes that field). "$(user)" is the requesting user.
+type ActionInput struct {
+	Name  string `json:"name"`
+	Title string `json:"title,omitempty"`
+	// +kubebuilder:validation:Enum=string;bool
+	Type string `json:"type"`
+	// Pattern a string must match (anchored).
+	// +optional
+	Pattern string `json:"pattern,omitempty"`
+	// +optional
+	Optional bool `json:"optional,omitempty"`
+}
+
+// ActionConfirm requires typing the object's name (always, or when an
+// input equals a value).
+type ActionConfirm struct {
+	// +optional
+	Input string `json:"input,omitempty"`
+	// +optional
+	Equals string `json:"equals,omitempty"`
 }
 
 // PluginAction is an operation on one of the plugin's resources that core
@@ -366,6 +451,15 @@ type PluginAction struct {
 	// ProjectOnly: only in Project namespaces.
 	// +optional
 	ProjectOnly bool `json:"projectOnly,omitempty"`
+	// Inputs a patch takes from the request.
+	// +optional
+	Inputs []ActionInput `json:"inputs,omitempty"`
+	// ConfirmName: the request must repeat the object's name.
+	// +optional
+	ConfirmName *ActionConfirm `json:"confirmName,omitempty"`
+	// RequiresStep, as for objects.
+	// +optional
+	RequiresStep string `json:"requiresStep,omitempty"`
 	// Danger: shown in red and confirmed.
 	// +optional
 	Danger bool `json:"danger,omitempty"`
@@ -460,7 +554,7 @@ type StepCheck struct {
 	// apiResource (the cluster serves "<group>/<resource>", e.g. after its
 	// CRD is established), dryRun (the API server accepts Object in a
 	// server-side dry run, e.g. through the plugin's webhooks).
-	// +kubebuilder:validation:Enum=helm;workload;service;apiResource;dryRun
+	// +kubebuilder:validation:Enum=helm;workload;service;apiResource;dryRun;field
 	Type string `json:"type"`
 	// workload: kind and name; apiResource: "<group>/<resource>" in Name.
 	// +optional
@@ -476,6 +570,10 @@ type StepCheck struct {
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:validation:Type=object
 	Object *runtime.RawExtension `json:"object,omitempty"`
+	// field: passes when any of Fields matches (an object's field contains
+	// a value).
+	// +optional
+	Fields []FieldCheck `json:"fields,omitempty"`
 	// service: the ServiceAccess name, a GET path, and a substring the
 	// response must contain.
 	// +optional
@@ -486,11 +584,34 @@ type StepCheck struct {
 	Contains string `json:"contains,omitempty"`
 }
 
+// FieldCheck reads one object with Capybara's account.
+type FieldCheck struct {
+	Group    string `json:"group,omitempty"`
+	Version  string `json:"version"`
+	Resource string `json:"resource"`
+	// Namespace, or NamespaceKey: the config key naming it.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+	// +optional
+	NamespaceKey string `json:"namespaceKey,omitempty"`
+	// Name, or "" for every object of the resource in the namespace.
+	// +optional
+	Name string `json:"name,omitempty"`
+	// Path (dotted) whose value (a string, or a list's items) must contain
+	// Contains.
+	Path     string `json:"path"`
+	Contains string `json:"contains"`
+}
+
 // InstallStep is one stage shown while installing.
 type InstallStep struct {
 	Name  string    `json:"name"`
 	Title string    `json:"title"`
 	Check StepCheck `json:"check"`
+	// Informational: shown and recorded, but does not keep the installation
+	// from Ready (e.g. which mode a connected tool supports).
+	// +optional
+	Informational bool `json:"informational,omitempty"`
 	// Modes the step applies to (default: all).
 	// +optional
 	Modes []InstallMode `json:"modes,omitempty"`
@@ -549,6 +670,10 @@ type PluginSpec struct {
 	// Policies referenced by objects (and actions), by name.
 	// +optional
 	Policies map[string]ObjectPolicy `json:"policies,omitempty"`
+	// Uninstall is refused while objects of these kinds exist anywhere on
+	// the cluster (e.g. Applications whose deletion would cascade).
+	// +optional
+	UninstallBlockers []UninstallBlocker `json:"uninstallBlockers,omitempty"`
 	// +optional
 	Detect *Detect `json:"detect,omitempty"`
 	// Namespace for connect mode's backend account when the config does not

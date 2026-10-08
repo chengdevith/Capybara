@@ -104,7 +104,7 @@ func run(args []string) error {
 		Handler: newHandler(deps{
 			cfg: cfg, clusters: registry, auditor: auditor, auditLog: auditStore, logger: logger,
 			sizes: projectCfg,
-			plugins: &plugin.API{Mgmt: mgmt, MgmtErr: mgmtErr, Clusters: registry, Auditor: auditor, Logger: logger,
+			plugins: &plugin.API{Mgmt: mgmt, MgmtErr: mgmtErr, Clusters: registry, Dynamic: registry, Auditor: auditor, Logger: logger,
 				Bundles: &plugin.Bundles{Mgmt: mgmt, PluginsDir: cfg.PluginsDir, DevDir: cfg.PluginDevDir}},
 			backends: &plugin.BackendProxy{Backends: cfg.PluginBackends, Logger: logger},
 			scoped:   &plugin.ScopedProxy{Mgmt: mgmt, Credentials: creds, Clusters: registry, Logger: logger},

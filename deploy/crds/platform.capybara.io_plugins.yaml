@@ -58,6 +58,15 @@ spec:
                     carries out with Capybara's account (holding the console permissions)
                     and audits; plugin code never decides what is written.
                   properties:
+                    confirmName:
+                      description: 'ConfirmName: the request must repeat the object''s
+                        name.'
+                      properties:
+                        equals:
+                          type: string
+                        input:
+                          type: string
+                      type: object
                     copyFields:
                       description: 'Copy: dotted field paths copied from the original
                         when present.'
@@ -70,6 +79,33 @@ spec:
                     group:
                       description: The target resource.
                       type: string
+                    inputs:
+                      description: Inputs a patch takes from the request.
+                      items:
+                        description: |-
+                          ActionInput is a typed value a patch action takes from the request: the
+                          patch's "$(inputs.<name>)" string values are replaced by it (a missing
+                          optional input removes that field). "$(user)" is the requesting user.
+                        properties:
+                          name:
+                            type: string
+                          optional:
+                            type: boolean
+                          pattern:
+                            description: Pattern a string must match (anchored).
+                            type: string
+                          title:
+                            type: string
+                          type:
+                            enum:
+                            - string
+                            - bool
+                            type: string
+                        required:
+                        - name
+                        - type
+                        type: object
+                      type: array
                     kind:
                       type: string
                     name:
@@ -87,6 +123,9 @@ spec:
                     projectOnly:
                       description: 'ProjectOnly: only in Project namespaces.'
                       type: boolean
+                    requiresStep:
+                      description: RequiresStep, as for objects.
+                      type: string
                     resource:
                       type: string
                     title:
@@ -102,15 +141,18 @@ spec:
                     when:
                       description: 'When: only for objects matching this condition.'
                       properties:
+                        absent:
+                          type: boolean
+                        field:
+                          description: 'Field (dotted path) and Absent: only when
+                            that field is not set.'
+                          type: string
                         status:
                           items:
                             type: string
                           type: array
                         type:
                           type: string
-                      required:
-                      - status
-                      - type
                       type: object
                   required:
                   - group
@@ -302,6 +344,32 @@ spec:
                       - finishedCondition
                       - groupLabel
                       type: object
+                    deleteModes:
+                      description: |-
+                        DeleteModes, when declared, must be chosen on delete (e.g. whether the
+                        tool also removes what the object deployed).
+                      items:
+                        description: |-
+                          DeleteMode is one way of deleting an object: finalizers set or removed
+                          first (merge patch), then the delete.
+                        properties:
+                          ensureFinalizers:
+                            items:
+                              type: string
+                            type: array
+                          name:
+                            type: string
+                          removeFinalizers:
+                            items:
+                              type: string
+                            type: array
+                          title:
+                            type: string
+                        required:
+                        - name
+                        - title
+                        type: object
+                      type: array
                     group:
                       type: string
                     kind:
@@ -331,6 +399,11 @@ spec:
                         - path
                         type: object
                       type: array
+                    requiresStep:
+                      description: |-
+                        RequiresStep: writes need this installation step to pass (e.g. the
+                        tool accepts objects in Project namespaces).
+                      type: string
                     resource:
                       type: string
                     verbs:
@@ -545,6 +618,27 @@ spec:
                       capybara-plugin-<name>-project, bound there by a RoleBinding of the
                       same name. It also creates the listed ServiceAccounts there.
                     properties:
+                      objects:
+                        description: |-
+                          Objects generated per Project (e.g. an Argo CD AppProject), with the
+                          installer credential. In the template, "{{project}}", "{{namespace}}"
+                          (the Project's), "{{cluster}}" and "{{pluginNamespace}}" are replaced.
+                        items:
+                          description: ProjectObject is a template applied once per
+                            Project.
+                          properties:
+                            inPluginNamespace:
+                              description: |-
+                                InPluginNamespace: created in the plugin's namespace (the tool's own,
+                                e.g. argocd), not the Project's.
+                              type: boolean
+                            template:
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                          required:
+                          - template
+                          type: object
+                        type: array
                       rules:
                         description: Rules granted to Capybara's account in each Project
                           namespace.
@@ -709,6 +803,11 @@ spec:
                             items:
                               type: string
                             type: array
+                          match:
+                            description: |-
+                              Match: a match must match this regular expression (Go syntax,
+                              anchored by the author).
+                            type: string
                           message:
                             description: Message shown for a violation.
                             type: string
@@ -745,6 +844,44 @@ spec:
                       properties:
                         contains:
                           type: string
+                        fields:
+                          description: |-
+                            field: passes when any of Fields matches (an object's field contains
+                            a value).
+                          items:
+                            description: FieldCheck reads one object with Capybara's
+                              account.
+                            properties:
+                              contains:
+                                type: string
+                              group:
+                                type: string
+                              name:
+                                description: Name, or "" for every object of the resource
+                                  in the namespace.
+                                type: string
+                              namespace:
+                                description: 'Namespace, or NamespaceKey: the config
+                                  key naming it.'
+                                type: string
+                              namespaceKey:
+                                type: string
+                              path:
+                                description: |-
+                                  Path (dotted) whose value (a string, or a list's items) must contain
+                                  Contains.
+                                type: string
+                              resource:
+                                type: string
+                              version:
+                                type: string
+                            required:
+                            - contains
+                            - path
+                            - resource
+                            - version
+                            type: object
+                          type: array
                         kind:
                           description: 'workload: kind and name; apiResource: "<group>/<resource>"
                             in Name.'
@@ -780,10 +917,16 @@ spec:
                           - service
                           - apiResource
                           - dryRun
+                          - field
                           type: string
                       required:
                       - type
                       type: object
+                    informational:
+                      description: |-
+                        Informational: shown and recorded, but does not keep the installation
+                        from Ready (e.g. which mode a connected tool supports).
+                      type: boolean
                     modes:
                       description: 'Modes the step applies to (default: all).'
                       items:
@@ -818,6 +961,37 @@ spec:
                 - bundle
                 - sha256
                 type: object
+              uninstallBlockers:
+                description: |-
+                  Uninstall is refused while objects of these kinds exist anywhere on
+                  the cluster (e.g. Applications whose deletion would cascade).
+                items:
+                  description: UninstallBlocker is a kind whose objects must be gone
+                    before uninstall.
+                  properties:
+                    flagFinalizer:
+                      description: 'FlagFinalizer: objects carrying it are marked
+                        (e.g. cascade).'
+                      type: string
+                    group:
+                      type: string
+                    kind:
+                      type: string
+                    message:
+                      description: 'Message: what to do instead.'
+                      type: string
+                    resource:
+                      type: string
+                    version:
+                      type: string
+                  required:
+                  - group
+                  - kind
+                  - message
+                  - resource
+                  - version
+                  type: object
+                type: array
               version:
                 type: string
             required:

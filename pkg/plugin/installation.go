@@ -382,7 +382,7 @@ func (r *InstallationReconciler) apply(ctx context.Context, in *v1alpha1.PluginI
 	}
 	uctx, ref := userCtx(ctx, in)
 	if in.Spec.Mode == v1alpha1.ModeInstall {
-		ch, values, err := LoadInstallChart(dir, &p.Spec, in.Spec.Cluster)
+		ch, values, err := LoadInstallChart(dir, &p.Spec, in.Spec.Cluster, ConfigOf(in))
 		if err != nil {
 			return err
 		}
@@ -730,8 +730,10 @@ func (r *InstallationReconciler) scanCRDs(ctx context.Context, in *v1alpha1.Plug
 	return crds, foreign, err
 }
 
+// chartCRDs names the chart's CRDs: those in crds/, and those its
+// templates render (some charts, e.g. Argo CD's, ship them as templates).
 func (r *InstallationReconciler) chartCRDs(p *v1alpha1.Plugin) ([]string, error) {
-	ch, _, err := LoadInstallChart(filepath.Join(r.PluginsDir, p.Name), &p.Spec, "x")
+	ch, values, err := LoadInstallChart(filepath.Join(r.PluginsDir, p.Name), &p.Spec, "x")
 	if err != nil {
 		return nil, err
 	}
@@ -743,6 +745,17 @@ func (r *InstallationReconciler) chartCRDs(p *v1alpha1.Plugin) ([]string, error)
 		}
 		for _, o := range objs {
 			names = append(names, o.GetName())
+		}
+	}
+	if p.Spec.Chart != nil {
+		rendered, err := Render(context.Background(), ch, RenderOptions{ReleaseName: p.Spec.Chart.ReleaseName, Namespace: p.Spec.Chart.Namespace, Values: values})
+		if err != nil {
+			return nil, err
+		}
+		for _, o := range rendered.Objects {
+			if o.GetKind() == "CustomResourceDefinition" && !slices.Contains(names, o.GetName()) {
+				names = append(names, o.GetName())
+			}
 		}
 	}
 	slices.Sort(names)
@@ -796,6 +809,25 @@ func (r *InstallationReconciler) uninstall(ctx context.Context, in *v1alpha1.Plu
 	}
 	if pluginErr != nil {
 		return r.blocked(ctx, in, st, "plugin "+in.Spec.Plugin+" is no longer in the catalog; cannot uninstall cleanly")
+	}
+	// Objects that must be gone first (also checked by the API before the
+	// uninstall is accepted).
+	if in.Spec.Mode == v1alpha1.ModeInstall && len(p.Spec.UninstallBlockers) > 0 {
+		cfg, err := r.Clusters.RESTConfig(in.Spec.Cluster)
+		if err != nil {
+			return r.blocked(ctx, in, st, "cannot check what blocks the uninstall: "+err.Error())
+		}
+		dyn, err := dynamic.NewForConfig(cfg)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		found, err := UninstallBlockers(ctx, dyn, p.Spec.UninstallBlockers)
+		if err != nil {
+			return r.blocked(ctx, in, st, "cannot check what blocks the uninstall: "+err.Error())
+		}
+		if len(found) > 0 {
+			return r.blocked(ctx, in, st, blockersMessage(p.Spec.UninstallBlockers, found))
+		}
 	}
 	inst, _, err := r.Installers.Get(in.Spec.Cluster)
 	if err != nil {

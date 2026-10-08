@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -493,4 +494,39 @@ func syncProjectAccess(ctx context.Context, cs kubernetes.Interface, plugin, clu
 		}
 	}
 	return res, nil
+}
+
+// UninstallBlockers lists the objects (anywhere on the cluster) that keep a
+// plugin from being uninstalled, e.g. Argo CD Applications: removing the
+// tool under them would orphan them or, if their CRD went too, delete them
+// (and with a cascade finalizer, what they deployed). Each line names the
+// object; flagged ones carry the blocker's finalizer.
+func UninstallBlockers(ctx context.Context, dyn dynamic.Interface, blockers []v1alpha1.UninstallBlocker) ([]string, error) {
+	var out []string
+	for _, b := range blockers {
+		list, err := dyn.Resource(schema.GroupVersionResource{Group: b.Group, Version: b.Version, Resource: b.Resource}).List(ctx, metav1.ListOptions{})
+		if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
+			continue // the kind is not served: nothing can block
+		}
+		if err != nil {
+			return nil, fmt.Errorf("list %s: %w", b.Resource, err)
+		}
+		for _, o := range list.Items {
+			line := fmt.Sprintf("%s %s/%s", b.Kind, o.GetNamespace(), o.GetName())
+			if b.FlagFinalizer != "" && slices.Contains(o.GetFinalizers(), b.FlagFinalizer) {
+				line += " (deletes its resources when deleted)"
+			}
+			out = append(out, line)
+		}
+	}
+	return out, nil
+}
+
+// blockersMessage explains a refused uninstall.
+func blockersMessage(blockers []v1alpha1.UninstallBlocker, found []string) string {
+	var how []string
+	for _, b := range blockers {
+		how = append(how, b.Message)
+	}
+	return fmt.Sprintf("%d object(s) must be deleted first: %s. %s", len(found), strings.Join(found, ", "), strings.Join(how, " "))
 }

@@ -53,6 +53,7 @@ func installerStatus(ok bool) v1alpha1.ClusterStatus {
 
 type apiFixture struct {
 	srv       *httptest.Server
+	api       *API
 	c         client.Client
 	auditPath string
 	store     *audit.FileStore
@@ -80,7 +81,7 @@ func newAPI(t *testing.T, objs ...client.Object) *apiFixture {
 	a.Register(mux)
 	srv := httptest.NewServer(auth.Middleware(mux))
 	t.Cleanup(srv.Close)
-	return &apiFixture{srv: srv, c: c, auditPath: path, store: store}
+	return &apiFixture{srv: srv, api: a, c: c, auditPath: path, store: store}
 }
 
 func (f *apiFixture) do(t *testing.T, method, path string, body any) (int, map[string]any) {

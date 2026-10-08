@@ -1,0 +1,228 @@
+package plugin
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	chartcommon "helm.sh/helm/v4/pkg/chart/common"
+	chart "helm.sh/helm/v4/pkg/chart/v2"
+	chartutil "helm.sh/helm/v4/pkg/chart/v2/util"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
+	dynfake "k8s.io/client-go/dynamic/fake"
+
+	"github.com/capybara/capybara/api/v1alpha1"
+)
+
+var gadgetGVR = schema.GroupVersionResource{Group: "example.com", Version: "v1", Resource: "gadgets"}
+
+const gadgetFinalizer = "example.com/cascade"
+
+var gadgetBlocker = v1alpha1.UninstallBlocker{Group: "example.com", Version: "v1", Resource: "gadgets", Kind: "Gadget",
+	Message: "Delete them first.", FlagFinalizer: gadgetFinalizer}
+
+// writeGadgetsPlugin writes a plugin whose chart renders its CRD from
+// templates/ (as Argo CD's does), with Helm's keep policy when keep is set,
+// and declares Gadgets as uninstall blockers.
+func writeGadgetsPlugin(t *testing.T, root string, keep bool) *v1alpha1.PluginSpec {
+	t.Helper()
+	dir := filepath.Join(root, "gadgets")
+	_ = os.MkdirAll(filepath.Join(dir, "chart"), 0o755)
+	policy := ""
+	if keep {
+		policy = "\n    helm.sh/resource-policy: keep"
+	}
+	crd := `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: gadgets.example.com
+  annotations:
+    example.com/marker: "x"` + policy + `
+spec:
+  group: example.com
+  scope: Namespaced
+  names: {plural: gadgets, singular: gadget, kind: Gadget, listKind: GadgetList}
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema: {type: object, x-kubernetes-preserve-unknown-fields: true}
+`
+	ch := &chart.Chart{
+		Metadata: &chart.Metadata{APIVersion: "v2", Name: "gadgets", Version: "1.0.0"},
+		Templates: []*chartcommon.File{
+			{Name: "templates/crd.yaml", Data: []byte(crd)},
+			{Name: "templates/cm.yaml", Data: []byte("apiVersion: v1\nkind: ConfigMap\nmetadata: {name: gadgets-config}\ndata: {proxy: {{ .Values.proxy | quote }}}\n")},
+		},
+	}
+	path, err := chartutil.Save(ch, filepath.Join(dir, "chart"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, _ := os.ReadFile(path)
+	sum := sha256.Sum256(archive)
+	return &v1alpha1.PluginSpec{
+		Name: "gadgets", Repository: "builtin", DisplayName: "Gadgets", Version: "1.0.0", ExtensionAPI: 1,
+		Scope: "per-cluster", Modes: []v1alpha1.InstallMode{v1alpha1.ModeInstall},
+		Chart: &v1alpha1.ChartRef{Archive: "chart/" + filepath.Base(path), SHA256: hex.EncodeToString(sum[:]), ReleaseName: "gadgets", Namespace: "gadgets", Version: "1.0.0",
+			InstallValues: &runtime.RawExtension{Raw: []byte(`{"proxy": "{{config.httpProxy}}"}`)}},
+		Permissions: v1alpha1.PluginPermissions{
+			Install: v1alpha1.RuleSet{ClusterRules: []v1alpha1.PolicyRule{{APIGroups: []string{"*"}, Resources: []string{"*"}, Verbs: []string{"*"}}}},
+		},
+		ConfigSchema:      &runtime.RawExtension{Raw: []byte(`{"type": "object", "properties": {"httpProxy": {"type": "string"}}}`)},
+		UninstallBlockers: []v1alpha1.UninstallBlocker{gadgetBlocker},
+		Steps:             []v1alpha1.InstallStep{{Name: "chart", Title: "Chart", Modes: []v1alpha1.InstallMode{v1alpha1.ModeInstall}, Check: v1alpha1.StepCheck{Type: "helm"}}},
+	}
+}
+
+func gadget(name string, finalizers ...string) *unstructured.Unstructured {
+	u := &unstructured.Unstructured{}
+	u.SetAPIVersion("example.com/v1")
+	u.SetKind("Gadget")
+	u.SetNamespace("default")
+	u.SetName(name)
+	u.SetFinalizers(finalizers)
+	return u
+}
+
+func TestUninstallBlockersAndKeptTemplatedCRDs(t *testing.T) {
+	f := newEnv(t)
+	ctx := f.ctx
+	root := t.TempDir()
+	f.r.PluginsDir = root
+	f.setInstaller(t, "dev-1", nil)
+	f.setInstaller(t, "dev-2", nil)
+	createPlugin := func(spec *v1alpha1.PluginSpec) {
+		t.Helper()
+		p := &v1alpha1.Plugin{ObjectMeta: metav1.ObjectMeta{Name: "gadgets"}}
+		if err := f.c.Get(ctx, types.NamespacedName{Name: "gadgets"}, p); err == nil {
+			p.Spec = *spec
+			if err := f.c.Update(ctx, p); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			p.Spec = *spec
+			if err := f.c.Create(ctx, p); err != nil {
+				t.Fatal(err)
+			}
+		}
+		p.Status.Available = true
+		_ = f.c.Status().Update(ctx, p)
+	}
+	installation := func(cluster string) *v1alpha1.PluginInstallation {
+		return &v1alpha1.PluginInstallation{ObjectMeta: metav1.ObjectMeta{Name: "gadgets." + cluster},
+			Spec: v1alpha1.PluginInstallationSpec{Plugin: "gadgets", Cluster: cluster, Mode: v1alpha1.ModeInstall, Enabled: true, Version: "1.0.0",
+				Config: &runtime.RawExtension{Raw: []byte(`{"httpProxy": "http://proxy.example:3128"}`)}}}
+	}
+
+	// A templated CRD without the keep policy is refused before anything is
+	// applied: uninstalling would delete it, and every Gadget with it.
+	createPlugin(writeGadgetsPlugin(t, root, false))
+	if err := f.c.Create(ctx, installation("dev-2")); err != nil {
+		t.Fatal(err)
+	}
+	f.reconcile(t, "gadgets.dev-2")
+	in := f.reconcile(t, "gadgets.dev-2")
+	if !strings.Contains(in.Status.Message, "helm.sh/resource-policy: keep") {
+		t.Fatalf("templated CRD without keep: %s %q", in.Status.Phase, in.Status.Message)
+	}
+	if _, err := f.cs.CoreV1().ConfigMaps("gadgets").Get(ctx, "gadgets-config", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatal("a refused chart was applied")
+	}
+
+	// With it, the chart installs; {{config.*}} reaches the values.
+	createPlugin(writeGadgetsPlugin(t, root, true))
+	if err := f.c.Create(ctx, installation("dev-1")); err != nil {
+		t.Fatal(err)
+	}
+	f.reconcile(t, "gadgets.dev-1")
+	deadline := time.Now().Add(30 * time.Second)
+	for in = f.reconcile(t, "gadgets.dev-1"); in.Status.Phase != v1alpha1.InstallReady && time.Now().Before(deadline); in = f.reconcile(t, "gadgets.dev-1") {
+		time.Sleep(300 * time.Millisecond)
+	}
+	if in.Status.Phase != v1alpha1.InstallReady {
+		t.Fatalf("install: %s %q", in.Status.Phase, in.Status.Message)
+	}
+	if cm, err := f.cs.CoreV1().ConfigMaps("gadgets").Get(ctx, "gadgets-config", metav1.GetOptions{}); err != nil || cm.Data["proxy"] != "http://proxy.example:3128" {
+		t.Errorf("config value = %v, %v", cm.Data, err)
+	}
+
+	// A Gadget (with the cascade finalizer) blocks the uninstall.
+	dyn := dynamic.NewForConfigOrDie(f.env.Config)
+	deadline = time.Now().Add(10 * time.Second)
+	var err error
+	for _, err = dyn.Resource(gadgetGVR).Namespace("default").Create(ctx, gadget("g1", gadgetFinalizer), metav1.CreateOptions{}); err != nil && time.Now().Before(deadline); _, err = dyn.Resource(gadgetGVR).Namespace("default").Create(ctx, gadget("g1", gadgetFinalizer), metav1.CreateOptions{}) {
+		time.Sleep(200 * time.Millisecond) // the CRD becomes served
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.c.Delete(ctx, &in); err != nil {
+		t.Fatal(err)
+	}
+	in = f.reconcile(t, "gadgets.dev-1")
+	if in.Status.Phase != v1alpha1.InstallUninstalling || !strings.Contains(in.Status.Message, "Gadget default/g1 (deletes its resources when deleted)") ||
+		!strings.Contains(in.Status.Message, "Delete them first.") {
+		t.Fatalf("uninstall with a Gadget: %s %q", in.Status.Phase, in.Status.Message)
+	}
+	if _, err := f.cs.CoreV1().ConfigMaps("gadgets").Get(ctx, "gadgets-config", metav1.GetOptions{}); err != nil {
+		t.Fatalf("blocked uninstall removed the release: %v", err)
+	}
+
+	// Once the Gadgets are gone, the uninstall runs and the CRD stays.
+	_, _ = dyn.Resource(gadgetGVR).Namespace("default").Patch(ctx, "g1", types.MergePatchType, []byte(`{"metadata":{"finalizers":null}}`), metav1.PatchOptions{})
+	_ = dyn.Resource(gadgetGVR).Namespace("default").Delete(ctx, "g1", metav1.DeleteOptions{})
+	f.reconcile(t, "gadgets.dev-1")
+	if err := f.c.Get(ctx, types.NamespacedName{Name: "gadgets.dev-1"}, &in); !apierrors.IsNotFound(err) {
+		t.Fatalf("uninstall did not finish: %q", in.Status.Message)
+	}
+	if _, err := f.cs.CoreV1().ConfigMaps("gadgets").Get(ctx, "gadgets-config", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Error("release objects kept after uninstall")
+	}
+	var crd apiextensionsv1.CustomResourceDefinition
+	if err := f.c.Get(ctx, types.NamespacedName{Name: "gadgets.example.com"}, &crd); err != nil || crd.DeletionTimestamp != nil {
+		t.Errorf("templated CRD with keep removed by uninstall: %v", err)
+	}
+}
+
+func TestAPIRefusesUninstallWhileBlockersExist(t *testing.T) {
+	p := &v1alpha1.Plugin{ObjectMeta: metav1.ObjectMeta{Name: "gadgets"}, Spec: *writeGadgetsPlugin(t, t.TempDir(), true), Status: v1alpha1.PluginStatus{Available: true}}
+	in := &v1alpha1.PluginInstallation{ObjectMeta: metav1.ObjectMeta{Name: "gadgets.dev-1", UID: "u1"},
+		Spec:   v1alpha1.PluginInstallationSpec{Plugin: "gadgets", Cluster: "dev-1", Mode: v1alpha1.ModeInstall, Enabled: true, Version: "1.0.0"},
+		Status: v1alpha1.PluginInstallationStatus{Phase: v1alpha1.InstallReady, InstalledVersion: "1.0.0"}}
+	f := newAPI(t, p, in)
+	dyn := dynfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{gadgetGVR: "GadgetList"},
+		gadget("g1", gadgetFinalizer), gadget("g2"))
+	f.api.Dynamic = fakeDyn{c: dyn}
+	q := url.Values{"confirm": {"gadgets.dev-1"}, "uid": {"u1"}}
+	code, body := f.do(t, http.MethodDelete, "/api/plugins/installations/gadgets.dev-1?"+q.Encode(), nil)
+	blockers, _ := body["blockers"].([]any)
+	if code != http.StatusConflict || len(blockers) != 2 || blockers[0] != "Gadget default/g1 (deletes its resources when deleted)" || blockers[1] != "Gadget default/g2" {
+		t.Fatalf("uninstall with Gadgets: %d %v", code, body)
+	}
+	if got := strings.Join(f.actions(t), " "); got != "uninstall=failure" {
+		t.Errorf("audit = %s", got)
+	}
+
+	// None left: accepted.
+	_ = dyn.Resource(gadgetGVR).Namespace("default").Delete(context.Background(), "g1", metav1.DeleteOptions{})
+	_ = dyn.Resource(gadgetGVR).Namespace("default").Delete(context.Background(), "g2", metav1.DeleteOptions{})
+	if code, body := f.do(t, http.MethodDelete, "/api/plugins/installations/gadgets.dev-1?"+q.Encode(), nil); code != http.StatusOK {
+		t.Fatalf("uninstall without Gadgets: %d %v", code, body)
+	}
+}

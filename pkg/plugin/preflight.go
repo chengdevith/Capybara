@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -158,7 +159,7 @@ func preflightInstall(ctx context.Context, in PreflightInput, cs kubernetes.Inte
 	if slices.Contains(spec.Chart.RefuseInstallOn, "openshift") && isOpenShift(groups) {
 		problem("this is OpenShift, which ships its own %s: use Connect existing instead of installing a second one", spec.DisplayName)
 	}
-	ch, values, err := LoadInstallChart(in.PluginDir, spec, in.Cluster)
+	ch, values, err := LoadInstallChart(in.PluginDir, spec, in.Cluster, in.Config)
 	if err != nil {
 		return err
 	}
@@ -190,6 +191,21 @@ func preflightInstall(ctx context.Context, in PreflightInput, cs kubernetes.Inte
 	}
 	for _, crd := range r.CRDs {
 		res.CRDs = append(res.CRDs, crd.GetName())
+	}
+	// Charts may also render CRDs from templates (Helm then upgrades them).
+	// Helm deletes templated objects on uninstall, and deleting a CRD deletes
+	// every object of its kind, so each must carry Helm's keep policy:
+	// removing CRDs stays the user's separate, confirmed choice.
+	for _, o := range r.Objects {
+		if o.GetKind() != "CustomResourceDefinition" {
+			continue
+		}
+		if o.GetAnnotations()[HelmResourcePolicy] != "keep" {
+			problem("the chart renders CRD %s from its templates without %s: keep, so uninstalling would delete it with every object of its kind", o.GetName(), HelmResourcePolicy)
+		}
+		if !slices.Contains(res.CRDs, o.GetName()) {
+			res.CRDs = append(res.CRDs, o.GetName())
+		}
 	}
 	sort.Strings(res.CRDs)
 	res.Images = Images(r.Objects)
@@ -228,10 +244,15 @@ func preflightInstall(ctx context.Context, in PreflightInput, cs kubernetes.Inte
 	return nil
 }
 
+// HelmResourcePolicy "keep" makes Helm leave an object on uninstall.
+const HelmResourcePolicy = "helm.sh/resource-policy"
+
+var configPlaceholder = regexp.MustCompile(`\{\{config\.([A-Za-z0-9_]+)\}\}`)
+
 // LoadInstallChart reads the pinned chart and builds the values for one
-// cluster: the preset, then the manifest's installValues ({{cluster}}
-// replaced).
-func LoadInstallChart(dir string, spec *v1alpha1.PluginSpec, clusterID string) (*chart.Chart, map[string]any, error) {
+// cluster: the preset, then the manifest's installValues ({{cluster}} and
+// {{config.<key>}}, from the installation's config, replaced).
+func LoadInstallChart(dir string, spec *v1alpha1.PluginSpec, clusterID string, cfg ...map[string]any) (*chart.Chart, map[string]any, error) {
 	archive, err := ReadPinned(dir, spec.Chart.Archive, spec.Chart.SHA256)
 	if err != nil {
 		return nil, nil, err
@@ -252,6 +273,20 @@ func LoadInstallChart(dir string, spec *v1alpha1.PluginSpec, clusterID string) (
 	}
 	if spec.Chart.InstallValues != nil && len(spec.Chart.InstallValues.Raw) > 0 {
 		raw := strings.ReplaceAll(string(spec.Chart.InstallValues.Raw), "{{cluster}}", clusterID)
+		raw = configPlaceholder.ReplaceAllStringFunc(raw, func(m string) string {
+			key := configPlaceholder.FindStringSubmatch(m)[1]
+			var v any
+			if len(cfg) > 0 && cfg[0] != nil {
+				v = cfg[0][key]
+			}
+			s := ""
+			if v != nil {
+				s = fmt.Sprint(v)
+			}
+			// Inside a JSON string: escape, without the quotes.
+			b, _ := json.Marshal(s)
+			return string(b[1 : len(b)-1])
+		})
 		var extra map[string]any
 		if err := json.Unmarshal([]byte(raw), &extra); err != nil {
 			return nil, nil, fmt.Errorf("installValues: %w", err)
