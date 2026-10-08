@@ -43,6 +43,7 @@ func (f fakeObjectClusters) Client(string) (kubernetes.Interface, error) { retur
 var (
 	taskGVR     = schema.GroupVersionResource{Group: "tekton.dev", Version: "v1", Resource: "tasks"}
 	pipelineGVR = schema.GroupVersionResource{Group: "tekton.dev", Version: "v1", Resource: "pipelines"}
+	trGVR       = schema.GroupVersionResource{Group: "tekton.dev", Version: "v1", Resource: "taskruns"}
 )
 
 type objectFixture struct {
@@ -77,7 +78,7 @@ func newObjectAPI(t *testing.T) *objectFixture {
 	mgmt := fake.NewClientBuilder().WithScheme(scheme).WithObjects(p, in, pr).WithStatusSubresource(&v1alpha1.Project{}).Build()
 
 	dyn := dynfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
-		taskGVR: "TaskList", pipelineGVR: "PipelineList", prGVR: "PipelineRunList"},
+		taskGVR: "TaskList", pipelineGVR: "PipelineList", prGVR: "PipelineRunList", trGVR: "TaskRunList"},
 		unstr(t, `{apiVersion: tekton.dev/v1, kind: Task, metadata: {name: say, namespace: team, uid: t1}, spec: {steps: [{name: s, image: "busybox:1.36", script: "true"}]}}`),
 		unstr(t, `{apiVersion: tekton.dev/v1, kind: Pipeline, metadata: {name: build, namespace: team, uid: p1}, spec: {params: [{name: app}], tasks: [{name: a, taskRef: {name: say}}]}}`))
 	// The fake ignores dry runs and generateName: behave like the API server.
@@ -219,8 +220,8 @@ func TestObjectsOnlyInProjectNamespaces(t *testing.T) {
 			t.Errorf("%s: %d %v", ns, code, body)
 		}
 	}
-	// Not declared: TaskRuns.
-	if code, _ := f.do(t, http.MethodPost, objBase+"taskruns/team", ObjectRequest{Object: yamlObj(t, `{metadata: {name: x}}`)}); code != http.StatusNotFound {
+	// Not declared: CustomRuns.
+	if code, _ := f.do(t, http.MethodPost, objBase+"customruns/team", ObjectRequest{Object: yamlObj(t, `{metadata: {name: x}}`)}); code != http.StatusNotFound {
 		t.Errorf("undeclared object: %d", code)
 	}
 }
@@ -361,8 +362,8 @@ func TestGovernsAndImageNames(t *testing.T) {
 	if got := a.Governs(context.Background(), "tekton.dev", "tasks"); got != "Pipelines" {
 		t.Errorf("tasks governed by %q", got)
 	}
-	if got := a.Governs(context.Background(), "tekton.dev", "taskruns"); got != "" {
-		t.Errorf("taskruns governed by %q", got)
+	if got := a.Governs(context.Background(), "tekton.dev", "customruns"); got != "" {
+		t.Errorf("customruns governed by %q", got)
 	}
 	for in, want := range map[string]string{
 		"busybox":                    "docker.io/library/busybox:latest",
@@ -380,3 +381,53 @@ func TestGovernsAndImageNames(t *testing.T) {
 
 var _ = yaml.Marshal
 var _ client.Object = (*v1alpha1.Project)(nil)
+
+func TestCreateTaskRun(t *testing.T) {
+	f := newObjectAPI(t)
+	code, body := f.do(t, http.MethodPost, objBase+"taskruns/team", ObjectRequest{Object: yamlObj(t, `
+metadata: {generateName: say-}
+spec: {taskRef: {name: say}, timeout: 10m}`)})
+	if code != 200 {
+		t.Fatalf("create task run: %d %v", code, body)
+	}
+	if sa, _, _ := unstructured.NestedString(body["object"].(map[string]any), "spec", "serviceAccountName"); sa != "pipeline" {
+		t.Errorf("service account = %q", sa)
+	}
+	code, body = f.do(t, http.MethodPost, objBase+"taskruns/team", ObjectRequest{Object: yamlObj(t, `
+metadata: {generateName: say-}
+spec: {taskRef: {name: say}, serviceAccountName: builder, status: TaskRunCancelled}`)})
+	if code != http.StatusUnprocessableEntity || problemPaths(body) != "spec.serviceAccountName,spec.status" {
+		t.Errorf("refused task run: %d %v", code, body)
+	}
+	if got := strings.Join(f.actions(t), " "); got != "tekton.start=denied tekton.start=success" {
+		t.Errorf("audit = %s", got)
+	}
+}
+
+func TestStopOnlyWhileRunningInAProject(t *testing.T) {
+	f := newObjectAPI(t)
+	ctx := context.Background()
+	for _, r := range []struct{ ns, name, uid, status string }{{"team", "busy", "b1", "Unknown"}, {"team", "done", "d1", "True"}, {"demo", "elsewhere", "e1", "Unknown"}} {
+		u := unstr(t, fmt.Sprintf(`{apiVersion: tekton.dev/v1, kind: PipelineRun, metadata: {name: %s, namespace: %s, uid: %s}, spec: {pipelineRef: {name: build}}, status: {conditions: [{type: Succeeded, status: "%s"}]}}`, r.name, r.ns, r.uid, r.status))
+		if _, err := f.dyn.Resource(prGVR).Namespace(r.ns).Create(ctx, u, metav1.CreateOptions{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stop := func(ns, name, uid string) int {
+		code, _ := f.do(t, http.MethodPost, "/api/clusters/dev-1/plugin-actions/tekton/stop", ActionRequest{Namespace: ns, Name: name, UID: uid})
+		return code
+	}
+	if code := stop("team", "busy", "b1"); code != 200 {
+		t.Errorf("stop a running run: %d", code)
+	}
+	got, _ := f.dyn.Resource(prGVR).Namespace("team").Get(ctx, "busy", metav1.GetOptions{})
+	if st, _, _ := unstructured.NestedString(got.Object, "spec", "status"); st != "StoppedRunFinally" {
+		t.Errorf("spec.status = %q", st)
+	}
+	if code := stop("team", "done", "d1"); code != http.StatusConflict {
+		t.Errorf("stop a finished run: %d", code)
+	}
+	if code := stop("demo", "elsewhere", "e1"); code != http.StatusForbidden {
+		t.Errorf("stop outside a Project: %d", code)
+	}
+}

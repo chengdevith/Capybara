@@ -15,7 +15,7 @@ const navigate = useNavigate()
 const otherAccount = ref(false)
 const pipeline = props.object.spec?.pipelineRef?.name as string | undefined
 async function startNew() {
-  await navigate({ name: 'tekton.pipelines.start', params: { cluster: props.cluster, namespace: props.object.metadata.namespace ?? '', name: pipeline! }, query: { from: props.object.metadata.name } })
+  await navigate({ name: 'tekton.pipelineruns.new', params: { cluster: props.cluster }, query: { ns: props.object.metadata.namespace ?? '', pipeline: pipeline!, from: props.object.metadata.name } })
   emit('close')
 }
 

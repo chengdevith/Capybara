@@ -41,7 +41,7 @@ chart:
 
 ui:
   bundle: ui/dist/tekton.js
-  sha256: cc91fcb3eb97375bddb97ec697b0517a01c8ebfdcb5cf59068f8508ca936d3c0
+  sha256: 38186cd4db6c235a53d1690826b9e9375f5e04cb34d93eb2dd4a9228c50db36d
 
 # An existing Tekton: connect needs one of these served; install is refused
 # when a CRD here belongs to another install, or a namespace exists.
@@ -114,6 +114,9 @@ permissions:
       - apiGroups: [tekton.dev]
         resources: [pipelineruns]
         verbs: [create, patch, delete]
+      - apiGroups: [tekton.dev]
+        resources: [taskruns]
+        verbs: [create, delete]
     serviceAccounts:
       - name: pipeline
 
@@ -152,6 +155,17 @@ objects:
     # (they may have been changed outside Capybara).
     references:
       - {path: "spec.pipelineRef.name", object: pipelines}
+  # A Task run on its own (Create TaskRun), with the same guardrails.
+  - name: taskruns
+    group: tekton.dev
+    version: v1
+    resource: taskruns
+    kind: TaskRun
+    verbs: [create, delete]
+    policy: taskrun
+    audit: {create: start}
+    references:
+      - {path: "spec.taskRef.name", object: tasks}
 
 # The guardrails (ADR 0008). "**" matches at any depth, so inline taskSpec
 # and pipelineSpec are covered as well.
@@ -197,6 +211,28 @@ policies:
       - {path: "**.pipelineRef.resolver", deny: true, message: "remote resolvers are not allowed; name a Pipeline in this namespace"}
       - {path: "**.pipelineRef.params", deny: true, message: "remote resolvers are not allowed; name a Pipeline in this namespace"}
       - {path: "**.pipelineRef.bundle", deny: true, message: "bundles are not allowed; name a Pipeline in this namespace"}
+  # TaskRuns started from Capybara: the same rules as PipelineRuns, at a
+  # TaskRun's own fields.
+  taskrun:
+    include: [workload]
+    rules:
+      - {path: spec.serviceAccountName, default: pipeline}
+      - {path: spec.serviceAccountName, allow: [pipeline], message: "runs started from Capybara use the Project's pipeline ServiceAccount"}
+      - path: "**.podTemplate.volumes.*"
+        allowKeys: [name]
+        exactlyOneOf: [emptyDir, configMap, persistentVolumeClaim]
+        message: "pod template volumes may only be emptyDir, configMap or persistentVolumeClaim (no Secrets)"
+      - {path: "**.podTemplate.env.*.valueFrom.secretKeyRef", deny: true, message: "the pod template may not read Secrets"}
+      - {path: "**.podTemplate.imagePullSecrets", deny: true, message: "image pull Secrets are not allowed"}
+      - {path: "**.podTemplate.hostNetwork", deny: true, equals: "true", message: "host network is not allowed"}
+      - path: "spec.workspaces.*"
+        allowKeys: [name, subPath]
+        exactlyOneOf: [emptyDir, volumeClaimTemplate, configMap]
+        message: "workspaces may only be emptyDir, a volumeClaimTemplate or a configMap (no Secrets)"
+      - {path: "spec.workspaces.*.volumeClaimTemplate.spec.resources.requests.storage", withinQuota: requests.storage, message: "the volume claims exceed the Project's storage quota"}
+      - {path: "spec.workspaces.*.volumeClaimTemplate", countQuota: persistentvolumeclaims, message: "too many volume claims for the Project's quota"}
+      # Started straight away (no pending, cancelled or stopped runs).
+      - {path: spec.status, deny: true, message: "a run is started, not created pending, stopped or cancelled"}
   # PipelineRuns started (or rerun) from Capybara.
   run:
     include: [workload]
@@ -222,6 +258,8 @@ policies:
         message: "workspaces may only be emptyDir, a volumeClaimTemplate or a configMap (no Secrets)"
       - {path: "spec.workspaces.*.volumeClaimTemplate.spec.resources.requests.storage", withinQuota: requests.storage, message: "the volume claims exceed the Project's storage quota"}
       - {path: "spec.workspaces.*.volumeClaimTemplate", countQuota: persistentvolumeclaims, message: "too many volume claims for the Project's quota"}
+      # Started straight away (no pending, cancelled or stopped runs).
+      - {path: spec.status, deny: true, message: "a run is started, not created pending, stopped or cancelled"}
 
 # Writes the console may make, only as declared here (core runs them,
 # audited as tekton.<action>).
@@ -248,6 +286,17 @@ actions:
     kind: PipelineRun
     type: patch
     patch: {spec: {status: Cancelled}}
+    when: {type: Succeeded, status: [Unknown]}
+    projectOnly: true
+  # Stop: no new tasks start; running ones and finally tasks complete.
+  - name: stop
+    title: Stop
+    group: tekton.dev
+    version: v1
+    resource: pipelineruns
+    kind: PipelineRun
+    type: patch
+    patch: {spec: {status: StoppedRunFinally}}
     when: {type: Succeeded, status: [Unknown]}
     projectOnly: true
     danger: true

@@ -11,7 +11,7 @@ const props = defineProps<{ cluster: string; object: KubeObject }>()
 const emit = defineEmits<{ close: [] }>()
 const navigate = useNavigate()
 const kind = computed(() => props.object.kind ?? '')
-const isRun = computed(() => kind.value === 'PipelineRun')
+const isRun = computed(() => kind.value === 'PipelineRun' || kind.value === 'TaskRun')
 const typed = ref('')
 const busy = ref(false)
 const error = ref<string | null>(null)
@@ -56,7 +56,7 @@ async function remove() {
     @mask-click="emit('close')"
   >
     <p v-if="isRun">
-      The run, its TaskRuns and their pods are removed (with their logs).
+      The run{{ kind === 'PipelineRun' ? ', its TaskRuns' : '' }} and their pods are removed (with their logs).
     </p>
     <template v-else>
       <NAlert

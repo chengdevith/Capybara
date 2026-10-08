@@ -50,7 +50,7 @@ test.afterAll(async ({ playwright }, info) => {
 const sider = (page: Page) => page.locator('.n-layout-sider')
 const objects = (object: string) => `/api/clusters/dev-1/plugin-objects/tekton/${object}`
 
-async function runAction(page: Page, label: string) {
+async function runAction(page: Page, label: string | RegExp) {
   await page.getByTestId('actions').click()
   await page.locator('.n-dropdown-option', { hasText: label }).click()
 }
@@ -148,10 +148,12 @@ test('create a Task and a Pipeline in the editor, start a run from the form, see
   await expect(page.getByTestId('graph-node-test')).toBeVisible()
   await expect(page.getByTestId('graph-node-build')).toBeVisible()
 
-  // Start run with a parameter from the form.
-  await runAction(page, 'Start run')
+  // Start: the Create PipelineRun form with this Pipeline chosen.
+  await runAction(page, /^Start$/)
+  await expect(page.getByTestId('tekton-run-form')).toBeVisible()
+  await expect(page.getByTestId('run-form-source')).toContainText('my-pipeline')
   await page.getByTestId('param-app').locator('input').fill('billing')
-  await page.getByTestId('start-submit').click()
+  await page.getByTestId('run-form-create').click()
   await expect(page).toHaveURL(new RegExp(`/tekton/pipelineruns/${NS}/my-pipeline-`))
   await page.locator('.n-tabs-tab', { hasText: 'Graph' }).click()
   await expect(page.locator('[data-test="graph-node-build"][data-state="Succeeded"]')).toBeVisible({ timeout: 180_000 })
@@ -213,12 +215,13 @@ test('rerun (and a rerun as another account offering a new run), cancel, delete;
   await page.getByTestId('confirm').click()
   await expect(page.getByTestId('rerun-error')).toContainText('pipeline ServiceAccount')
   await page.getByTestId('rerun-start-new').click()
-  await expect(page.getByTestId('tekton-start')).toBeVisible()
+  await expect(page.getByTestId('tekton-run-form')).toBeVisible()
+  await expect(page.getByTestId('run-form-source')).toContainText('hello')
 
   // Cancel a long run.
   const long = create('{pipelineRef: {name: hello}, taskRunTemplate: {serviceAccountName: pipeline}, params: [{name: seconds, value: "300"}]}')
   await page.goto(`/c/dev-1/tekton/pipelineruns/${NS}/${long}`)
-  await page.locator('.n-tabs-tab', { hasText: 'Tasks' }).click()
+  await page.locator('.n-tabs-tab', { hasText: 'Logs' }).click()
   await expect(page.getByTestId('task-work').getByTestId('run-status')).toHaveText('Running', { timeout: 120_000 })
   await runAction(page, 'Cancel run')
   await page.getByTestId('confirm').click()
@@ -250,6 +253,57 @@ test('rerun (and a rerun as another account offering a new run), cancel, delete;
   await page.goto('/c/dev-2/workloads/pods')
   await expect(sider(page).getByText('Workloads', { exact: true })).toBeVisible()
   await expect(sider(page).getByText('PipelineRuns', { exact: true })).toHaveCount(0)
+})
+
+test('Create PipelineRun and TaskRun from the lists, Start last run, Stop; Secret workspaces disabled', async ({ page, request }) => {
+  // Create PipelineRun from the PipelineRuns list: pick the Pipeline, set a param and a timeout.
+  await page.goto(`/c/dev-1/tekton/pipelineruns?ns=${NS}`)
+  await page.getByTestId('resource-create').click()
+  await page.getByTestId('run-form-source').click()
+  await page.locator('.n-base-select-option', { hasText: 'hello' }).click()
+  await page.getByTestId('param-who').locator('input').fill('the list')
+  await page.getByTestId('run-form-timeout').locator('input').fill('15')
+  await page.getByTestId('run-form-create').click()
+  await expect(page).toHaveURL(new RegExp(`/tekton/pipelineruns/${NS}/hello-`))
+  const fromList = new URL(page.url()).pathname.split('/').at(-1)!
+  expect(kubectl('dev-1', '-n', NS, 'get', 'pipelinerun', fromList, '-o', 'jsonpath={.spec.timeouts.pipeline} {.spec.taskRunTemplate.serviceAccountName}')).toBe('15m0s pipeline')
+  await expect.poll(() => reason(fromList), { timeout: 120_000 }).toBe('Succeeded')
+
+  // Start last run: a copy of the newest run.
+  await page.goto(`/c/dev-1/tekton/pipelines/${NS}/hello`)
+  await runAction(page, 'Start last run')
+  await expect(page).toHaveURL(new RegExp(`/tekton/pipelineruns/${NS}/hello-`))
+  const last = new URL(page.url()).pathname.split('/').at(-1)!
+  expect(last).not.toBe(fromList)
+  expect(kubectl('dev-1', '-n', NS, 'get', 'pipelinerun', last, '-o', 'jsonpath={.metadata.annotations.platform\\.capybara\\.io/copy-of}')).toBe(fromList)
+
+  // Stop: no new tasks; the run ends stopped.
+  const long = kubectlStdin('dev-1', 'apiVersion: tekton.dev/v1\nkind: PipelineRun\nmetadata: {generateName: hello-}\nspec: {pipelineRef: {name: hello}, taskRunTemplate: {serviceAccountName: pipeline}, params: [{name: seconds, value: "300"}]}\n',
+    'create', '-n', NS, '-f', '-', '-o', 'jsonpath={.metadata.name}')
+  await page.goto(`/c/dev-1/tekton/pipelineruns/${NS}/${long}`)
+  await expect.poll(() => kubectl('dev-1', '-n', NS, 'get', 'pipelinerun', long, '-o', 'jsonpath={.status.conditions[0].status}'), { timeout: 60_000 }).toBe('Unknown')
+  await runAction(page, /^Stop$/)
+  await page.getByTestId('confirm').click()
+  await expect.poll(() => kubectl('dev-1', '-n', NS, 'get', 'pipelinerun', long, '-o', 'jsonpath={.spec.status}'), { timeout: 30_000 }).toBe('StoppedRunFinally')
+
+  // Create TaskRun from the TaskRuns list, for a Task with a workspace: Secret is offered but disabled.
+  const res = await request.post(`${objects('tasks')}/${NS}`, { data: { object: { metadata: { name: 'stamp' }, spec: {
+    workspaces: [{ name: 'work' }],
+    steps: [{ name: 'write', image: 'busybox:1.36', script: 'date > $(workspaces.work.path)/stamp && echo stamped' }],
+  } } } })
+  expect(res.ok(), await res.text()).toBe(true)
+  await page.goto(`/c/dev-1/tekton/taskruns?ns=${NS}`)
+  await page.getByTestId('resource-create').click()
+  await page.getByTestId('run-form-source').click()
+  await page.locator('.n-base-select-option', { hasText: 'stamp' }).click()
+  await expect(page.getByTestId('workspace-secret').locator('input')).toBeDisabled()
+  await page.getByTestId('run-form-create').click()
+  await expect(page).toHaveURL(new RegExp(`/tekton/taskruns/${NS}/stamp-`))
+  await page.locator('.n-tabs-tab', { hasText: 'Logs' }).click()
+  await expect(page.getByTestId('log-output')).toContainText('stamped', { timeout: 90_000 })
+  const audit = (await (await request.get('/api/audit?limit=100')).json()) as { items: { action: string; kind?: string; result: string }[] }
+  expect(audit.items.some((e) => e.action === 'tekton.start' && e.kind === 'TaskRun' && e.result === 'success')).toBe(true)
+  expect(audit.items.some((e) => e.action === 'tekton.stop' && e.result === 'success')).toBe(true)
 })
 
 test('Connect existing on dev-2 to a hand-applied Tekton with a connect-only installer', async ({ page, request }) => {

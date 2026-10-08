@@ -119,6 +119,10 @@ export function statusTag(o: KubeObject) {
 const link = (resource: string, o: KubeObject, name: string | undefined) =>
   name ? h(api().components.ResourceLink, { resource, namespace: o.metadata.namespace, name }) : '—'
 
+/** Create buttons: only where writing is possible (a Project namespace, or
+ * any namespace when the cluster has Projects and the form picks one). */
+const creatable = (cluster: string, ns: string | null) => (ns ? isProjectNamespace(ns, cluster) : projectNamespaces(cluster).length > 0)
+
 const forbiddenHint = "Capybara's account on this cluster lacks the Pipelines console permissions: reinstall or reconnect the plugin."
 
 export const pipelineRunsDef: PluginResourceDef = {
@@ -127,6 +131,7 @@ export const pipelineRunsDef: PluginResourceDef = {
   label: 'PipelineRuns',
   singular: 'PipelineRun',
   path: 'tekton/pipelineruns',
+  create: { label: 'Create PipelineRun', route: 'tekton.pipelineruns.new', when: creatable },
   columns: [
     { key: 'status', title: 'Status', width: 140, ellipsis: false, render: statusTag, sortValue: (o) => runStatus(o).text },
     { key: 'pipeline', title: 'Pipeline', minWidth: 140, render: (o) => (o.spec?.pipelineRef?.name ? link('tekton.pipelines', o, o.spec.pipelineRef.name) : pipelineOf(o)), sortValue: pipelineOf },
@@ -151,6 +156,7 @@ export const taskRunsDef: PluginResourceDef = {
   label: 'TaskRuns',
   singular: 'TaskRun',
   path: 'tekton/taskruns',
+  create: { label: 'Create TaskRun', route: 'tekton.taskruns.new', when: creatable },
   columns: [
     { key: 'status', title: 'Status', width: 140, ellipsis: false, render: statusTag, sortValue: (o) => runStatus(o).text },
     { key: 'pipelinerun', title: 'PipelineRun', minWidth: 160, render: (o) => link('tekton.pipelineruns', o, o.metadata.labels?.['tekton.dev/pipelineRun']) },
@@ -173,7 +179,7 @@ export const pipelinesDef: PluginResourceDef = {
   label: 'Pipelines',
   singular: 'Pipeline',
   path: 'tekton/pipelines',
-  create: { label: 'Create Pipeline', route: 'tekton.pipelines.new' },
+  create: { label: 'Create Pipeline', route: 'tekton.pipelines.new', when: creatable },
   columns: [
     { key: 'tasks', title: 'Tasks', width: 90, render: (o) => String((o.spec?.tasks as unknown[] | undefined)?.length ?? 0) },
     { key: 'description', title: 'Description', minWidth: 200, render: (o) => o.spec?.description ?? '' },
@@ -192,7 +198,7 @@ export const tasksDef: PluginResourceDef = {
   label: 'Tasks',
   singular: 'Task',
   path: 'tekton/tasks',
-  create: { label: 'Create Task', route: 'tekton.tasks.new' },
+  create: { label: 'Create Task', route: 'tekton.tasks.new', when: creatable },
   columns: [
     { key: 'steps', title: 'Steps', width: 90, render: (o) => String((o.spec?.steps as unknown[] | undefined)?.length ?? 0) },
     { key: 'description', title: 'Description', minWidth: 200, render: (o) => o.spec?.description ?? '' },
@@ -206,4 +212,4 @@ export const tasksDef: PluginResourceDef = {
 }
 
 /** The plugin object (manifest `objects`) of each kind. */
-export const objectOf: Record<string, 'tasks' | 'pipelines' | 'pipelineruns'> = { Task: 'tasks', Pipeline: 'pipelines', PipelineRun: 'pipelineruns' }
+export const objectOf: Record<string, 'tasks' | 'pipelines' | 'pipelineruns' | 'taskruns'> = { Task: 'tasks', Pipeline: 'pipelines', PipelineRun: 'pipelineruns', TaskRun: 'taskruns' }

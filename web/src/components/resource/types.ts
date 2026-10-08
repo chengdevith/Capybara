@@ -62,7 +62,7 @@ export interface ResourceDef {
   rowExtras?: (cluster: string, namespace: string | null) => Promise<Map<string, RowExtra>>
   /** A "Create" button on the list page, opening this route (with the
    * selected namespace as ?ns=); shown only once the route exists. */
-  create?: { label: string; route: string }
+  create?: { label: string; route: string; when?: (cluster: string, namespace: string | null) => boolean }
 }
 
 export const listRouteOf = (def: ResourceDef): string => `${def.id}.list`

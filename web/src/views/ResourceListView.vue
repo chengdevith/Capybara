@@ -27,6 +27,7 @@ const registry = useRegistry()
 const createTo = computed(() => {
   const c = props.resource.create
   if (!c || !ctx.value.cluster || !registry.get(c.route)) return null
+  if (c.when && !c.when(ctx.value.cluster, namespace.value || null)) return null
   return { name: c.route, params: { cluster: ctx.value.cluster }, query: namespace.value ? { ns: namespace.value } : {} }
 })
 

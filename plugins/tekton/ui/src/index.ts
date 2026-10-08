@@ -23,32 +23,51 @@ export default definePlugin({
     api.registerResource(pipelinesDef, { order: 30, section: 'tekton.section' })
     api.registerResource(tasksDef, { order: 40, section: 'tekton.section' })
 
-    // Create, edit and start pages.
+    // Create and edit pages; one run form for every way of starting a run.
     const editor = () => import('./EditorPage.vue')
+    const runForm = () => import('./RunForm.vue')
     api.register({ type: 'route', id: 'tekton.tasks.new', path: 'tekton/tasks/new', scope: 'cluster', title: 'Create Task', parent: 'tekton.tasks.list', props: { object: 'tasks' }, component: editor })
     api.register({ type: 'route', id: 'tekton.pipelines.new', path: 'tekton/pipelines/new', scope: 'cluster', title: 'Create Pipeline', parent: 'tekton.pipelines.list', props: { object: 'pipelines' }, component: editor })
     api.register({ type: 'route', id: 'tekton.tasks.edit', path: 'tekton/tasks/:namespace/:name/edit', scope: 'cluster', title: 'Edit Task', parent: 'tekton.tasks.list', props: { object: 'tasks' }, component: editor })
     api.register({ type: 'route', id: 'tekton.pipelines.edit', path: 'tekton/pipelines/:namespace/:name/edit', scope: 'cluster', title: 'Edit Pipeline', parent: 'tekton.pipelines.list', props: { object: 'pipelines' }, component: editor })
-    api.register({ type: 'route', id: 'tekton.pipelines.start', path: 'tekton/pipelines/:namespace/:name/start', scope: 'cluster', title: 'Start run', parent: 'tekton.pipelines.list', component: () => import('./StartRunPage.vue') })
+    api.register({ type: 'route', id: 'tekton.pipelineruns.new', path: 'tekton/pipelineruns/new', scope: 'cluster', title: 'Create PipelineRun', parent: 'tekton.pipelineruns.list', props: { kind: 'pipelineruns' }, component: runForm })
+    api.register({ type: 'route', id: 'tekton.taskruns.new', path: 'tekton/taskruns/new', scope: 'cluster', title: 'Create TaskRun', parent: 'tekton.taskruns.list', props: { kind: 'taskruns' }, component: runForm })
 
-    // Detail tabs.
+    // Detail tabs, in OpenShift's order: Details (Overview), Graph, YAML,
+    // TaskRuns / PipelineRuns, Parameters, Logs, Events.
     api.register({
       type: 'resource-detail-tab', id: 'tekton.tab.graph', label: 'Graph', order: 12,
       kinds: ['Pipeline', 'PipelineRun'], component: () => import('./GraphTab.vue'),
     })
     api.register({
-      type: 'resource-detail-tab', id: 'tekton.tab.tasks', label: 'Tasks', order: 15,
-      kinds: ['PipelineRun'], component: () => import('./PipelineRunTasksTab.vue'),
+      type: 'resource-detail-tab', id: 'tekton.tab.taskruns', label: 'TaskRuns', order: 22,
+      kinds: ['PipelineRun'], component: () => import('./PipelineRunTaskRunsTab.vue'),
     })
     api.register({
-      type: 'resource-detail-tab', id: 'tekton.tab.logs', label: 'Logs', order: 40,
+      type: 'resource-detail-tab', id: 'tekton.tab.pipelineruns', label: 'PipelineRuns', order: 22,
+      kinds: ['Pipeline'], component: () => import('./PipelineRunsTab.vue'),
+    })
+    api.register({
+      type: 'resource-detail-tab', id: 'tekton.tab.parameters', label: 'Parameters', order: 24,
+      kinds: ['Pipeline', 'Task', 'PipelineRun', 'TaskRun'], component: () => import('./ParametersTab.vue'),
+    })
+    api.register({
+      type: 'resource-detail-tab', id: 'tekton.tab.logs', label: 'Logs', order: 26,
+      kinds: ['PipelineRun'], component: () => import('./PipelineRunLogsTab.vue'),
+    })
+    api.register({
+      type: 'resource-detail-tab', id: 'tekton.tab.taskrun-logs', label: 'Logs', order: 26,
       kinds: ['TaskRun'], component: () => import('./TaskRunLogsTab.vue'),
     })
 
     // Actions: only on objects in Project namespaces.
     api.register({
-      type: 'resource-action', id: 'tekton.action.start', label: 'Start run', order: 5,
+      type: 'resource-action', id: 'tekton.action.start', label: 'Start', order: 5,
       kinds: ['Pipeline'], appliesTo: inProject, component: () => import('./StartRunAction.vue'),
+    })
+    api.register({
+      type: 'resource-action', id: 'tekton.action.start-last', label: 'Start last run', order: 6,
+      kinds: ['Pipeline'], appliesTo: inProject, component: () => import('./StartLastRunAction.vue'),
     })
     api.register({
       type: 'resource-action', id: 'tekton.action.edit', label: 'Edit', order: 10,
@@ -59,16 +78,20 @@ export default definePlugin({
       kinds: ['PipelineRun'], appliesTo: inProject, component: () => import('./RerunAction.vue'),
     })
     api.register({
+      type: 'resource-action', id: 'tekton.action.stop', label: 'Stop', order: 16,
+      kinds: ['PipelineRun'], appliesTo: inProject, component: () => import('./StopAction.vue'),
+    })
+    api.register({
       type: 'resource-action', id: 'tekton.action.cleanup', label: 'Clean up runs', order: 30,
       kinds: ['Pipeline'], appliesTo: inProject, component: () => import('./CleanupAction.vue'),
     })
     api.register({
-      type: 'resource-action', id: 'tekton.action.cancel', label: 'Cancel run', order: 16, danger: true,
+      type: 'resource-action', id: 'tekton.action.cancel', label: 'Cancel run', order: 17, danger: true,
       kinds: ['PipelineRun'], appliesTo: inProject, component: () => import('./CancelAction.vue'),
     })
     api.register({
       type: 'resource-action', id: 'tekton.action.delete', label: 'Delete', order: 90, danger: true,
-      kinds: ['Task', 'Pipeline', 'PipelineRun'], appliesTo: inProject, component: () => import('./DeleteAction.vue'),
+      kinds: ['Task', 'Pipeline', 'PipelineRun', 'TaskRun'], appliesTo: inProject, component: () => import('./DeleteAction.vue'),
     })
 
     api.register({

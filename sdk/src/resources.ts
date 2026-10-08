@@ -75,7 +75,7 @@ export interface PluginResourceDef {
   forbiddenHint?: string
   /** A "Create" button on the list page opening this route (1.2), with the
    * selected namespace as ?ns=. */
-  create?: { label: string; route: string }
+  create?: { label: string; route: string; when?: (cluster: string, namespace: string | null) => boolean }
 }
 
 /** Where a resource's sidebar item goes. */

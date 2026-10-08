@@ -425,11 +425,18 @@ hack/capybara-sa.sh dev-1 --installer tekton
      a YAML editor with starter templates. **Validate** shows problems on
      their lines and warns about images the cluster does not have; edits
      are reviewed as a diff before saving.
-   - On a Pipeline: **Actions → Start run** (a form from its parameters and
-     workspaces), the **Graph** tab, **Clean up runs**.
-   - On a run: the **Graph** and **Tasks** tabs with step logs, **Rerun**,
-     **Cancel run**, **Delete**. A step waiting for an image the cluster
-     cannot pull says so, with the import command.
+   - **Create PipelineRun** (on the PipelineRuns list, or **Actions → Start**
+     on a Pipeline): one form. Pick the Pipeline, then its parameters,
+     workspaces (empty directory, new volume within the Project's quota,
+     ConfigMap; Secret only after Phase 5) and timeout, or switch to YAML.
+     The run starts as soon as it is created. **Create TaskRun** does the
+     same for a single Task.
+   - On a Pipeline: **Start last run** (its newest run again), the **Graph**,
+     **PipelineRuns** and **Parameters** tabs, **Clean up runs**.
+   - On a run: **Graph**, **TaskRuns**, **Parameters** and **Logs** (tasks on
+     the left, step logs on the right); **Rerun**, **Stop** (running tasks
+     and finally tasks finish), **Cancel run**, **Delete**. A step waiting
+     for an image the cluster cannot pull says so, with the import command.
 4. Or apply the sample into the Project's namespace (needs `make demo` for
    the busybox image):
    ```sh

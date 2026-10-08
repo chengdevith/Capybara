@@ -2,12 +2,16 @@
 import { useNavigate, type KubeObject } from '@capybara/sdk'
 import { onMounted } from 'vue'
 
-// "Start run": opens the run form for this Pipeline.
+// "Start": the Create PipelineRun form with this Pipeline chosen.
 const props = defineProps<{ cluster: string; object: KubeObject }>()
 const emit = defineEmits<{ close: [] }>()
 const navigate = useNavigate()
 onMounted(async () => {
-  await navigate({ name: 'tekton.pipelines.start', params: { cluster: props.cluster, namespace: props.object.metadata.namespace ?? '', name: props.object.metadata.name } })
+  await navigate({
+    name: 'tekton.pipelineruns.new',
+    params: { cluster: props.cluster },
+    query: { ns: props.object.metadata.namespace ?? '', pipeline: props.object.metadata.name },
+  })
   emit('close')
 })
 </script>

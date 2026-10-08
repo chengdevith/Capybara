@@ -288,3 +288,39 @@ func TestPolicyEngine(t *testing.T) {
 		t.Errorf("problems = %v", problems)
 	}
 }
+
+func TestTektonTaskRunPolicy(t *testing.T) {
+	rules := tektonPolicy(t, "taskrun")
+	run := obj(t, `
+kind: TaskRun
+spec:
+  taskRef: {name: say}
+  params: [{name: message, value: hi}]
+  workspaces: [{name: w, emptyDir: {}}]
+  timeout: 10m`)
+	wantViolation(t, "plain task run", check(t, rules, run))
+	if sa := Values(run, "spec.serviceAccountName"); len(sa) != 1 || sa[0] != "pipeline" {
+		t.Errorf("service account not defaulted: %v", sa)
+	}
+	wantViolation(t, "another account, a Secret workspace, pod template", check(t, rules, obj(t, `
+spec:
+  taskRef: {name: say}
+  serviceAccountName: builder
+  workspaces: [{name: w, secret: {secretName: db}}]
+  podTemplate: {imagePullSecrets: [{name: reg}]}`)),
+		"spec.podTemplate.imagePullSecrets", "spec.serviceAccountName", "spec.workspaces[0]", "spec.workspaces[0].secret")
+	wantViolation(t, "inline task spec", check(t, rules, obj(t, `
+spec: {taskSpec: {steps: [{name: s, image: x, securityContext: {privileged: true}}]}}`)),
+		"spec.taskSpec.steps[0].securityContext.privileged")
+}
+
+func TestTektonRunsAreStartedNotCreatedStopped(t *testing.T) {
+	for _, policy := range []string{"run", "taskrun"} {
+		for _, status := range []string{"PipelineRunPending", "Cancelled", "StoppedRunFinally", "TaskRunCancelled"} {
+			got := check(t, tektonPolicy(t, policy), obj(t, "spec: {status: "+status+"}"))
+			if len(got) != 1 || got[0].Path != "spec.status" {
+				t.Errorf("%s with status %s: %v", policy, status, got)
+			}
+		}
+	}
+}
