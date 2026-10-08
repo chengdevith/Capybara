@@ -1,12 +1,13 @@
-# Sample for the Pipelines (Tekton) plugin, in the demo namespace (make demo
-# first: it creates capybara-demo and imports busybox:1.36). Apply:
-#   make kubectl CLUSTER=dev-1 ARGS="apply -f deploy/samples/tekton-pipeline.yaml"
-# Start more runs with: make kubectl CLUSTER=dev-1 ARGS="create -f deploy/samples/tekton-run.yaml"
+# Sample for the Pipelines (Tekton) plugin, for a Project namespace (Capybara
+# writes Tekton objects only in Projects; make demo imports busybox:1.36).
+# Apply it into your Project's namespace, e.g. "ci-demo":
+#   make kubectl CLUSTER=dev-1 ARGS="apply -n ci-demo -f deploy/samples/tekton-pipeline.yaml"
+# Then start runs from the Pipeline's page (Actions -> Start run), or:
+#   make kubectl CLUSTER=dev-1 ARGS="create -n ci-demo -f deploy/samples/tekton-run.yaml"
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
   name: hello
-  namespace: capybara-demo
 spec:
   description: Says hello, then works for a few seconds (pass seconds=300 for a run to cancel).
   params:

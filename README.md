@@ -76,12 +76,12 @@ flowchart LR
 | **Clusters** | Register clusters by kubeconfig (validated, never returned by the API), see health (Connected, Unreachable, AuthFailed, credentials expiring), rotate credentials, remove them. The top bar switches clusters and marks `prod` in red. |
 | **Workloads, networking, config** | Live lists and detail pages for Pods, Deployments, Services, ConfigMaps, Secrets, Namespaces and Nodes, kept up to date over websockets. |
 | **Write actions** | Edit YAML (server-side apply with conflict detection), scale, restart, delete with type-the-name for risky kinds, and a web terminal into containers. |
-| **Projects** | A Project gives a team a namespace with quota (S/M/L), limits, default-deny network policies and an owner RoleBinding, all restored if someone removes them. |
+| **Projects** | A Project gives a team a namespace with quota (S/M/L), limits, default-deny network policies, Pod Security `baseline` and an owner RoleBinding, all restored if someone removes them. |
 | **Secrets** | Lists never carry Secret values. Values reach the browser only when you press *Reveal*, and that is audited. |
 | **Audit** | Every write is recorded before it runs (refused if it can't be recorded), with who, what, where and the result. |
 | **Marketplace** | Install plugins per cluster, or connect them to a tool that already runs there. Enable or disable their UI per cluster. |
 | **Observe (monitoring plugin)** | Prometheus and Grafana: a Metrics tab on Pods, Deployments and Nodes, cluster and Project usage cards, alerts, and a Grafana link. |
-| **Pipelines (Tekton plugin)** | PipelineRuns, TaskRuns and Pipelines with live status and step logs, Rerun and Cancel (audited), and the latest runs on each Project. |
+| **Pipelines (Tekton plugin)** | Create and edit Tasks and Pipelines in a YAML editor, start runs from a form, follow them in a graph with step logs; rerun, cancel, delete, clean up. In Project namespaces, within guardrails, all audited. |
 
 ---
 
@@ -414,30 +414,42 @@ hack/capybara-sa.sh dev-1 --installer tekton
 
 1. Upload the installer credential on the cluster's page, then
    *Marketplace → Pipelines → Install on a cluster → Install*. Steps:
-   chart → API served → controller, webhook, resolvers ready →
-   PipelineRuns accepted → **Ready**. It installs Tekton Pipelines v1.17.0
-   with only the cluster resolver enabled (no Git, Hub, bundle or HTTP
-   fetching yet).
-2. Try the sample (needs `make demo`):
+   chart → API served → controller, webhook, resolvers ready → **Ready**.
+   It installs Tekton Pipelines v1.17.0 with only the cluster resolver
+   enabled (no Git, Hub, bundle or HTTP fetching yet).
+2. Create a **Project** (Projects → Create). Tasks, Pipelines and runs are
+   created and started only in Project namespaces; each gets a `pipeline`
+   ServiceAccount (no permissions, no API token) that every run uses.
+3. In the Project's namespace:
+   - **Pipelines → Tasks → Create Task** and **Pipelines → Create Pipeline**:
+     a YAML editor with starter templates. **Validate** shows problems on
+     their lines and warns about images the cluster does not have; edits
+     are reviewed as a diff before saving.
+   - On a Pipeline: **Actions → Start run** (a form from its parameters and
+     workspaces), the **Graph** tab, **Clean up runs**.
+   - On a run: the **Graph** and **Tasks** tabs with step logs, **Rerun**,
+     **Cancel run**, **Delete**. A step waiting for an image the cluster
+     cannot pull says so, with the import command.
+4. Or apply the sample into the Project's namespace (needs `make demo` for
+   the busybox image):
    ```sh
-   make kubectl CLUSTER=dev-1 ARGS="apply -f deploy/samples/tekton-pipeline.yaml"
-   make kubectl CLUSTER=dev-1 ARGS="create -f deploy/samples/tekton-run.yaml"
+   make kubectl CLUSTER=dev-1 ARGS="apply -n ci-demo -f deploy/samples/tekton-pipeline.yaml"
    ```
-3. Use it: **Pipelines** in the sidebar (PipelineRuns, TaskRuns,
-   Pipelines); a run's **Tasks** tab with step logs; **Actions → Rerun** or
-   **Cancel run**; the **Pipeline runs** card on Project pages.
 
 **Connect existing** works with a Tekton already in the cluster (on
-OpenShift: OpenShift Pipelines, never a second install). Its installer
-credential only creates Capybara's read and action grant:
+OpenShift: OpenShift Pipelines, never a second install):
 `hack/capybara-sa.sh dev-2 --installer tekton --connect`.
 
 > [!NOTE]
-> While Pipelines is installed, Capybara's own account on that cluster may
-> read Tekton's resources and create and patch PipelineRuns, for Rerun and
-> Cancel only. Creating a PipelineRun can run code as any ServiceAccount in
-> its namespace, and until Phase 5 every console user can use those
-> actions. See [ADR 0007](docs/decisions/0007-phase-4.6-tekton.md).
+> Until Phase 5 (per-user rights), guardrails stand in for them. Writes
+> happen only in Project namespaces, and runs always use the Project's
+> `pipeline` account. There are no Secrets, privileged steps, remote
+> Tasks or StepActions. Each create, edit, run and delete is checked by
+> Capybara's server, dry-run, and audited (`tekton.create`,
+> `tekton.update`, `tekton.delete`, `tekton.start`). Project namespaces
+> enforce Pod Security `baseline`. Every console user can still run code
+> in any Project. See
+> [ADR 0008](docs/decisions/0008-phase-4.6.1-pipelines-authoring.md).
 
 ### Writing a plugin
 

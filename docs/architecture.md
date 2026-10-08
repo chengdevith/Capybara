@@ -226,12 +226,26 @@ browser ─▶ /api/clusters/<id>/plugin-actions/<plugin>/<action> (audited) ─
 - **Pipelines** (id `tekton`, no backend): Tekton Pipelines v1.17.0 from the
   vendored release (only the cluster resolver), or Connect existing to a
   Tekton already there (OpenShift Pipelines; never a second install). UI
-  `plugins/tekton/ui`: PipelineRuns, TaskRuns and Pipelines on the generic
-  resource pages, a Tasks tab with step logs on PipelineRuns, a Logs tab on
-  TaskRuns, Rerun and Cancel actions, a Project card with the latest runs.
+  `plugins/tekton/ui`: PipelineRuns, TaskRuns, Pipelines and Tasks on the
+  generic resource pages; create/edit pages (YAML editor, templates,
+  validation, diff), Start run (form), a Graph tab, a Tasks tab and a
+  TaskRun Logs tab with step logs, image pull problems, Rerun, Cancel,
+  Delete, Clean up runs, a Project card with the latest runs. Writes only
+  in Project namespaces (ADR 0008).
+- **Per-Project access** (`permissions.project`): a ClusterRole
+  `capybara-plugin-<name>-project` bound to Capybara's account in each
+  Ready Project namespace, plus declared ServiceAccounts (no permissions
+  or token), kept in step with Projects by the installation controller.
+- **Plugin objects** (`objects`, `policies`):
+  `/api/clusters/{id}/plugin-objects/{plugin}/{object}/{namespace}[/{name}]`
+  (`_validate`, `_cleanup`). Core checks the declaration, the Project
+  namespace, the policy (closed-set rules over field paths), quota, the
+  Project ServiceAccounts, referenced objects, then dry-runs and audits
+  each write. Core's generic Edit YAML and Delete refuse governed kinds.
 - See ADR 0006 for the security decisions (installer credential, backend
-  credentials, bundle trust, shared modules) and ADR 0007 for console
-  permissions, declared actions, upstream charts and API minor versions.
+  credentials, bundle trust, shared modules), ADR 0007 for console
+  permissions, declared actions, upstream charts and API minor versions,
+  and ADR 0008 for writes in Project namespaces before auth.
 
 ## Projects (api/v1alpha1, pkg/project, cmd/controller)
 
@@ -257,6 +271,12 @@ browser ─▶ /api/projects (audited) ─▶ Project in capybara-mgmt
   `capybara-allow-same-namespace`, `capybara-allow-from-ingress` (no egress
   rules), RoleBinding `capybara-project-owner` (ClusterRole `admin`, the
   owner as a Group subject).
+- **Pod Security**: the namespace is labelled
+  `pod-security.kubernetes.io/enforce=baseline` and `warn=restricted`.
+  Before labelling an existing namespace the controller dry-runs the change
+  and records Kubernetes' warnings about running pods that violate it in
+  `status.podSecurity` and a `PodSecurity` condition (the labels are
+  applied anyway; such pods fail on their next restart).
 - **Sizes and ingress sources** come from the ConfigMap
   `capybara-system/capybara-project-sizes` (key `sizes.yaml`; `make
   project-sizes` loads `deploy/project-sizes.yaml` into it). It is validated
