@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -52,6 +53,39 @@ func ResolvePolicy(policies map[string]v1alpha1.ObjectPolicy, name string) ([]v1
 	return out, nil
 }
 
+// PolicyVars are the placeholders policy values may use: {{project}},
+// {{namespace}} (the Project's) and {{cluster}}.
+func PolicyVars(project, namespace, cluster string) map[string]string {
+	return map[string]string{"project": project, "namespace": namespace, "cluster": cluster}
+}
+
+// SubstituteRules fills the placeholders in rule values (regular
+// expressions get them quoted, so a name never acts as a pattern).
+func SubstituteRules(rules []v1alpha1.ObjectRule, vars map[string]string) []v1alpha1.ObjectRule {
+	fill := func(s string, quote bool) string {
+		for k, v := range vars {
+			if quote {
+				v = regexp.QuoteMeta(v)
+			}
+			s = strings.ReplaceAll(s, "{{"+k+"}}", v)
+		}
+		return s
+	}
+	out := make([]v1alpha1.ObjectRule, len(rules))
+	for i, r := range rules {
+		r.Equals, r.Default, r.Match = fill(r.Equals, false), fill(r.Default, false), fill(r.Match, true)
+		allow := make([]string, len(r.Allow))
+		for j, a := range r.Allow {
+			allow[j] = fill(a, false)
+		}
+		if r.Allow != nil {
+			r.Allow = allow
+		}
+		out[i] = r
+	}
+	return out
+}
+
 // ApplyPolicy sets the rules' defaults on obj, then checks every rule and
 // returns the violations (none: obj may be written as it is now).
 func ApplyPolicy(ctx context.Context, rules []v1alpha1.ObjectRule, obj map[string]any, quotas Quotas) ([]Violation, error) {
@@ -87,6 +121,16 @@ func ApplyPolicy(ctx context.Context, rules []v1alpha1.ObjectRule, obj map[strin
 			for _, m := range matches {
 				if !slices.Contains(r.Allow, scalar(m.value)) {
 					add(m.path, msg(fmt.Sprintf("must be one of %s (got %q)", strings.Join(r.Allow, ", "), scalar(m.value))))
+				}
+			}
+		case r.Match != "":
+			re, err := regexp.Compile(r.Match)
+			if err != nil {
+				return nil, fmt.Errorf("policy match %q: %w", r.Match, err)
+			}
+			for _, m := range matches {
+				if s, ok := m.value.(string); !ok || !re.MatchString(s) {
+					add(m.path, msg(fmt.Sprintf("%q is not allowed here", scalar(m.value))))
 				}
 			}
 		case len(r.AllowKeys) > 0 || len(r.ExactlyOneOf) > 0:

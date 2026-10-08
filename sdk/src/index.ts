@@ -160,6 +160,10 @@ export interface PluginActionTarget {
   name: string
   /** The object's uid as loaded: Capybara refuses if it changed since. */
   uid: string
+  /** Values for the action's declared `inputs` (1.3). */
+  inputs?: Record<string, string | boolean>
+  /** The object's name again, when the action declares `confirmName` (1.3). */
+  confirmName?: string
 }
 
 /**
@@ -216,8 +220,10 @@ export const pluginObjects = {
       body: JSON.stringify({ object: obj, uid: loaded.uid, resourceVersion: loaded.resourceVersion }),
     })
   },
-  remove(cluster: string, plugin: string, object: string, namespace: string, name: string, uid: string): Promise<unknown> {
-    return capybaraRequest(`${this.url(cluster, plugin, object, namespace, name)}?uid=${encodeURIComponent(uid)}`, { method: 'DELETE' })
+  /** Deletes `name`; `mode` is one of the object's declared deleteModes (1.3), required when it has any. */
+  remove(cluster: string, plugin: string, object: string, namespace: string, name: string, uid: string, mode?: string): Promise<unknown> {
+    const q = new URLSearchParams({ uid, ...(mode ? { mode } : {}) })
+    return capybaraRequest(`${this.url(cluster, plugin, object, namespace, name)}?${q}`, { method: 'DELETE' })
   },
   /** Deletes finished objects, keeping the newest `keep` per group. */
   cleanup(

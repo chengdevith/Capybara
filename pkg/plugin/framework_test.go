@@ -20,6 +20,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
@@ -40,7 +41,8 @@ func TestCheckExtensionAPI(t *testing.T) {
 		{1, "1.0", true},
 		{1, "1.1", true},
 		{1, "1.2", true},
-		{1, "1.3", false},
+		{1, "1.3", true},
+		{1, "1.4", false},
 		{2, "", false},
 		{1, "2.0", false},
 		{1, "x", false},
@@ -50,7 +52,7 @@ func TestCheckExtensionAPI(t *testing.T) {
 			t.Errorf("%d %q: %q", c.major, c.min, why)
 		}
 	}
-	if why := CheckExtensionAPI(1, "1.9"); !strings.Contains(why, "needs extension API 1.9; this Capybara provides 1.2") {
+	if why := CheckExtensionAPI(1, "1.9"); !strings.Contains(why, "needs extension API 1.9; this Capybara provides 1.3") {
 		t.Errorf("message = %q", why)
 	}
 }
@@ -357,6 +359,10 @@ func TestProjectAccessFollowsProjects(t *testing.T) {
 	spec.Permissions.Project = &v1alpha1.ProjectAccess{
 		Rules:           []v1alpha1.PolicyRule{{APIGroups: []string{"example.com"}, Resources: []string{"widgets"}, Verbs: []string{"create", "update", "delete"}}},
 		ServiceAccounts: []v1alpha1.ProjectServiceAccount{{Name: "pipeline"}},
+		// One generated object per Project, in the plugin's namespace (as
+		// Argo CD's AppProject is).
+		Objects: []v1alpha1.ProjectObject{{InPluginNamespace: true, Template: runtime.RawExtension{Raw: []byte(
+			`{"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": "project-{{project}}"}, "data": {"ns": "{{namespace}}", "cluster": "{{cluster}}", "home": "{{pluginNamespace}}"}}`)}}},
 	}
 	p := &v1alpha1.Plugin{ObjectMeta: metav1.ObjectMeta{Name: "widgets"}, Spec: *spec}
 	if err := f.c.Create(ctx, p); err != nil {
@@ -383,6 +389,27 @@ func TestProjectAccessFollowsProjects(t *testing.T) {
 	for in = f.reconcile(t, "widgets.dev-1"); in.Status.Phase != v1alpha1.InstallReady && time.Now().Before(deadline); in = f.reconcile(t, "widgets.dev-1") {
 		time.Sleep(300 * time.Millisecond)
 	}
+	// A same-named object someone else made for team-c is never adopted.
+	readyProject(t, f, "team-c", "dev-1")
+	if _, err := f.cs.CoreV1().ConfigMaps("widgets").Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "project-team-c"}}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	in = f.reconcile(t, "widgets.dev-1")
+	generated, err := f.cs.CoreV1().ConfigMaps("widgets").Get(ctx, "project-team-a", metav1.GetOptions{})
+	if err != nil || generated.Data["ns"] != "team-a" || generated.Data["cluster"] != "dev-1" || generated.Data["home"] != "widgets" ||
+		generated.Labels[LabelProjectObject] != "team-a" {
+		t.Fatalf("team-a generated object = %+v, %v", generated, err)
+	}
+	if _, err := f.cs.CoreV1().ConfigMaps("widgets").Get(ctx, "project-team-b", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Error("team-b (no access) got a generated object")
+	}
+	if foreign, _ := f.cs.CoreV1().ConfigMaps("widgets").Get(ctx, "project-team-c", metav1.GetOptions{}); foreign.Labels[LabelProjectObject] != "" {
+		t.Error("someone else's object was adopted")
+	}
+	if c := meta.FindStatusCondition(in.Status.Conditions, ConditionProjectAccess); c == nil || !strings.Contains(c.Message, "ConfigMap widgets/project-team-c exists") {
+		t.Errorf("ProjectAccess = %+v", c)
+	}
+	_ = f.cs.CoreV1().ConfigMaps("widgets").Delete(ctx, "project-team-c", metav1.DeleteOptions{})
 	role := ProjectRole("widgets")
 	if _, err := f.cs.RbacV1().ClusterRoles().Get(ctx, role, metav1.GetOptions{}); err != nil {
 		t.Fatalf("project role: %v", err)
@@ -420,10 +447,14 @@ func TestProjectAccessFollowsProjects(t *testing.T) {
 	if _, err := f.cs.CoreV1().ServiceAccounts("team-b").Get(ctx, "pipeline", metav1.GetOptions{}); err != nil {
 		t.Error("someone else's pipeline account was removed")
 	}
+	if _, err := f.cs.CoreV1().ConfigMaps("widgets").Get(ctx, "project-team-a", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Error("generated object kept after the Project went")
+	}
 
 	// Uninstall removes the rest.
-	readyProject(t, f, "team-c", "dev-1")
-	f.reconcile(t, "widgets.dev-1")
+	if _, err := f.cs.CoreV1().ConfigMaps("widgets").Get(ctx, "project-team-c", metav1.GetOptions{}); err != nil {
+		t.Fatalf("team-c generated object: %v", err)
+	}
 	if _, err := f.cs.RbacV1().RoleBindings("team-c").Get(ctx, role, metav1.GetOptions{}); err != nil {
 		t.Fatalf("team-c binding: %v", err)
 	}
@@ -435,6 +466,9 @@ func TestProjectAccessFollowsProjects(t *testing.T) {
 	}
 	if _, err := f.cs.RbacV1().ClusterRoles().Get(ctx, role, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Error("project role kept after uninstall")
+	}
+	if _, err := f.cs.CoreV1().ConfigMaps("widgets").Get(ctx, "project-team-c", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Error("generated object kept after uninstall")
 	}
 }
 

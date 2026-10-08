@@ -523,6 +523,74 @@ func UninstallBlockers(ctx context.Context, dyn dynamic.Interface, blockers []v1
 }
 
 // blockersMessage explains a refused uninstall.
+// fieldCheck passes when any of checks finds its value (read with
+// Capybara's account; a missing object or field does not pass).
+func fieldCheck(ctx context.Context, cfg *rest.Config, checks []v1alpha1.FieldCheck, config map[string]any, pluginNS string) error {
+	dyn, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return err
+	}
+	var seen []string
+	for _, c := range checks {
+		ns := c.Namespace
+		if c.NamespaceKey != "" {
+			ns, _ = config[c.NamespaceKey].(string)
+		}
+		if ns == "" {
+			ns = pluginNS
+		}
+		res := dyn.Resource(schema.GroupVersionResource{Group: c.Group, Version: c.Version, Resource: c.Resource}).Namespace(ns)
+		var objs []unstructured.Unstructured
+		if c.Name != "" {
+			o, err := res.Get(ctx, c.Name, metav1.GetOptions{})
+			if err == nil {
+				objs = append(objs, *o)
+			} else if !apierrors.IsNotFound(err) && !meta.IsNoMatchError(err) {
+				return err
+			}
+		} else {
+			list, err := res.List(ctx, metav1.ListOptions{})
+			if err == nil {
+				objs = list.Items
+			} else if !apierrors.IsNotFound(err) && !meta.IsNoMatchError(err) {
+				return err
+			}
+		}
+		for _, o := range objs {
+			v, ok, _ := unstructured.NestedFieldNoCopy(o.Object, strings.Split(c.Path, ".")...)
+			if !ok {
+				continue
+			}
+			switch v := v.(type) {
+			case string:
+				for _, part := range strings.Split(v, ",") {
+					if strings.TrimSpace(part) == c.Contains {
+						return nil
+					}
+				}
+			case []any:
+				for _, item := range v {
+					if item == c.Contains {
+						return nil
+					}
+				}
+			}
+		}
+		seen = append(seen, fmt.Sprintf("%s %s in %s", c.Path, c.Resource, ns))
+	}
+	return fmt.Errorf("not set (%s)", strings.Join(seen, "; "))
+}
+
+// StepPassed reports whether the installation's step name is done.
+func StepPassed(in *v1alpha1.PluginInstallation, name string) bool {
+	for _, s := range in.Status.Steps {
+		if s.Name == name {
+			return s.State == v1alpha1.StepDone
+		}
+	}
+	return false
+}
+
 func blockersMessage(blockers []v1alpha1.UninstallBlocker, found []string) string {
 	var how []string
 	for _, b := range blockers {

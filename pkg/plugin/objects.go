@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -84,6 +85,8 @@ type target struct {
 	object  v1alpha1.PluginObject
 	cluster string
 	ns      string
+	// project owns ns (policy placeholders).
+	project string
 	dyn     dynamic.Interface
 	cs      kubernetes.Interface
 }
@@ -127,7 +130,11 @@ func (a *ObjectAPI) resolve(ctx context.Context, r *http.Request, verb v1alpha1.
 	if err := a.Mgmt.Get(ctx, types.NamespacedName{Name: v1alpha1.InstallationName(pluginName, id)}, &in); err != nil || !Usable(&in) {
 		return nil, fmt.Errorf("%w: %s is not installed and enabled on %s", audit.ErrDenied, p.Spec.DisplayName, id)
 	}
-	if err := a.requireProject(ctx, id, ns); err != nil {
+	if obj.RequiresStep != "" && !StepPassed(&in, obj.RequiresStep) {
+		return nil, fmt.Errorf("%w: %s is view-only on %s (step %q has not passed)", audit.ErrDenied, p.Spec.DisplayName, id, obj.RequiresStep)
+	}
+	project, err := ProjectOf(ctx, a.Mgmt, id, ns)
+	if err != nil {
 		return nil, err
 	}
 	dyn, err := a.Clusters.Dynamic(id)
@@ -138,28 +145,29 @@ func (a *ObjectAPI) resolve(ctx context.Context, r *http.Request, verb v1alpha1.
 	if err != nil {
 		return nil, errorf(http.StatusServiceUnavailable, "cluster %s is not available", id)
 	}
-	return &target{plugin: &p, object: obj, cluster: id, ns: ns, dyn: dyn, cs: cs}, nil
-}
-
-// requireProject: plugin objects are written only in Ready Project
-// namespaces (never protected or system ones: Projects cannot use those).
-func (a *ObjectAPI) requireProject(ctx context.Context, clusterID, ns string) error {
-	return RequireProjectNamespace(ctx, a.Mgmt, clusterID, ns)
+	return &target{plugin: &p, object: obj, cluster: id, ns: ns, project: project, dyn: dyn, cs: cs}, nil
 }
 
 // RequireProjectNamespace returns ErrDenied unless ns belongs to a Ready
-// Project on the cluster.
+// Project on the cluster: plugin objects are written only in Project
+// namespaces (never protected or system ones: Projects cannot use those).
 func RequireProjectNamespace(ctx context.Context, mgmt client.Client, clusterID, ns string) error {
+	_, err := ProjectOf(ctx, mgmt, clusterID, ns)
+	return err
+}
+
+// ProjectOf names the Ready Project that owns ns (ErrDenied: none).
+func ProjectOf(ctx context.Context, mgmt client.Client, clusterID, ns string) (string, error) {
 	var projects v1alpha1.ProjectList
 	if err := mgmt.List(ctx, &projects); err != nil {
-		return err
+		return "", err
 	}
 	for _, pr := range projects.Items {
 		if pr.Spec.Cluster == clusterID && pr.Spec.Namespace == ns && pr.DeletionTimestamp.IsZero() && pr.Status.Phase == v1alpha1.PhaseReady {
-			return nil
+			return pr.Name, nil
 		}
 	}
-	return fmt.Errorf("%w: %s on %s is not a Project namespace; plugins write only in Project namespaces", audit.ErrDenied, ns, clusterID)
+	return "", fmt.Errorf("%w: %s on %s is not a Project namespace; plugins write only in Project namespaces", audit.ErrDenied, ns, clusterID)
 }
 
 // prepare normalises the submitted object for the target: kind and
@@ -309,7 +317,7 @@ func (a *ObjectAPI) policy(ctx context.Context, t *target, decl v1alpha1.PluginO
 	if err != nil {
 		return nil, err
 	}
-	return ApplyPolicy(ctx, rules, obj, t.quotas)
+	return ApplyPolicy(ctx, SubstituteRules(rules, PolicyVars(t.project, t.ns, t.cluster)), obj, t.quotas)
 }
 
 // quotas: what the namespace's ResourceQuotas still allow (the least).
@@ -623,7 +631,7 @@ func (a *ObjectAPI) write(w http.ResponseWriter, r *http.Request, verb v1alpha1.
 
 func (a *ObjectAPI) remove(w http.ResponseWriter, r *http.Request) {
 	id, ns, name := r.PathValue("id"), r.PathValue("namespace"), r.PathValue("name")
-	uid := r.URL.Query().Get("uid")
+	uid, modeName := r.URL.Query().Get("uid"), r.URL.Query().Get("mode")
 	op := a.auditOp(r, id, ns, name, v1alpha1.ObjectDelete)
 	err := a.Auditor.Do(r.Context(), op, func(ctx context.Context) (string, error) {
 		t, err := a.resolve(ctx, r, v1alpha1.ObjectDelete)
@@ -639,16 +647,56 @@ func (a *ObjectAPI) remove(w http.ResponseWriter, r *http.Request) {
 			return "", errorf(http.StatusConflict, "%s %s changed since it was loaded (uid mismatch); reload and try again", t.object.Kind, name)
 		}
 		curUID := cur.GetUID()
+		detail := ""
+		if len(t.object.DeleteModes) > 0 {
+			i := slices.IndexFunc(t.object.DeleteModes, func(m v1alpha1.DeleteMode) bool { return m.Name == modeName })
+			if i < 0 {
+				var names []string
+				for _, m := range t.object.DeleteModes {
+					names = append(names, m.Name)
+				}
+				return "", errorf(http.StatusBadRequest, "choose how to delete %s %s (mode: %s)", t.object.Kind, name, strings.Join(names, " or "))
+			}
+			mode := t.object.DeleteModes[i]
+			if err := setFinalizers(ctx, res, cur, mode); err != nil {
+				return "", err
+			}
+			detail = " (" + mode.Title + ")"
+		} else if modeName != "" {
+			return "", errorf(http.StatusBadRequest, "%s has no delete modes", t.object.Kind)
+		}
 		if err := res.Delete(ctx, name, metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &curUID}}); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("deleted %s %s", t.object.Kind, name), nil
+		return fmt.Sprintf("deleted %s %s%s", t.object.Kind, name, detail), nil
 	})
 	if err != nil {
 		writeObjectErr(w, err)
 		return
 	}
 	httpjson.Write(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// setFinalizers makes the object's finalizers what a delete mode needs
+// (guarded by its resourceVersion), so the tool does (or does not) remove
+// what the object deployed.
+func setFinalizers(ctx context.Context, res dynamic.ResourceInterface, cur *unstructured.Unstructured, mode v1alpha1.DeleteMode) error {
+	have := cur.GetFinalizers()
+	want := slices.DeleteFunc(slices.Clone(have), func(f string) bool { return slices.Contains(mode.RemoveFinalizers, f) })
+	for _, f := range mode.EnsureFinalizers {
+		if !slices.Contains(want, f) {
+			want = append(want, f)
+		}
+	}
+	if slices.Equal(have, want) {
+		return nil
+	}
+	if want == nil {
+		want = []string{}
+	}
+	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"finalizers": want, "resourceVersion": cur.GetResourceVersion()}})
+	_, err := res.Patch(ctx, cur.GetName(), types.MergePatchType, patch, metav1.PatchOptions{FieldManager: "capybara"})
+	return err
 }
 
 // CleanupRequest asks to keep only the newest Keep finished objects per group.

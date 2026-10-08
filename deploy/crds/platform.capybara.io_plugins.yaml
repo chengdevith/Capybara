@@ -142,11 +142,11 @@ spec:
                       description: 'When: only for objects matching this condition.'
                       properties:
                         absent:
-                          type: boolean
-                        field:
-                          description: 'Field (dotted path) and Absent: only when
-                            that field is not set.'
-                          type: string
+                          description: 'Absent: dotted paths that must not be set
+                            (e.g. no automated sync).'
+                          items:
+                            type: string
+                          type: array
                         status:
                           items:
                             type: string

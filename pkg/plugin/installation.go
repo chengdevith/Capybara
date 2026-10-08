@@ -20,9 +20,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -322,25 +325,53 @@ func (r *InstallationReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return r.checkSteps(ctx, &in, &p, services, st, tokenWarn)
 }
 
-// projectNamespaces lists the namespaces of the Ready Projects on a cluster.
-func (r *InstallationReconciler) projectNamespaces(ctx context.Context, clusterID string) ([]string, error) {
+// projects lists the Ready Projects on a cluster, by namespace.
+func (r *InstallationReconciler) projects(ctx context.Context, clusterID string) ([]ProjectRef, error) {
 	var projects v1alpha1.ProjectList
 	if err := r.Client.List(ctx, &projects); err != nil {
 		return nil, err
 	}
-	var out []string
+	var out []ProjectRef
 	for _, pr := range projects.Items {
 		if pr.Spec.Cluster == clusterID && pr.DeletionTimestamp.IsZero() && pr.Status.Phase == v1alpha1.PhaseReady {
-			out = append(out, pr.Spec.Namespace)
+			out = append(out, ProjectRef{Name: pr.Name, Namespace: pr.Spec.Namespace})
 		}
 	}
-	slices.Sort(out)
+	slices.SortFunc(out, func(a, b ProjectRef) int { return strings.Compare(a.Namespace, b.Namespace) })
 	return out, nil
+}
+
+// projectObjectClients reaches a cluster for generated per-Project objects.
+func projectObjectClients(cfg *rest.Config) (dynamic.Interface, meta.RESTMapper, error) {
+	dyn, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	dc, err := discovery.NewDiscoveryClientForConfig(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	return dyn, restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc)), nil
 }
 
 // syncProjects keeps the plugin's per-Project access in step with the
 // cluster's Projects (with the installer credential) and reports it in the
 // ProjectAccess condition.
+// syncProjectObjects applies the plugin's generated per-Project objects
+// for these Projects (nil: removes them all), with the installer credential.
+func (r *InstallationReconciler) syncProjectObjects(ctx context.Context, in *v1alpha1.PluginInstallation, p *v1alpha1.Plugin,
+	inst *rest.Config, projects []ProjectRef) ([]string, error) {
+	ns, err := Namespace(&p.Spec, in.Spec.Mode, ConfigOf(in))
+	if err != nil {
+		return nil, err
+	}
+	dyn, mapper, err := projectObjectClients(inst)
+	if err != nil {
+		return nil, err
+	}
+	return syncProjectObjects(ctx, dyn, mapper, p.Name, in.Spec.Cluster, ns, p.Spec.Permissions.Project.Objects, projects)
+}
+
 func (r *InstallationReconciler) syncProjects(ctx context.Context, in *v1alpha1.PluginInstallation, p *v1alpha1.Plugin,
 	inst *rest.Config, instErr error, st *v1alpha1.PluginInstallationStatus) {
 	fail := func(reason, msg string) { setCond(st, ConditionProjectAccess, metav1.ConditionFalse, reason, msg) }
@@ -348,10 +379,14 @@ func (r *InstallationReconciler) syncProjects(ctx context.Context, in *v1alpha1.
 		fail("NoInstaller", "Project namespaces are kept up to date with the installer credential: "+instErr.Error())
 		return
 	}
-	namespaces, err := r.projectNamespaces(ctx, in.Spec.Cluster)
+	projects, err := r.projects(ctx, in.Spec.Cluster)
 	if err != nil {
 		fail("Failed", err.Error())
 		return
+	}
+	var namespaces []string
+	for _, pr := range projects {
+		namespaces = append(namespaces, pr.Namespace)
 	}
 	var cl v1alpha1.Cluster
 	if err := r.Client.Get(ctx, types.NamespacedName{Name: in.Spec.Cluster}, &cl); err != nil {
@@ -364,6 +399,18 @@ func (r *InstallationReconciler) syncProjects(ctx context.Context, in *v1alpha1.
 		return
 	}
 	res, err := syncProjectAccess(ctx, cs, p.Name, in.Spec.Cluster, cl.Status.Identity, p.Spec.Permissions.Project, namespaces)
+	if err == nil && len(p.Spec.Permissions.Project.Objects) > 0 {
+		// Generated objects only for Projects that got their access.
+		var granted []ProjectRef
+		for _, pr := range projects {
+			if slices.Contains(res.Granted, pr.Namespace) {
+				granted = append(granted, pr)
+			}
+		}
+		var problems []string
+		problems, err = r.syncProjectObjects(ctx, in, p, inst, granted)
+		res.Problems = append(res.Problems, problems...)
+	}
 	switch {
 	case err != nil:
 		fail("Failed", err.Error())
@@ -585,6 +632,16 @@ func (r *InstallationReconciler) checkSteps(ctx context.Context, in *v1alpha1.Pl
 			}
 		case "service":
 			err = r.serviceCheck(ctx, tokenCfg, services, def.Check)
+		case "field":
+			if base == nil {
+				err = errors.New("cluster not available")
+			} else {
+				err = fieldCheck(ctx, base, def.Check.Fields, ConfigOf(in), ns)
+			}
+		}
+		if err != nil && def.Informational {
+			s.State, s.Message = v1alpha1.StepOff, err.Error()
+			continue
 		}
 		if err != nil {
 			s.State, s.Message = v1alpha1.StepRunning, err.Error()
@@ -893,6 +950,11 @@ func (r *InstallationReconciler) uninstall(ctx context.Context, in *v1alpha1.Plu
 		}
 	}
 	if p.Spec.Permissions.Project != nil {
+		if len(p.Spec.Permissions.Project.Objects) > 0 {
+			if _, err := r.syncProjectObjects(ctx, in, p, inst, nil); err != nil {
+				return r.blocked(ctx, in, st, "remove the generated per-Project objects: "+err.Error())
+			}
+		}
 		if _, err := syncProjectAccess(ctx, cs, in.Spec.Plugin, in.Spec.Cluster, "", p.Spec.Permissions.Project, nil); err != nil {
 			return r.blocked(ctx, in, st, "revoke the per-Project access: "+err.Error())
 		}

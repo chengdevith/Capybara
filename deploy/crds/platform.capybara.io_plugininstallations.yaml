@@ -237,6 +237,7 @@ spec:
                       - Running
                       - Done
                       - Failed
+                      - "Off"
                       type: string
                     title:
                       type: string

@@ -6,7 +6,7 @@ import { defineComponent, h } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import type { CatalogEntry, Installation } from '@/api/plugins'
 import InstallationCard from './InstallationCard.vue'
-import { installationView } from './installationView'
+import { currentStep, installationView } from './installationView'
 
 const refusal =
   'pre-flight refused: the installer credential (system:serviceaccount:capybara-system:capybara-installer) lacks 34 permission(s) this plugin declares for install mode; regenerate it with: hack/capybara-sa.sh dev-1 --installer tekton'
@@ -59,6 +59,14 @@ describe('installationView', () => {
     const c = installation({ phase: 'Ready', installedVersion: '0.1.0' })
     c.spec.mode = 'connect'
     expect(installationView(c).subtitle).toBe('connected · v0.1.0')
+  })
+})
+
+describe('currentStep', () => {
+  it('an informational step that is off does not hold the steps back', () => {
+    const st = (state: 'Done' | 'Off' | 'Running') => ({ name: state, title: state, state })
+    expect(currentStep([st('Done'), st('Off'), st('Done')])).toBe(4)
+    expect(currentStep([st('Done'), st('Off'), st('Running')])).toBe(3)
   })
 })
 

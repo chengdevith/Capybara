@@ -145,7 +145,7 @@ async function change(c: { enabled?: boolean; version?: string }) {
         <NStep
           v-for="s in steps"
           :key="s.name"
-          :title="s.title"
+          :title="s.state === 'Off' ? `${s.title} — not available` : s.title"
           :description="s.state === 'Done' ? '' : s.message"
           :data-test="`step-${s.name}`"
         />

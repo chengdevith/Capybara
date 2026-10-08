@@ -17,8 +17,11 @@ export const EXTENSION_API_VERSION = 1
  * 1.2  components (YamlEditor, YamlDiff), pluginObjects (validate,
  *      create, update, remove, cleanup) for declared plugin objects,
  *      useNavigate/useQuery/useParams, a "create" button on resources
+ * 1.3  pluginAction inputs and confirmName, pluginObjects.remove delete
+ *      modes (server: per-Project objects, policy placeholders, field
+ *      steps, requiresStep, uninstall blockers)
  */
-export const EXTENSION_API_MINOR = 2
+export const EXTENSION_API_MINOR = 3
 
 /** What an extension's `when` predicate can look at. */
 export interface ExtensionContext {

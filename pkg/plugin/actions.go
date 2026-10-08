@@ -2,10 +2,12 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -19,6 +21,7 @@ import (
 
 	"github.com/capybara/capybara/api/v1alpha1"
 	"github.com/capybara/capybara/pkg/audit"
+	"github.com/capybara/capybara/pkg/auth"
 	"github.com/capybara/capybara/pkg/httpjson"
 )
 
@@ -56,6 +59,10 @@ type ActionRequest struct {
 	Name      string `json:"name"`
 	// UID guards against acting on a re-created object.
 	UID string `json:"uid"`
+	// Inputs the action declares (typed values).
+	Inputs map[string]any `json:"inputs,omitempty"`
+	// ConfirmName repeats the object's name when the action asks for it.
+	ConfirmName string `json:"confirmName,omitempty"`
 }
 
 // CopyAnnotation names the original of an object created by a copy action
@@ -110,6 +117,12 @@ func (a *ActionAPI) run(w http.ResponseWriter, r *http.Request) {
 		if why := conditionBlocks(obj, action.When); why != "" {
 			return "", errorf(http.StatusConflict, "%s is not possible: %s", action.Title, why)
 		}
+		if action.RequiresStep != "" && !StepPassed(&in, action.RequiresStep) {
+			return "", fmt.Errorf("%w: %s is view-only on %s (step %q has not passed)", audit.ErrDenied, p.Spec.DisplayName, id, action.RequiresStep)
+		}
+		if needsConfirm(action.ConfirmName, b.Inputs) && b.ConfirmName != b.Name {
+			return "", errorf(http.StatusBadRequest, "%s: type the name %s to confirm", action.Title, b.Name)
+		}
 		if action.ProjectOnly {
 			if err := RequireProjectNamespace(ctx, a.Mgmt, id, b.Namespace); err != nil {
 				return "", err
@@ -130,10 +143,15 @@ func (a *ActionAPI) run(w http.ResponseWriter, r *http.Request) {
 			created = out.GetName()
 			return fmt.Sprintf("created %s %s from %s", action.Kind, created, b.Name), nil
 		case v1alpha1.ActionPatch:
-			if _, err := res.Patch(ctx, b.Name, types.MergePatchType, action.Patch.Raw, metav1.PatchOptions{FieldManager: "capybara"}); err != nil {
+			user, _ := auth.UserFrom(ctx)
+			patch, err := RenderPatch(action, b.Inputs, user.Name)
+			if err != nil {
 				return "", err
 			}
-			return fmt.Sprintf("%s: applied %s", strings.ToLower(action.Title), string(action.Patch.Raw)), nil
+			if _, err := res.Patch(ctx, b.Name, types.MergePatchType, patch, metav1.PatchOptions{FieldManager: "capybara"}); err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("%s: applied %s", strings.ToLower(action.Title), string(patch)), nil
 		}
 		return "", errorf(http.StatusInternalServerError, "unknown action type %q", action.Type)
 	})
@@ -173,7 +191,11 @@ func (a *ActionAPI) checkPolicy(ctx context.Context, p *v1alpha1.Plugin, action 
 	if err != nil {
 		return errorf(http.StatusServiceUnavailable, "cluster %s is not available", clusterID)
 	}
-	t := &target{plugin: p, object: decl, cluster: clusterID, ns: ns, dyn: dyn, cs: cs}
+	project, err := ProjectOf(ctx, a.Mgmt, clusterID, ns)
+	if err != nil {
+		return err
+	}
+	t := &target{plugin: p, object: decl, cluster: clusterID, ns: ns, project: project, dyn: dyn, cs: cs}
 	checked, err := a.Objects.check(ctx, t, u, v1alpha1.ObjectCreate)
 	if err != nil {
 		return err
@@ -189,6 +211,14 @@ func conditionBlocks(obj *unstructured.Unstructured, when *v1alpha1.ActionCondit
 	if when == nil {
 		return ""
 	}
+	for _, f := range when.Absent {
+		if v, ok, _ := unstructured.NestedFieldNoCopy(obj.Object, strings.Split(f, ".")...); ok && v != nil {
+			return f + " is set"
+		}
+	}
+	if when.Type == "" {
+		return ""
+	}
 	conds, _, _ := unstructured.NestedSlice(obj.Object, "status", "conditions")
 	status := "Unknown" // no condition yet: not finished
 	for _, c := range conds {
@@ -201,6 +231,88 @@ func conditionBlocks(obj *unstructured.Unstructured, when *v1alpha1.ActionCondit
 		return ""
 	}
 	return fmt.Sprintf("%s is %s", when.Type, status)
+}
+
+// needsConfirm: the action asks for the name (always, or for one input value).
+func needsConfirm(c *v1alpha1.ActionConfirm, inputs map[string]any) bool {
+	if c == nil {
+		return false
+	}
+	return c.Input == "" || fmt.Sprint(inputs[c.Input]) == c.Equals
+}
+
+// RenderPatch fills an action's merge patch: each string value
+// "$(inputs.<name>)" becomes that input's typed value (a missing optional
+// input removes the field) and "$(user)" the requesting user. Inputs are
+// checked against their declarations; undeclared ones are refused.
+func RenderPatch(action v1alpha1.PluginAction, inputs map[string]any, user string) ([]byte, error) {
+	decl := map[string]v1alpha1.ActionInput{}
+	for _, in := range action.Inputs {
+		decl[in.Name] = in
+	}
+	for k, v := range inputs {
+		d, ok := decl[k]
+		if !ok {
+			return nil, errorf(http.StatusBadRequest, "%s takes no input %q", action.Title, k)
+		}
+		switch d.Type {
+		case "bool":
+			if _, ok := v.(bool); !ok {
+				return nil, errorf(http.StatusBadRequest, "%s: %s must be true or false", action.Title, k)
+			}
+		default:
+			s, ok := v.(string)
+			if !ok {
+				return nil, errorf(http.StatusBadRequest, "%s: %s must be a string", action.Title, k)
+			}
+			if d.Pattern != "" && !regexp.MustCompile(`^(?:`+d.Pattern+`)$`).MatchString(s) {
+				return nil, errorf(http.StatusBadRequest, "%s: %s %q is not valid", action.Title, k, s)
+			}
+		}
+	}
+	for _, d := range action.Inputs {
+		if _, ok := inputs[d.Name]; !ok && !d.Optional {
+			return nil, errorf(http.StatusBadRequest, "%s: %s is required", action.Title, d.Name)
+		}
+	}
+	var patch any
+	if err := json.Unmarshal(action.Patch.Raw, &patch); err != nil {
+		return nil, err
+	}
+	var fill func(v any) (any, bool)
+	fill = func(v any) (any, bool) {
+		switch v := v.(type) {
+		case string:
+			if v == "$(user)" {
+				return user, true
+			}
+			if name, ok := strings.CutPrefix(v, "$(inputs."); ok && strings.HasSuffix(name, ")") {
+				val, ok := inputs[strings.TrimSuffix(name, ")")]
+				return val, ok
+			}
+			return v, true
+		case map[string]any:
+			for k, x := range v {
+				if nv, keep := fill(x); keep {
+					v[k] = nv
+				} else {
+					delete(v, k)
+				}
+			}
+			return v, true
+		case []any:
+			out := v[:0]
+			for _, x := range v {
+				if nv, keep := fill(x); keep {
+					out = append(out, nv)
+				}
+			}
+			return out, true
+		}
+		return v, true
+	}
+	patch, _ = fill(patch)
+	return json.Marshal(patch)
 }
 
 // copyOf builds the new object of a copy action: same kind and namespace,

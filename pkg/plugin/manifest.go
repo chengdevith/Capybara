@@ -26,7 +26,7 @@ import (
 // declares the lowest 1.M it works with (minExtensionApi).
 const (
 	ExtensionAPIVersion = 1 // major
-	ExtensionAPIMinor   = 2
+	ExtensionAPIMinor   = 3
 )
 
 // CheckExtensionAPI says why a plugin needing major and min ("1.M", empty
@@ -77,6 +77,7 @@ type Manifest struct {
 	Objects             []v1alpha1.PluginObject          `json:"objects,omitempty"`
 	Policies            map[string]v1alpha1.ObjectPolicy `json:"policies,omitempty"`
 	Detect              *v1alpha1.Detect                 `json:"detect,omitempty"`
+	UninstallBlockers   []v1alpha1.UninstallBlocker      `json:"uninstallBlockers,omitempty"`
 }
 
 // ConfigSection holds the installation config schema.
@@ -196,11 +197,29 @@ func ParseManifest(raw []byte) (*Manifest, error) {
 	if m.MinExtensionAPI != "" && !regexp.MustCompile(`^\d+\.\d+$`).MatchString(m.MinExtensionAPI) {
 		add("minExtensionApi must look like 1.1")
 	}
+	steps := map[string]bool{}
+	for _, st := range m.Steps {
+		steps[st.Name] = true
+	}
+	requiresStep := func(what, step string) {
+		if step != "" && !steps[step] {
+			add("%s: requiresStep %q is not a declared step", what, step)
+		}
+	}
 	problems = append(problems, validateProjectAccess(m.Permissions.Project)...)
 	problems = append(problems, validatePolicies(m.Policies)...)
 	problems = append(problems, validateObjects(m.Objects, m.Policies, m.Permissions.Project)...)
+	for _, o := range m.Objects {
+		requiresStep("object "+o.Name, o.RequiresStep)
+	}
 	for _, a := range m.Actions {
 		problems = append(problems, validateAction(a, m.Permissions, m.Policies)...)
+		requiresStep("action "+a.Name, a.RequiresStep)
+	}
+	for _, b := range m.UninstallBlockers {
+		if !dnsRE.MatchString(b.Resource) || b.Version == "" || b.Kind == "" || b.Message == "" {
+			add("uninstallBlockers: %q needs group, version, resource, kind and a message", b.Resource)
+		}
 	}
 	if d := m.Detect; d != nil {
 		for _, r := range d.APIResources {
@@ -260,6 +279,15 @@ func validateStep(st v1alpha1.InstallStep, services []v1alpha1.ServiceAccess) []
 			return []string{fmt.Sprintf("step %q: dryRun checks need an object", st.Name)}
 		}
 	case "helm":
+	case "field":
+		if len(st.Check.Fields) == 0 {
+			return []string{fmt.Sprintf("step %q: field checks need fields", st.Name)}
+		}
+		for _, f := range st.Check.Fields {
+			if !dnsRE.MatchString(f.Resource) || f.Version == "" || f.Path == "" || f.Contains == "" || (f.Namespace != "" && f.NamespaceKey != "") {
+				return []string{fmt.Sprintf("step %q: each field needs version, resource, path, contains and at most one of namespace/namespaceKey", st.Name)}
+			}
+		}
 	case "workload":
 		if !slices.Contains([]string{"Deployment", "StatefulSet", "DaemonSet"}, st.Check.Kind) || !dnsRE.MatchString(st.Check.Name) {
 			return []string{fmt.Sprintf("step %q: workload checks need kind Deployment/StatefulSet/DaemonSet and a name", st.Name)}
@@ -307,6 +335,41 @@ func validateAction(a v1alpha1.PluginAction, perms v1alpha1.PluginPermissions, p
 	default:
 		add("unknown type %q", a.Type)
 	}
+	inputs := map[string]bool{}
+	for _, in := range a.Inputs {
+		inputs[in.Name] = true
+		if !regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9]*$`).MatchString(in.Name) || (in.Type != "string" && in.Type != "bool") {
+			add("input %q needs a name (letters and digits) and type string or bool", in.Name)
+		}
+		if in.Pattern != "" {
+			if _, err := regexp.Compile(in.Pattern); err != nil {
+				add("input %q: pattern: %v", in.Name, err)
+			}
+		}
+	}
+	if len(a.Inputs) > 0 && a.Type != v1alpha1.ActionPatch {
+		add("only patch actions take inputs")
+	}
+	if a.Patch != nil {
+		for _, m := range regexp.MustCompile(`\$\(inputs\.([^)]*)\)`).FindAllStringSubmatch(string(a.Patch.Raw), -1) {
+			if !inputs[m[1]] {
+				add("patch uses undeclared input %q", m[1])
+			}
+		}
+	}
+	if c := a.ConfirmName; c != nil && c.Input != "" && !inputs[c.Input] {
+		add("confirmName names undeclared input %q", c.Input)
+	}
+	if w := a.When; w != nil {
+		if w.Type == "" && len(w.Absent) == 0 {
+			add("when needs a condition type or absent fields")
+		}
+		for _, f := range w.Absent {
+			if err := ValidatePath(f); err != nil {
+				add("when.absent %q: %v", f, err)
+			}
+		}
+	}
 	if a.Policy != "" {
 		if _, ok := policies[a.Policy]; !ok {
 			add("no policy %q", a.Policy)
@@ -338,6 +401,11 @@ func validateProjectAccess(pa *v1alpha1.ProjectAccess) []string {
 			problems = append(problems, fmt.Sprintf("permissions.project: service account %q is not a DNS name", sa.Name))
 		}
 	}
+	for i, o := range pa.Objects {
+		if _, err := RenderProjectObject(o, ProjectRef{Name: "x", Namespace: "x"}, "x", "x"); err != nil {
+			problems = append(problems, fmt.Sprintf("permissions.project.objects[%d]: %v", i, err))
+		}
+	}
 	return problems
 }
 
@@ -353,13 +421,18 @@ func validatePolicies(policies map[string]v1alpha1.ObjectPolicy) []string {
 				problems = append(problems, at+": "+err.Error())
 			}
 			kinds := 0
-			for _, set := range []bool{r.Deny, len(r.Allow) > 0, r.Default != "", len(r.AllowKeys) > 0 || len(r.ExactlyOneOf) > 0, r.WithinQuota != "", r.CountQuota != ""} {
+			for _, set := range []bool{r.Deny, len(r.Allow) > 0, r.Default != "", len(r.AllowKeys) > 0 || len(r.ExactlyOneOf) > 0, r.WithinQuota != "", r.CountQuota != "", r.Match != ""} {
 				if set {
 					kinds++
 				}
 			}
 			if kinds != 1 {
-				problems = append(problems, at+": needs exactly one of deny, allow, default, allowKeys/exactlyOneOf, withinQuota, countQuota")
+				problems = append(problems, at+": needs exactly one of deny, allow, default, allowKeys/exactlyOneOf, withinQuota, countQuota, match")
+			}
+			if r.Match != "" {
+				if _, err := regexp.Compile(SubstituteRules([]v1alpha1.ObjectRule{r}, PolicyVars("x", "x", "x"))[0].Match); err != nil {
+					problems = append(problems, at+": match: "+err.Error())
+				}
 			}
 			if r.Equals != "" && !r.Deny {
 				problems = append(problems, at+": equals goes with deny")
@@ -400,6 +473,16 @@ func validateObjects(objects []v1alpha1.PluginObject, policies map[string]v1alph
 				add("audit maps %q to %q: needs a declared verb and a DNS-label action", verb, action)
 			}
 		}
+		modes := map[string]bool{}
+		for _, m := range o.DeleteModes {
+			if !dnsRE.MatchString(m.Name) || m.Title == "" || modes[m.Name] {
+				add("delete mode %q needs a unique DNS-label name and a title", m.Name)
+			}
+			modes[m.Name] = true
+		}
+		if len(o.DeleteModes) > 0 && (!slices.Contains(o.Verbs, v1alpha1.ObjectDelete) || project == nil || !allows(toRBAC(project.Rules), o.Group, o.Resource, "patch")) {
+			add("delete modes need the delete verb and patch in permissions.project (finalizers are set first)")
+		}
 		if o.Cleanup != nil && (o.Cleanup.GroupLabel == "" || o.Cleanup.FinishedCondition == "" || !slices.Contains(o.Verbs, v1alpha1.ObjectDelete)) {
 			add("cleanup needs groupLabel, finishedCondition and the delete verb")
 		}
@@ -431,7 +514,7 @@ func LoadDir(dir, repository string) (*Manifest, *v1alpha1.PluginSpec, error) {
 		Chart: m.Chart, UI: m.UI, Backend: m.Backend, Permissions: m.Permissions, Steps: m.Steps,
 		Dependencies: m.Dependencies, ConnectNamespaceKey: m.ConnectNamespaceKey,
 		MinExtensionAPI: m.MinExtensionAPI, Actions: m.Actions, Detect: m.Detect,
-		Objects: m.Objects, Policies: m.Policies,
+		Objects: m.Objects, Policies: m.Policies, UninstallBlockers: m.UninstallBlockers,
 	}
 	if m.Config != nil {
 		b, _ := json.Marshal(m.Config.Schema)

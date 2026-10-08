@@ -54,6 +54,7 @@ export function installationView(i: Installation): InstallationView {
 
 /** The step index (1-based) NSteps should mark as current. */
 export function currentStep(steps: StepStatus[]): number {
-  const i = steps.findIndex((s) => s.state !== 'Done')
+  // An informational step that is off does not hold the installation back.
+  const i = steps.findIndex((s) => s.state !== 'Done' && s.state !== 'Off')
   return i === -1 ? steps.length + 1 : i + 1
 }

@@ -80,7 +80,8 @@ export function hasData(spec: PluginSpec): boolean {
 export interface StepStatus {
   name: string
   title: string
-  state: 'Pending' | 'Running' | 'Done' | 'Failed'
+  /** Off: an informational step that does not hold (not a failure). */
+  state: 'Pending' | 'Running' | 'Done' | 'Failed' | 'Off'
   message?: string
 }
 

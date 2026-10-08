@@ -381,18 +381,16 @@ const (
 )
 
 // ActionCondition limits an action to objects whose status condition has
-// one of the given statuses (e.g. Succeeded=Unknown: still running), or
-// whose field is absent (Field with Absent).
+// one of the given statuses (e.g. Succeeded=Unknown: still running), and
+// none of whose Absent fields is set. Both parts are optional.
 type ActionCondition struct {
 	// +optional
 	Type string `json:"type,omitempty"`
 	// +optional
 	Status []string `json:"status,omitempty"`
-	// Field (dotted path) and Absent: only when that field is not set.
+	// Absent: dotted paths that must not be set (e.g. no automated sync).
 	// +optional
-	Field string `json:"field,omitempty"`
-	// +optional
-	Absent bool `json:"absent,omitempty"`
+	Absent []string `json:"absent,omitempty"`
 }
 
 // ActionInput is a typed value a patch action takes from the request: the
@@ -756,7 +754,7 @@ const (
 )
 
 // StepState is a step's progress.
-// +kubebuilder:validation:Enum=Pending;Running;Done;Failed
+// +kubebuilder:validation:Enum=Pending;Running;Done;Failed;Off
 type StepState string
 
 // Step states.
@@ -765,6 +763,8 @@ const (
 	StepRunning StepState = "Running"
 	StepDone    StepState = "Done"
 	StepFailed  StepState = "Failed"
+	// StepOff: an informational step that does not hold (not a failure).
+	StepOff StepState = "Off"
 )
 
 // StepStatus is one step's progress.
