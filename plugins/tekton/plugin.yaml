@@ -41,7 +41,7 @@ chart:
 
 ui:
   bundle: ui/dist/tekton.js
-  sha256: 38186cd4db6c235a53d1690826b9e9375f5e04cb34d93eb2dd4a9228c50db36d
+  sha256: 16ccc0c11d169e71943afaf4464cfdcf4a9abc6dbfea280ba47a79df6e40b0b8
 
 # An existing Tekton: connect needs one of these served; install is refused
 # when a CRD here belongs to another install, or a namespace exists.

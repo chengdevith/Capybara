@@ -2,7 +2,7 @@
 import { pluginObjects, PluginRequestError, useCluster, useNavigate, useQuery, type ObjectProblem } from '@capybara/sdk'
 import {
   NAlert, NButton, NCard, NDynamicTags, NForm, NFormItem, NH2, NInput, NInputNumber, NRadioButton, NRadioGroup,
-  NSelect, NSpace, NSpin, NSwitch, NTooltip,
+  NSelect, NSpace, NSpin, NSwitch,
 } from 'naive-ui'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { api, isProjectNamespace, loadProjects, PLUGIN, projectNamespaces } from './tekton'
@@ -320,19 +320,16 @@ async function create() {
                 >
                   ConfigMap
                 </NRadioButton>
-                <NTooltip>
-                  <template #trigger>
-                    <NRadioButton
-                      value="secret"
-                      disabled
-                      data-test="workspace-secret"
-                    >
-                      Secret
-                    </NRadioButton>
-                  </template>
-                  Secrets come with sign-in (Phase 5): until then runs started from Capybara cannot use them.
-                </NTooltip>
+                <NRadioButton
+                  value="secret"
+                  disabled
+                  title="Secrets come with sign-in (Phase 5)"
+                  data-test="workspace-secret"
+                >
+                  Secret
+                </NRadioButton>
               </NRadioGroup>
+              <span class="muted">Secret workspaces become available with sign-in (Phase 5).</span>
               <NSpace
                 v-if="workspaces[w.name]!.kind === 'volumeClaimTemplate'"
                 align="center"

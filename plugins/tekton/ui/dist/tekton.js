@@ -1,31 +1,31 @@
-if(typeof document!=='undefined'){const s=document.createElement('style');s.dataset.plugin="tekton";s.textContent=".title[data-v-e2addc7d]{margin:0 0 16px}.toolbar[data-v-e2addc7d]{margin-bottom:12px}.select[data-v-e2addc7d]{width:240px}.gap[data-v-e2addc7d]{margin-top:12px}.title[data-v-0ae2f9c4]{margin:0 0 16px}.toolbar[data-v-0ae2f9c4]{margin-bottom:12px}.select[data-v-0ae2f9c4]{width:240px}.spacer[data-v-0ae2f9c4]{flex:1}.gap[data-v-0ae2f9c4]{margin-top:12px}.muted[data-v-0ae2f9c4]{opacity:.7;font-size:12px}h4[data-v-0ae2f9c4]{margin:4px 0 8px}.scroll[data-v-774e814d]{padding:4px 0 12px;overflow-x:auto}.node rect[data-v-774e814d]{fill:var(--n-color,transparent);stroke-width:2px}.node.clickable[data-v-774e814d]{cursor:pointer}.node.chosen rect[data-v-774e814d]{stroke-width:3px}.name[data-v-774e814d]{fill:currentColor;font-size:13px;font-weight:600}.state[data-v-774e814d]{fill:currentColor;opacity:.7;font-size:11px}.edge[data-v-774e814d]{fill:none;stroke:currentColor;opacity:.45;stroke-width:1.5px}.arrow[data-v-774e814d]{fill:currentColor;opacity:.6}h4[data-v-774e814d]{margin:8px 0}.gap[data-v-7107da21]{margin-bottom:12px}h4[data-v-e2c1216c]{margin:4px 0 8px}h4+*+h4[data-v-e2c1216c],h4[data-v-e2c1216c]:not(:first-child){margin-top:16px}.pull[data-v-7a8b8553]{margin-bottom:12px}.reason[data-v-7a8b8553]{opacity:.7;margin-left:6px;font-size:12px}.hint[data-v-7a8b8553]{opacity:.85;margin-top:6px;font-size:12px}.cancel[data-v-7a8b8553]{margin-top:8px}.cmd[data-v-7a8b8553]{margin-top:4px;display:block}.gap[data-v-5ebe946e]{margin-bottom:12px}.split[data-v-5ebe946e]{grid-template-columns:minmax(180px,260px) 1fr;align-items:start;gap:16px;display:grid}@media (width<=900px){.split[data-v-5ebe946e]{grid-template-columns:1fr}}.tasks[data-v-5ebe946e]{border:1px solid var(--capy-border);border-radius:6px;margin:0;padding:0;list-style:none}.tasks li[data-v-5ebe946e]{cursor:pointer;border-bottom:1px solid var(--capy-border);grid-template-rows:auto auto;grid-template-columns:10px 1fr auto;column-gap:8px;padding:8px 10px;display:grid}.tasks li[data-v-5ebe946e]:last-child{border-bottom:none}.tasks li.chosen[data-v-5ebe946e]{background:#c39b6e26}.dot[data-v-5ebe946e]{border-radius:50%;grid-area:1/1/3;width:10px;height:10px;margin-top:5px}.name[data-v-5ebe946e]{text-overflow:ellipsis;white-space:nowrap;grid-area:1/2;font-weight:600;overflow:hidden}.time[data-v-5ebe946e]{opacity:.7;white-space:nowrap;grid-area:1/3;font-size:12px}.state[data-v-5ebe946e]{opacity:.75;grid-area:2/2/auto/4;font-size:12px}.logs[data-v-5ebe946e]{min-width:0}.start-new[data-v-db36ac4d]{margin-top:8px}.gap[data-v-d99fe515]{margin-bottom:12px}table[data-v-0c4eea02]{border-collapse:collapse;width:100%}td[data-v-0c4eea02]{white-space:nowrap;padding:4px 8px 4px 0}td[data-v-0c4eea02]:first-child{text-overflow:ellipsis;max-width:220px;overflow:hidden}.muted[data-v-0c4eea02]{opacity:.7;font-size:12px}\n/*$vite$:1*/";document.head.appendChild(s)}
+if(typeof document!=='undefined'){const s=document.createElement('style');s.dataset.plugin="tekton";s.textContent=".title[data-v-e2addc7d]{margin:0 0 16px}.toolbar[data-v-e2addc7d]{margin-bottom:12px}.select[data-v-e2addc7d]{width:240px}.gap[data-v-e2addc7d]{margin-top:12px}.title[data-v-f6850e40]{margin:0 0 16px}.toolbar[data-v-f6850e40]{margin-bottom:12px}.select[data-v-f6850e40]{width:240px}.spacer[data-v-f6850e40]{flex:1}.gap[data-v-f6850e40]{margin-top:12px}.muted[data-v-f6850e40]{opacity:.7;font-size:12px}h4[data-v-f6850e40]{margin:4px 0 8px}.scroll[data-v-774e814d]{padding:4px 0 12px;overflow-x:auto}.node rect[data-v-774e814d]{fill:var(--n-color,transparent);stroke-width:2px}.node.clickable[data-v-774e814d]{cursor:pointer}.node.chosen rect[data-v-774e814d]{stroke-width:3px}.name[data-v-774e814d]{fill:currentColor;font-size:13px;font-weight:600}.state[data-v-774e814d]{fill:currentColor;opacity:.7;font-size:11px}.edge[data-v-774e814d]{fill:none;stroke:currentColor;opacity:.45;stroke-width:1.5px}.arrow[data-v-774e814d]{fill:currentColor;opacity:.6}h4[data-v-774e814d]{margin:8px 0}.gap[data-v-7107da21]{margin-bottom:12px}h4[data-v-e2c1216c]{margin:4px 0 8px}h4+*+h4[data-v-e2c1216c],h4[data-v-e2c1216c]:not(:first-child){margin-top:16px}.pull[data-v-7a8b8553]{margin-bottom:12px}.reason[data-v-7a8b8553]{opacity:.7;margin-left:6px;font-size:12px}.hint[data-v-7a8b8553]{opacity:.85;margin-top:6px;font-size:12px}.cancel[data-v-7a8b8553]{margin-top:8px}.cmd[data-v-7a8b8553]{margin-top:4px;display:block}.gap[data-v-5ebe946e]{margin-bottom:12px}.split[data-v-5ebe946e]{grid-template-columns:minmax(180px,260px) 1fr;align-items:start;gap:16px;display:grid}@media (width<=900px){.split[data-v-5ebe946e]{grid-template-columns:1fr}}.tasks[data-v-5ebe946e]{border:1px solid var(--capy-border);border-radius:6px;margin:0;padding:0;list-style:none}.tasks li[data-v-5ebe946e]{cursor:pointer;border-bottom:1px solid var(--capy-border);grid-template-rows:auto auto;grid-template-columns:10px 1fr auto;column-gap:8px;padding:8px 10px;display:grid}.tasks li[data-v-5ebe946e]:last-child{border-bottom:none}.tasks li.chosen[data-v-5ebe946e]{background:#c39b6e26}.dot[data-v-5ebe946e]{border-radius:50%;grid-area:1/1/3;width:10px;height:10px;margin-top:5px}.name[data-v-5ebe946e]{text-overflow:ellipsis;white-space:nowrap;grid-area:1/2;font-weight:600;overflow:hidden}.time[data-v-5ebe946e]{opacity:.7;white-space:nowrap;grid-area:1/3;font-size:12px}.state[data-v-5ebe946e]{opacity:.75;grid-area:2/2/auto/4;font-size:12px}.logs[data-v-5ebe946e]{min-width:0}.start-new[data-v-db36ac4d]{margin-top:8px}.gap[data-v-d99fe515]{margin-bottom:12px}table[data-v-0c4eea02]{border-collapse:collapse;width:100%}td[data-v-0c4eea02]{white-space:nowrap;padding:4px 8px 4px 0}td[data-v-0c4eea02]:first-child{text-overflow:ellipsis;max-width:220px;overflow:hidden}.muted[data-v-0c4eea02]{opacity:.7;font-size:12px}\n/*$vite$:1*/";document.head.appendChild(s)}
 import { EXTENSION_API_VERSION as e, PluginRequestError as t, definePlugin as n, pluginAction as r, pluginObjects as i, useCluster as a, useNavigate as o, useParams as s, useQuery as c } from "@capybara/sdk";
-import { NAlert as l, NButton as u, NCard as d, NDataTable as f, NDynamicTags as p, NEmpty as m, NForm as h, NFormItem as g, NH2 as ee, NInput as te, NInputNumber as ne, NModal as _, NRadioButton as v, NRadioGroup as y, NSelect as re, NSpace as b, NSpin as ie, NSwitch as ae, NTag as x, NTooltip as oe, useMessage as S } from "naive-ui";
-import { Fragment as C, computed as w, createBlock as T, createCommentVNode as E, createElementBlock as D, createElementVNode as O, createTextVNode as k, createVNode as A, defineComponent as j, h as se, normalizeClass as M, normalizeStyle as ce, onMounted as le, onScopeDispose as ue, openBlock as N, reactive as de, ref as P, renderList as F, resolveDynamicComponent as fe, shallowRef as pe, toDisplayString as I, unref as L, watch as me, withCtx as R } from "vue";
+import { NAlert as l, NButton as u, NCard as d, NDataTable as f, NDynamicTags as p, NEmpty as m, NForm as h, NFormItem as g, NH2 as ee, NInput as te, NInputNumber as ne, NModal as _, NRadioButton as v, NRadioGroup as y, NSelect as re, NSpace as b, NSpin as ie, NSwitch as ae, NTag as x, useMessage as S } from "naive-ui";
+import { Fragment as C, computed as w, createBlock as T, createCommentVNode as E, createElementBlock as D, createElementVNode as O, createTextVNode as k, createVNode as A, defineComponent as j, h as M, normalizeClass as N, normalizeStyle as oe, onMounted as se, onScopeDispose as ce, openBlock as P, reactive as le, ref as F, renderList as I, resolveDynamicComponent as ue, shallowRef as de, toDisplayString as L, unref as R, watch as fe, withCtx as z } from "vue";
 //#region \0rolldown/runtime.js
-var z = Object.defineProperty, B = (e, t, n) => () => {
+var B = Object.defineProperty, V = (e, t, n) => () => {
 	if (n) throw n[0];
 	try {
 		return e && (t = e(e = 0)), t;
 	} catch (e) {
 		throw n = [e], e;
 	}
-}, V = (e, t) => {
+}, H = (e, t) => {
 	let n = {};
-	for (var r in e) z(n, r, {
+	for (var r in e) B(n, r, {
 		get: e[r],
 		enumerable: !0
 	});
-	return t || z(n, Symbol.toStringTag, { value: "Module" }), n;
+	return t || B(n, Symbol.toStringTag, { value: "Module" }), n;
 };
 //#endregion
 //#region src/pulls.ts
-function H(e) {
+function U(e) {
 	let t = e.status ?? {}, n = t.taskSpec?.steps ?? [], r = t.taskSpec?.sidecars ?? [], i = [], a = (e, t) => {
 		for (let n of e ?? []) {
 			let e = n.waiting?.reason ?? "";
-			if (!he.has(e)) continue;
-			let r = t.find((e) => e.name === n.name)?.image ?? U(n.waiting?.message) ?? "(unknown image)";
+			if (!pe.has(e)) continue;
+			let r = t.find((e) => e.name === n.name)?.image ?? W(n.waiting?.message) ?? "(unknown image)";
 			i.push({
 				container: n.container ?? n.name ?? "",
 				image: r,
@@ -36,14 +36,14 @@ function H(e) {
 	};
 	return a(t.steps, n), a(t.sidecars, r), i;
 }
-function U(e) {
+function W(e) {
 	return e ? /image "([^"]+)"/.exec(e)?.[1] : void 0;
 }
-function W(e, t) {
+function G(e, t) {
 	return e.reason === "InvalidImageName" ? `"${e.image}" is not a valid image name.` : `Image ${e.image} is not on ${t}, and the cluster could not pull it.`;
 }
-var he, ge = B((() => {
-	he = /* @__PURE__ */ new Set([
+var pe, me = V((() => {
+	pe = /* @__PURE__ */ new Set([
 		"ErrImagePull",
 		"ImagePullBackOff",
 		"ErrImageNeverPull",
@@ -52,32 +52,32 @@ var he, ge = B((() => {
 }));
 //#endregion
 //#region src/tekton.ts
-function _e(e) {
-	Ce = e;
+function he(e) {
+	xe = e;
 }
-function G() {
-	if (!Ce) throw Error("tekton plugin is not registered");
-	return Ce;
+function K() {
+	if (!xe) throw Error("tekton plugin is not registered");
+	return xe;
 }
-function ve(e = !1) {
-	return Oe && !e && Date.now() - ke < 6e4 ? Oe : (ke = Date.now(), Oe = (async () => {
+function ge(e = !1) {
+	return De && !e && Date.now() - Oe < 6e4 ? De : (Oe = Date.now(), De = (async () => {
 		try {
 			let e = await fetch("/api/projects", { headers: { Accept: "application/json" } });
 			if (!e.ok) return;
 			let t = await e.json(), n = Array.isArray(t) ? t : t.items ?? [];
-			De.value = new Set(n.filter((e) => e.status?.phase === "Ready").map((e) => `${e.spec.cluster}/${e.spec.namespace}`));
+			Ee.value = new Set(n.filter((e) => e.status?.phase === "Ready").map((e) => `${e.spec.cluster}/${e.spec.namespace}`));
 		} catch {}
-	})(), Oe);
+	})(), De);
 }
-function ye(e, t) {
-	return ve(), !!e && !!De.value?.has(`${t}/${e}`);
+function _e(e, t) {
+	return ge(), !!e && !!Ee.value?.has(`${t}/${e}`);
 }
-function be(e) {
-	return ve(), [...De.value ?? []].filter((t) => t.startsWith(`${e}/`)).map((t) => t.slice(e.length + 1)).sort();
+function ve(e) {
+	return ge(), [...Ee.value ?? []].filter((t) => t.startsWith(`${e}/`)).map((t) => t.slice(e.length + 1)).sort();
 }
-function K(e) {
+function q(e) {
 	let t = (e.status?.conditions ?? []).find((e) => e.type === "Succeeded");
-	if (t?.status !== "True" && t?.status !== "False" && H(e).length > 0) return {
+	if (t?.status !== "True" && t?.status !== "False" && U(e).length > 0) return {
 		text: "Image pull failed",
 		tone: "error",
 		running: !0
@@ -106,10 +106,10 @@ function K(e) {
 		running: !0
 	};
 }
-function xe(e) {
+function ye(e) {
 	return (e.status?.conditions ?? []).find((e) => e.type === "Succeeded")?.message ?? "";
 }
-function q(e, t) {
+function J(e, t) {
 	let n = Date.parse(e.status?.startTime ?? "");
 	if (!n) return "—";
 	let r = Date.parse(e.status?.completionTime ?? "") || t, i = Math.max(0, Math.round((r - n) / 1e3));
@@ -117,39 +117,39 @@ function q(e, t) {
 	let a = Math.floor(i / 60);
 	return a < 60 ? `${a}m ${String(i % 60).padStart(2, "0")}s` : `${Math.floor(a / 60)}h ${String(a % 60).padStart(2, "0")}m`;
 }
-function Se(e) {
+function be(e) {
 	return e.spec?.pipelineRef?.name ?? (e.spec?.pipelineSpec ? "(inline)" : "—");
 }
-function J(e) {
-	let t = K(e);
-	return se(x, {
+function Y(e) {
+	let t = q(e);
+	return M(x, {
 		size: "small",
 		type: t.tone,
 		bordered: !1,
 		"data-test": "run-status"
 	}, () => t.text);
 }
-var Y, Ce, X, we, Z, Te, Ee, De, Oe, ke, Ae, je, Me, Ne, Pe, Fe, Ie, Le, Re, ze, Q = B((() => {
-	ge(), Y = "tekton", Ce = null, X = (e, t) => ({
+var X, xe, Z, Se, Ce, we, Te, Ee, De, Oe, ke, Ae, je, Me, Ne, Pe, Fe, Ie, Le, Re, Q = V((() => {
+	me(), X = "tekton", xe = null, Z = (e, t) => ({
 		group: "tekton.dev",
 		version: "v1",
 		plural: e,
 		kind: t,
 		namespaced: !0
-	}), we = X("pipelineruns", "PipelineRun"), Z = X("taskruns", "TaskRun"), Te = X("pipelines", "Pipeline"), Ee = X("tasks", "Task"), De = pe(null), Oe = null, ke = 0, Ae = (e) => Date.parse(e.status?.startTime ?? "") || Date.parse(e.metadata.creationTimestamp) || 0, je = (e, t) => Ae(t) - Ae(e), Me = (e, t, n) => n ? se(G().components.ResourceLink, {
+	}), Se = Z("pipelineruns", "PipelineRun"), Ce = Z("taskruns", "TaskRun"), we = Z("pipelines", "Pipeline"), Te = Z("tasks", "Task"), Ee = de(null), De = null, Oe = 0, ke = (e) => Date.parse(e.status?.startTime ?? "") || Date.parse(e.metadata.creationTimestamp) || 0, Ae = (e, t) => ke(t) - ke(e), je = (e, t, n) => n ? M(K().components.ResourceLink, {
 		resource: e,
 		namespace: t.metadata.namespace,
 		name: n
-	}) : "—", Ne = (e, t) => t ? ye(t, e) : be(e).length > 0, Pe = "Capybara's account on this cluster lacks the Pipelines console permissions: reinstall or reconnect the plugin.", Fe = {
+	}) : "—", Me = (e, t) => t ? _e(t, e) : ve(e).length > 0, Ne = "Capybara's account on this cluster lacks the Pipelines console permissions: reinstall or reconnect the plugin.", Pe = {
 		id: "tekton.pipelineruns",
-		type: we,
+		type: Se,
 		label: "PipelineRuns",
 		singular: "PipelineRun",
 		path: "tekton/pipelineruns",
 		create: {
 			label: "Create PipelineRun",
 			route: "tekton.pipelineruns.new",
-			when: Ne
+			when: Me
 		},
 		columns: [
 			{
@@ -157,35 +157,35 @@ var Y, Ce, X, we, Z, Te, Ee, De, Oe, ke, Ae, je, Me, Ne, Pe, Fe, Ie, Le, Re, ze,
 				title: "Status",
 				width: 140,
 				ellipsis: !1,
-				render: J,
-				sortValue: (e) => K(e).text
+				render: Y,
+				sortValue: (e) => q(e).text
 			},
 			{
 				key: "pipeline",
 				title: "Pipeline",
 				minWidth: 140,
-				render: (e) => e.spec?.pipelineRef?.name ? Me("tekton.pipelines", e, e.spec.pipelineRef.name) : Se(e),
-				sortValue: Se
+				render: (e) => e.spec?.pipelineRef?.name ? je("tekton.pipelines", e, e.spec.pipelineRef.name) : be(e),
+				sortValue: be
 			},
 			{
 				key: "started",
 				title: "Started",
 				width: 180,
 				render: (e) => e.status?.startTime ? new Date(e.status.startTime).toLocaleString() : "—",
-				sortValue: Ae
+				sortValue: ke
 			},
 			{
 				key: "duration",
 				title: "Duration",
 				width: 100,
-				render: (e, t) => q(e, t)
+				render: (e, t) => J(e, t)
 			}
 		],
-		status: (e) => K(e),
+		status: (e) => q(e),
 		overview: [
 			{
 				label: "Pipeline",
-				render: (e) => e.spec?.pipelineRef?.name ? Me("tekton.pipelines", e, e.spec.pipelineRef.name) : Se(e)
+				render: (e) => e.spec?.pipelineRef?.name ? je("tekton.pipelines", e, e.spec.pipelineRef.name) : be(e)
 			},
 			{
 				label: "Service account",
@@ -197,28 +197,28 @@ var Y, Ce, X, we, Z, Te, Ee, De, Oe, ke, Ae, je, Me, Ne, Pe, Fe, Ie, Le, Re, ze,
 			},
 			{
 				label: "Duration",
-				render: (e) => q(e, Date.now())
+				render: (e) => J(e, Date.now())
 			},
 			{
 				label: "Message",
-				render: (e) => xe(e) || "—"
+				render: (e) => ye(e) || "—"
 			},
 			{
 				label: "Rerun of",
-				render: (e) => Me("tekton.pipelineruns", e, e.metadata.annotations?.["platform.capybara.io/copy-of"])
+				render: (e) => je("tekton.pipelineruns", e, e.metadata.annotations?.["platform.capybara.io/copy-of"])
 			}
 		],
-		forbiddenHint: Pe
-	}, Ie = {
+		forbiddenHint: Ne
+	}, Fe = {
 		id: "tekton.taskruns",
-		type: Z,
+		type: Ce,
 		label: "TaskRuns",
 		singular: "TaskRun",
 		path: "tekton/taskruns",
 		create: {
 			label: "Create TaskRun",
 			route: "tekton.taskruns.new",
-			when: Ne
+			when: Me
 		},
 		columns: [
 			{
@@ -226,14 +226,14 @@ var Y, Ce, X, we, Z, Te, Ee, De, Oe, ke, Ae, je, Me, Ne, Pe, Fe, Ie, Le, Re, ze,
 				title: "Status",
 				width: 140,
 				ellipsis: !1,
-				render: J,
-				sortValue: (e) => K(e).text
+				render: Y,
+				sortValue: (e) => q(e).text
 			},
 			{
 				key: "pipelinerun",
 				title: "PipelineRun",
 				minWidth: 160,
-				render: (e) => Me("tekton.pipelineruns", e, e.metadata.labels?.["tekton.dev/pipelineRun"])
+				render: (e) => je("tekton.pipelineruns", e, e.metadata.labels?.["tekton.dev/pipelineRun"])
 			},
 			{
 				key: "task",
@@ -245,39 +245,39 @@ var Y, Ce, X, we, Z, Te, Ee, De, Oe, ke, Ae, je, Me, Ne, Pe, Fe, Ie, Le, Re, ze,
 				key: "duration",
 				title: "Duration",
 				width: 100,
-				render: (e, t) => q(e, t)
+				render: (e, t) => J(e, t)
 			}
 		],
-		status: (e) => K(e),
+		status: (e) => q(e),
 		overview: [
 			{
 				label: "PipelineRun",
-				render: (e) => Me("tekton.pipelineruns", e, e.metadata.labels?.["tekton.dev/pipelineRun"])
+				render: (e) => je("tekton.pipelineruns", e, e.metadata.labels?.["tekton.dev/pipelineRun"])
 			},
 			{
 				label: "Pod",
-				render: (e) => Me("core.pods", e, e.status?.podName)
+				render: (e) => je("core.pods", e, e.status?.podName)
 			},
 			{
 				label: "Duration",
-				render: (e) => q(e, Date.now())
+				render: (e) => J(e, Date.now())
 			},
 			{
 				label: "Message",
-				render: (e) => xe(e) || "—"
+				render: (e) => ye(e) || "—"
 			}
 		],
-		forbiddenHint: Pe
-	}, Le = {
+		forbiddenHint: Ne
+	}, Ie = {
 		id: "tekton.pipelines",
-		type: Te,
+		type: we,
 		label: "Pipelines",
 		singular: "Pipeline",
 		path: "tekton/pipelines",
 		create: {
 			label: "Create Pipeline",
 			route: "tekton.pipelines.new",
-			when: Ne
+			when: Me
 		},
 		columns: [{
 			key: "tasks",
@@ -304,17 +304,17 @@ var Y, Ce, X, we, Z, Te, Ee, De, Oe, ke, Ae, je, Me, Ne, Pe, Fe, Ie, Le, Re, ze,
 				render: (e) => (e.spec?.workspaces ?? []).map((e) => e.name).join(", ") || "—"
 			}
 		],
-		forbiddenHint: Pe
-	}, Re = {
+		forbiddenHint: Ne
+	}, Le = {
 		id: "tekton.tasks",
-		type: Ee,
+		type: Te,
 		label: "Tasks",
 		singular: "Task",
 		path: "tekton/tasks",
 		create: {
 			label: "Create Task",
 			route: "tekton.tasks.new",
-			when: Ne
+			when: Me
 		},
 		columns: [{
 			key: "steps",
@@ -341,15 +341,15 @@ var Y, Ce, X, we, Z, Te, Ee, De, Oe, ke, Ae, je, Me, Ne, Pe, Fe, Ie, Le, Re, ze,
 				render: (e) => (e.spec?.workspaces ?? []).map((e) => e.name).join(", ") || "—"
 			}
 		],
-		forbiddenHint: Pe
-	}, ze = {
+		forbiddenHint: Ne
+	}, Re = {
 		Task: "tasks",
 		Pipeline: "pipelines",
 		PipelineRun: "pipelineruns",
 		TaskRun: "taskruns"
 	};
-})), Be, Ve, He = B((() => {
-	Be = [{
+})), ze, Be, Ve = V((() => {
+	ze = [{
 		id: "script",
 		label: "Script step",
 		yaml: (e) => `apiVersion: tekton.dev/v1
@@ -388,7 +388,7 @@ spec:
         date > $(workspaces.work.path)/stamp
         cat $(workspaces.work.path)/stamp
 `
-	}], Ve = [{
+	}], Be = [{
 		id: "two-tasks",
 		label: "Two tasks in order",
 		yaml: (e) => `apiVersion: tekton.dev/v1
@@ -445,19 +445,19 @@ spec:
               while [ "$i" -le "$n" ]; do echo "working $i/$n"; sleep 1; i=$((i + 1)); done
 `
 	}];
-})), Ue, We, Ge, Ke, qe, Je = B((() => {
-	He(), Q(), Ue = { "data-test": "tekton-editor" }, We = { key: 1 }, Ge = { key: 0 }, Ke = { key: 0 }, qe = /*@__PURE__*/ j({
+})), He, Ue, We, Ge, Ke, qe = V((() => {
+	Ve(), Q(), He = { "data-test": "tekton-editor" }, Ue = { key: 1 }, We = { key: 0 }, Ge = { key: 0 }, Ke = /*@__PURE__*/ j({
 		__name: "EditorPage",
 		props: { object: {} },
 		setup(e) {
-			let n = e, { YamlEditor: r, YamlDiff: f, ResourceLink: p } = G().components, m = G().yaml, h = a(), g = s(), te = c(), ne = o(), _ = w(() => n.object === "tasks" ? "Task" : "Pipeline"), v = w(() => !!g.value.name), y = P(g.value.namespace ?? te.value.ns ?? ""), ae = w(() => h.value ? be(h.value) : []), x = w(() => ye(y.value, h.value)), oe = w(() => n.object === "tasks" ? Be : Ve), S = P(oe.value[0].id), j = P(""), se = P(""), M = pe(null), ce = P(!1), ue = P(null), de = P([]), z = P([]), B = P(null), V = P(!1), H = P(!1), U = P(!1);
-			function W() {
-				let e = oe.value.find((e) => e.id === S.value);
-				e && (j.value = e.yaml(n.object === "tasks" ? "say" : "my-pipeline"));
+			let n = e, { YamlEditor: r, YamlDiff: f, ResourceLink: p } = K().components, m = K().yaml, h = a(), g = s(), te = c(), ne = o(), _ = w(() => n.object === "tasks" ? "Task" : "Pipeline"), v = w(() => !!g.value.name), y = F(g.value.namespace ?? te.value.ns ?? ""), ae = w(() => h.value ? ve(h.value) : []), x = w(() => _e(y.value, h.value)), S = w(() => n.object === "tasks" ? ze : Be), j = F(S.value[0].id), M = F(""), N = F(""), oe = de(null), ce = F(!1), le = F(null), B = F([]), V = F([]), H = F(null), U = F(!1), W = F(!1), G = F(!1);
+			function pe() {
+				let e = S.value.find((e) => e.id === j.value);
+				e && (M.value = e.yaml(n.object === "tasks" ? "say" : "my-pipeline"));
 			}
-			le(async () => {
-				if (ve(!0), !v.value) {
-					!y.value && ae.value.length && (y.value = ae.value[0]), W();
+			se(async () => {
+				if (ge(!0), !v.value) {
+					!y.value && ae.value.length && (y.value = ae.value[0]), pe();
 					return;
 				}
 				ce.value = !0;
@@ -465,49 +465,49 @@ spec:
 					let e = `/api/clusters/${encodeURIComponent(h.value ?? "")}/k8s/apis/tekton.dev/v1/namespaces/${encodeURIComponent(y.value)}/${n.object}/${encodeURIComponent(g.value.name)}`, t = await fetch(e, { headers: { Accept: "application/json" } });
 					if (!t.ok) throw Error(`${_.value} ${g.value.name} could not be loaded (${t.status})`);
 					let r = await t.json();
-					M.value = {
+					oe.value = {
 						uid: r.metadata.uid,
 						resourceVersion: r.metadata.resourceVersion
-					}, se.value = j.value = m.editable(r);
+					}, N.value = M.value = m.editable(r);
 				} catch (e) {
-					ue.value = e instanceof Error ? e.message : String(e);
+					le.value = e instanceof Error ? e.message : String(e);
 				} finally {
 					ce.value = !1;
 				}
-			}), me(ae, (e) => {
+			}), fe(ae, (e) => {
 				!v.value && !y.value && e.length && (y.value = e[0]);
-			}), me(j, () => {
-				H.value = !1, U.value = !1;
+			}), fe(M, () => {
+				W.value = !1, G.value = !1;
 			});
-			function he() {
+			function me() {
 				try {
-					return B.value = null, m.parse(j.value);
+					return H.value = null, m.parse(M.value);
 				} catch (e) {
-					return B.value = e instanceof Error ? e.message : String(e), de.value = [], null;
+					return H.value = e instanceof Error ? e.message : String(e), B.value = [], null;
 				}
 			}
-			function ge(e) {
-				e instanceof t ? (B.value = e.message, de.value = e.problems, z.value = e.warnings) : B.value = e instanceof Error ? e.message : String(e);
+			function he(e) {
+				e instanceof t ? (H.value = e.message, B.value = e.problems, V.value = e.warnings) : H.value = e instanceof Error ? e.message : String(e);
 			}
-			async function _e() {
-				let e = he();
+			async function q() {
+				let e = me();
 				if (!e || !h.value) return !1;
-				V.value = !0;
+				U.value = !0;
 				try {
-					let t = await i.validate(h.value, Y, n.object, y.value, e, g.value.name);
-					return de.value = t.problems, z.value = t.warnings, H.value = t.problems.length === 0, H.value;
+					let t = await i.validate(h.value, X, n.object, y.value, e, g.value.name);
+					return B.value = t.problems, V.value = t.warnings, W.value = t.problems.length === 0, W.value;
 				} catch (e) {
-					return ge(e), !1;
+					return he(e), !1;
 				} finally {
-					V.value = !1;
+					U.value = !1;
 				}
 			}
-			async function K() {
-				let e = he();
+			async function ye() {
+				let e = me();
 				if (e && h.value) {
-					V.value = !0;
+					U.value = !0;
 					try {
-						let t = (v.value ? await i.update(h.value, Y, n.object, y.value, g.value.name, e, M.value) : await i.create(h.value, Y, n.object, y.value, e)).object.metadata.name;
+						let t = (v.value ? await i.update(h.value, X, n.object, y.value, g.value.name, e, oe.value) : await i.create(h.value, X, n.object, y.value, e)).object.metadata.name;
 						await ne({
 							name: `tekton.${n.object}.detail`,
 							params: {
@@ -517,40 +517,40 @@ spec:
 							}
 						});
 					} catch (e) {
-						ge(e);
+						he(e);
 					} finally {
-						V.value = !1;
+						U.value = !1;
 					}
 				}
 			}
-			async function xe() {
-				if (v.value && !U.value) {
-					await _e() && (U.value = !0);
+			async function J() {
+				if (v.value && !G.value) {
+					await q() && (G.value = !0);
 					return;
 				}
-				(H.value || await _e()) && await K();
+				(W.value || await q()) && await ye();
 			}
-			return (t, n) => (N(), D("div", Ue, [A(L(ee), { class: "title" }, {
-				default: R(() => [k(I(v.value ? `Edit ${_.value} ${L(g).name}` : `Create ${_.value}`), 1)]),
+			return (t, n) => (P(), D("div", He, [A(R(ee), { class: "title" }, {
+				default: z(() => [k(L(v.value ? `Edit ${_.value} ${R(g).name}` : `Create ${_.value}`), 1)]),
 				_: 1
-			}), ce.value ? (N(), T(L(ie), { key: 0 })) : ue.value ? (N(), T(L(l), {
+			}), ce.value ? (P(), T(R(ie), { key: 0 })) : le.value ? (P(), T(R(l), {
 				key: 1,
 				type: "error"
 			}, {
-				default: R(() => [k(I(ue.value), 1)]),
+				default: z(() => [k(L(le.value), 1)]),
 				_: 1
-			})) : (N(), T(L(d), {
+			})) : (P(), T(R(d), {
 				key: 2,
 				size: "small"
 			}, {
-				default: R(() => [
-					A(L(b), {
+				default: z(() => [
+					A(R(b), {
 						align: "center",
 						class: "toolbar"
 					}, {
-						default: R(() => [
+						default: z(() => [
 							n[5] ||= O("span", null, "Namespace", -1),
-							v.value ? (N(), D("strong", We, I(y.value), 1)) : (N(), T(L(re), {
+							v.value ? (P(), D("strong", Ue, L(y.value), 1)) : (P(), T(R(re), {
 								key: 0,
 								value: y.value,
 								"onUpdate:value": n[0] ||= (e) => y.value = e,
@@ -563,10 +563,10 @@ spec:
 								class: "select",
 								"data-test": "editor-namespace"
 							}, null, 8, ["value", "options"])),
-							v.value ? E("", !0) : (N(), D(C, { key: 2 }, [n[4] ||= O("span", null, "Template", -1), A(L(re), {
-								value: S.value,
-								"onUpdate:value": [n[1] ||= (e) => S.value = e, W],
-								options: oe.value.map((e) => ({
+							v.value ? E("", !0) : (P(), D(C, { key: 2 }, [n[4] ||= O("span", null, "Template", -1), A(R(re), {
+								value: j.value,
+								"onUpdate:value": [n[1] ||= (e) => j.value = e, pe],
+								options: S.value.map((e) => ({
 									label: e.label,
 									value: e.id
 								})),
@@ -577,105 +577,105 @@ spec:
 						]),
 						_: 1
 					}),
-					!ae.value.length && !v.value ? (N(), T(L(l), {
+					!ae.value.length && !v.value ? (P(), T(R(l), {
 						key: 0,
 						type: "info",
 						class: "gap",
 						"data-test": "editor-no-projects"
 					}, {
-						default: R(() => [...n[6] ||= [k(" Tasks and Pipelines can be created only in Project namespaces, and this cluster has no Projects yet. ", -1)]]),
+						default: z(() => [...n[6] ||= [k(" Tasks and Pipelines can be created only in Project namespaces, and this cluster has no Projects yet. ", -1)]]),
 						_: 1
-					})) : y.value && !x.value ? (N(), T(L(l), {
+					})) : y.value && !x.value ? (P(), T(R(l), {
 						key: 1,
 						type: "warning",
 						class: "gap"
 					}, {
-						default: R(() => [k(I(y.value) + " is not a Project namespace: Tasks and Pipelines can be written only in Projects. ", 1)]),
+						default: z(() => [k(L(y.value) + " is not a Project namespace: Tasks and Pipelines can be written only in Projects. ", 1)]),
 						_: 1
 					})) : E("", !0),
-					U.value ? (N(), T(fe(L(f)), {
+					G.value ? (P(), T(ue(R(f)), {
 						key: 2,
-						original: se.value,
-						modified: j.value,
+						original: N.value,
+						modified: M.value,
 						"data-test": "editor-diff"
-					}, null, 8, ["original", "modified"])) : (N(), T(fe(L(r)), {
+					}, null, 8, ["original", "modified"])) : (P(), T(ue(R(r)), {
 						key: 3,
-						value: j.value,
-						"onUpdate:value": n[2] ||= (e) => j.value = e,
-						problems: de.value,
+						value: M.value,
+						"onUpdate:value": n[2] ||= (e) => M.value = e,
+						problems: B.value,
 						height: "55vh"
 					}, null, 40, ["value", "problems"])),
-					B.value || de.value.length ? (N(), T(L(l), {
+					H.value || B.value.length ? (P(), T(R(l), {
 						key: 4,
 						type: "error",
 						class: "gap",
 						"data-test": "editor-error"
 					}, {
-						default: R(() => [k(I(B.value ?? "It does not meet the rules for this Project:") + " ", 1), de.value.length ? (N(), D("ul", Ge, [(N(!0), D(C, null, F(de.value, (e) => (N(), D("li", {
+						default: z(() => [k(L(H.value ?? "It does not meet the rules for this Project:") + " ", 1), B.value.length ? (P(), D("ul", We, [(P(!0), D(C, null, I(B.value, (e) => (P(), D("li", {
 							key: e.path + e.message,
 							"data-test": "editor-problem"
-						}, [e.path ? (N(), D("code", Ke, I(e.path), 1)) : E("", !0), k(" " + I(e.message), 1)]))), 128))])) : E("", !0)]),
+						}, [e.path ? (P(), D("code", Ge, L(e.path), 1)) : E("", !0), k(" " + L(e.message), 1)]))), 128))])) : E("", !0)]),
 						_: 1
-					})) : H.value && !U.value ? (N(), T(L(l), {
+					})) : W.value && !G.value ? (P(), T(R(l), {
 						key: 5,
 						type: "success",
 						class: "gap",
 						"data-test": "editor-valid"
 					}, {
-						default: R(() => [...n[7] ||= [k(" It meets the rules for this Project and the cluster accepts it. ", -1)]]),
+						default: z(() => [...n[7] ||= [k(" It meets the rules for this Project and the cluster accepts it. ", -1)]]),
 						_: 1
 					})) : E("", !0),
-					z.value.length ? (N(), T(L(l), {
+					V.value.length ? (P(), T(R(l), {
 						key: 6,
 						type: "warning",
 						class: "gap",
 						"data-test": "editor-warnings"
 					}, {
-						default: R(() => [(N(!0), D(C, null, F(z.value, (e) => (N(), D("div", { key: e }, I(e), 1))), 128))]),
+						default: z(() => [(P(!0), D(C, null, I(V.value, (e) => (P(), D("div", { key: e }, L(e), 1))), 128))]),
 						_: 1
 					})) : E("", !0),
-					A(L(b), {
+					A(R(b), {
 						justify: "end",
 						class: "gap"
 					}, {
-						default: R(() => [
-							v.value ? (N(), T(fe(L(p)), {
+						default: z(() => [
+							v.value ? (P(), T(ue(R(p)), {
 								key: 0,
 								resource: `tekton.${e.object}`,
 								namespace: y.value,
-								name: L(g).name
+								name: R(g).name
 							}, {
-								default: R(() => [...n[8] ||= [k(" Cancel ", -1)]]),
+								default: z(() => [...n[8] ||= [k(" Cancel ", -1)]]),
 								_: 1
 							}, 8, [
 								"resource",
 								"namespace",
 								"name"
 							])) : E("", !0),
-							U.value ? (N(), T(L(u), {
+							G.value ? (P(), T(R(u), {
 								key: 1,
-								onClick: n[3] ||= (e) => U.value = !1
+								onClick: n[3] ||= (e) => G.value = !1
 							}, {
-								default: R(() => [...n[9] ||= [k(" Back to the editor ", -1)]]),
+								default: z(() => [...n[9] ||= [k(" Back to the editor ", -1)]]),
 								_: 1
-							})) : (N(), T(L(u), {
+							})) : (P(), T(R(u), {
 								key: 2,
-								loading: V.value,
+								loading: U.value,
 								disabled: !x.value,
 								"data-test": "editor-validate",
-								onClick: _e
+								onClick: q
 							}, {
-								default: R(() => [...n[10] ||= [k(" Validate ", -1)]]),
+								default: z(() => [...n[10] ||= [k(" Validate ", -1)]]),
 								_: 1
 							}, 8, ["loading", "disabled"])),
-							A(L(u), {
+							A(R(u), {
 								type: "primary",
-								loading: V.value,
+								loading: U.value,
 								disabled: !x.value,
 								"data-test": "editor-save",
-								onClick: xe
+								onClick: J
 							}, {
-								default: R(() => [k(I(v.value ? U.value ? "Save" : "Review changes" : `Create ${_.value}`), 1)]),
+								default: z(() => [k(L(v.value ? G.value ? "Save" : "Review changes" : `Create ${_.value}`), 1)]),
 								_: 1
 							}, 8, ["loading", "disabled"])
 						]),
@@ -686,71 +686,71 @@ spec:
 			}))]));
 		}
 	});
-})), Ye = B((() => {})), $, Xe = B((() => {
+})), Je = V((() => {})), $, Ye = V((() => {
 	$ = (e, t) => {
 		let n = e.__vccOpts || e;
 		for (let [e, r] of t) n[e] = r;
 		return n;
 	};
-})), Ze = /* @__PURE__ */ V({ default: () => Qe }), Qe, $e = B((() => {
-	Je(), Je(), Ye(), Xe(), Qe = /*#__PURE__*/ $(qe, [["__scopeId", "data-v-e2addc7d"]]);
-})), et, tt, nt, rt, it, at, ot, st = B((() => {
-	Q(), et = { "data-test": "tekton-run-form" }, tt = { key: 0 }, nt = { key: 1 }, rt = {
+})), Xe = /* @__PURE__ */ H({ default: () => Ze }), Ze, Qe = V((() => {
+	qe(), qe(), Je(), Ye(), Ze = /*#__PURE__*/ $(Ke, [["__scopeId", "data-v-e2addc7d"]]);
+})), $e, et, tt, nt, rt, it, at, ot = V((() => {
+	Q(), $e = { "data-test": "tekton-run-form" }, et = { key: 0 }, tt = { key: 1 }, nt = {
 		key: 0,
 		class: "muted"
-	}, it = { key: 0 }, at = { key: 0 }, ot = /*@__PURE__*/ j({
+	}, rt = { key: 0 }, it = { key: 0 }, at = /*@__PURE__*/ j({
 		__name: "RunForm",
 		props: { kind: {} },
 		setup(e) {
-			let n = e, { YamlEditor: r } = G().components, s = G().yaml, f = a(), m = c(), _ = o(), x = w(() => n.kind === "pipelineruns"), S = w(() => x.value ? "Pipeline" : "Task"), j = w(() => x.value ? "pipelines" : "tasks"), se = w(() => x.value ? "PipelineRun" : "TaskRun"), M = P(m.value.ns ?? ""), ce = w(() => f.value ? be(f.value) : []), ue = w(() => ye(M.value, f.value)), pe = P([]), z = P(m.value.pipeline ?? m.value.task ?? null), B = P(!1), V = P([]), H = P([]), U = de({}), W = de({}), he = P([]), ge = P(null), _e = P(null), K = P(!1), xe = P(""), q = P(!1), Se = P(null), J = P([]), Ce = P([]), X = (e) => `/api/clusters/${encodeURIComponent(f.value ?? "")}/k8s/${e}`;
-			async function we(e) {
+			let n = e, { YamlEditor: r } = K().components, s = K().yaml, f = a(), m = c(), _ = o(), x = w(() => n.kind === "pipelineruns"), S = w(() => x.value ? "Pipeline" : "Task"), j = w(() => x.value ? "pipelines" : "tasks"), M = w(() => x.value ? "PipelineRun" : "TaskRun"), N = F(m.value.ns ?? ""), oe = w(() => f.value ? ve(f.value) : []), ce = w(() => _e(N.value, f.value)), de = F([]), B = F(m.value.pipeline ?? m.value.task ?? null), V = F(!1), H = F([]), U = F([]), W = le({}), G = le({}), pe = F([]), me = F(null), he = F(null), q = F(!1), ye = F(""), J = F(!1), be = F(null), Y = F([]), xe = F([]), Z = (e) => `/api/clusters/${encodeURIComponent(f.value ?? "")}/k8s/${e}`;
+			async function Se(e) {
 				let t = await fetch(e, { headers: { Accept: "application/json" } });
 				return t.ok ? await t.json() : null;
 			}
-			let Z = (e) => `namespaces/${encodeURIComponent(e)}`;
-			le(() => {
-				ve(!0), !M.value && ce.value.length && (M.value = ce.value[0]);
-			}), me(ce, (e) => {
-				!M.value && e.length && (M.value = e[0]);
-			}), me(M, async (e) => {
-				if (pe.value = [], he.value = [], ge.value = null, !e || !f.value) return;
-				let t = await we(X(`apis/tekton.dev/v1/${Z(e)}/${j.value}`));
-				pe.value = (t?.items ?? []).map((e) => e.metadata.name).sort(), z.value && !pe.value.includes(z.value) && (z.value = null);
-				let n = await we(X(`api/v1/${Z(e)}/configmaps`));
-				he.value = (n?.items ?? []).map((e) => e.metadata.name).filter((e) => e !== "kube-root-ca.crt").sort();
-				let r = (await we(X(`api/v1/${Z(e)}/resourcequotas`)))?.items.find((e) => e.status?.hard?.["requests.storage"]);
-				r && (ge.value = `${r.status.used?.["requests.storage"] ?? "0"} of ${r.status.hard["requests.storage"]} used`);
-			}, { immediate: !0 }), me([z, M], async ([e, t]) => {
-				if (V.value = [], H.value = [], e && t) {
-					B.value = !0;
+			let Ce = (e) => `namespaces/${encodeURIComponent(e)}`;
+			se(() => {
+				ge(!0), !N.value && oe.value.length && (N.value = oe.value[0]);
+			}), fe(oe, (e) => {
+				!N.value && e.length && (N.value = e[0]);
+			}), fe(N, async (e) => {
+				if (de.value = [], pe.value = [], me.value = null, !e || !f.value) return;
+				let t = await Se(Z(`apis/tekton.dev/v1/${Ce(e)}/${j.value}`));
+				de.value = (t?.items ?? []).map((e) => e.metadata.name).sort(), B.value && !de.value.includes(B.value) && (B.value = null);
+				let n = await Se(Z(`api/v1/${Ce(e)}/configmaps`));
+				pe.value = (n?.items ?? []).map((e) => e.metadata.name).filter((e) => e !== "kube-root-ca.crt").sort();
+				let r = (await Se(Z(`api/v1/${Ce(e)}/resourcequotas`)))?.items.find((e) => e.status?.hard?.["requests.storage"]);
+				r && (me.value = `${r.status.used?.["requests.storage"] ?? "0"} of ${r.status.hard["requests.storage"]} used`);
+			}, { immediate: !0 }), fe([B, N], async ([e, t]) => {
+				if (H.value = [], U.value = [], e && t) {
+					V.value = !0;
 					try {
-						let r = await we(X(`apis/tekton.dev/v1/${Z(t)}/${j.value}/${encodeURIComponent(e)}`)), i = {};
-						m.value.from && (i = (await we(X(`apis/tekton.dev/v1/${Z(t)}/${n.kind}/${encodeURIComponent(m.value.from)}`)))?.spec ?? {});
+						let r = await Se(Z(`apis/tekton.dev/v1/${Ce(t)}/${j.value}/${encodeURIComponent(e)}`)), i = {};
+						m.value.from && (i = (await Se(Z(`apis/tekton.dev/v1/${Ce(t)}/${n.kind}/${encodeURIComponent(m.value.from)}`)))?.spec ?? {});
 						let a = Object.fromEntries((i.params ?? []).map((e) => [e.name, e.value]));
-						V.value = r?.spec?.params ?? [], H.value = r?.spec?.workspaces ?? [];
-						for (let e of Object.keys(U)) delete U[e];
-						for (let e of V.value) {
-							let t = a[e.name] ?? e.default;
-							U[e.name] = e.type === "array" ? t ?? [] : t === void 0 ? "" : typeof t == "string" ? t : JSON.stringify(t);
-						}
+						H.value = r?.spec?.params ?? [], U.value = r?.spec?.workspaces ?? [];
 						for (let e of Object.keys(W)) delete W[e];
-						for (let e of H.value) W[e.name] = {
+						for (let e of H.value) {
+							let t = a[e.name] ?? e.default;
+							W[e.name] = e.type === "array" ? t ?? [] : t === void 0 ? "" : typeof t == "string" ? t : JSON.stringify(t);
+						}
+						for (let e of Object.keys(G)) delete G[e];
+						for (let e of U.value) G[e.name] = {
 							kind: e.optional ? "none" : "emptyDir",
 							sizeGi: 1,
 							configMap: ""
 						};
 					} finally {
-						B.value = !1;
+						V.value = !1;
 					}
 				}
 			}, { immediate: !0 });
-			let Te = w(() => V.value.filter((e) => e.default === void 0).filter((e) => {
-				let t = U[e.name];
+			let we = w(() => H.value.filter((e) => e.default === void 0).filter((e) => {
+				let t = W[e.name];
 				return t === "" || t === void 0 || Array.isArray(t) && !t.length;
 			}).map((e) => e.name));
-			function Ee() {
-				let e = V.value.map((e) => {
-					let t = U[e.name];
+			function Te() {
+				let e = H.value.map((e) => {
+					let t = W[e.name];
 					if (e.type === "object" && typeof t == "string") try {
 						return {
 							name: e.name,
@@ -766,7 +766,7 @@ spec:
 						name: e.name,
 						value: t
 					};
-				}), t = Object.entries(W).filter(([, e]) => e.kind !== "none" && e.kind !== "secret").map(([e, t]) => t.kind === "emptyDir" ? {
+				}), t = Object.entries(G).filter(([, e]) => e.kind !== "none" && e.kind !== "secret").map(([e, t]) => t.kind === "emptyDir" ? {
 					name: e,
 					emptyDir: {}
 				} : t.kind === "configMap" ? {
@@ -778,56 +778,56 @@ spec:
 						accessModes: ["ReadWriteOnce"],
 						resources: { requests: { storage: `${t.sizeGi}Gi` } }
 					} }
-				}), n = z.value ?? (x.value ? "my-pipeline" : "my-task"), r = x.value ? { pipelineRef: { name: n } } : { taskRef: { name: n } };
-				if (e.length && (r.params = e), t.length && (r.workspaces = t), _e.value) {
-					let e = `${_e.value}m`;
+				}), n = B.value ?? (x.value ? "my-pipeline" : "my-task"), r = x.value ? { pipelineRef: { name: n } } : { taskRef: { name: n } };
+				if (e.length && (r.params = e), t.length && (r.workspaces = t), he.value) {
+					let e = `${he.value}m`;
 					x.value ? r.timeouts = { pipeline: e } : r.timeout = e;
 				}
 				return {
 					apiVersion: "tekton.dev/v1",
-					kind: se.value,
+					kind: M.value,
 					metadata: { generateName: `${n.slice(0, 50)}-` },
 					spec: r
 				};
 			}
-			me(K, (e) => {
-				e && (xe.value = s.stringify(Ee()));
+			fe(q, (e) => {
+				e && (ye.value = s.stringify(Te()));
 			});
-			async function De() {
+			async function Ee() {
 				if (f.value) {
-					q.value = !0, Se.value = null, J.value = [], Ce.value = [];
+					J.value = !0, be.value = null, Y.value = [], xe.value = [];
 					try {
-						let e = K.value ? s.parse(xe.value) : Ee(), t = (await i.create(f.value, Y, n.kind, M.value, e)).object.metadata.name;
+						let e = q.value ? s.parse(ye.value) : Te(), t = (await i.create(f.value, X, n.kind, N.value, e)).object.metadata.name;
 						await _({
 							name: `tekton.${n.kind}.detail`,
 							params: {
 								cluster: f.value,
-								namespace: M.value,
+								namespace: N.value,
 								name: t
 							}
 						});
 					} catch (e) {
-						e instanceof t ? (Se.value = e.message, J.value = e.problems, Ce.value = e.warnings) : Se.value = e instanceof Error ? e.message : String(e);
+						e instanceof t ? (be.value = e.message, Y.value = e.problems, xe.value = e.warnings) : be.value = e instanceof Error ? e.message : String(e);
 					} finally {
-						q.value = !1;
+						J.value = !1;
 					}
 				}
 			}
-			return (e, t) => (N(), D("div", et, [A(L(ee), { class: "title" }, {
-				default: R(() => [k(" Create " + I(se.value), 1)]),
+			return (e, t) => (P(), D("div", $e, [A(R(ee), { class: "title" }, {
+				default: z(() => [k(" Create " + L(M.value), 1)]),
 				_: 1
-			}), A(L(d), { size: "small" }, {
-				default: R(() => [ce.value.length ? (N(), D(C, { key: 1 }, [
-					A(L(b), {
+			}), A(R(d), { size: "small" }, {
+				default: z(() => [oe.value.length ? (P(), D(C, { key: 1 }, [
+					A(R(b), {
 						align: "center",
 						class: "toolbar"
 					}, {
-						default: R(() => [
+						default: z(() => [
 							t[6] ||= O("span", null, "Namespace", -1),
-							A(L(re), {
-								value: M.value,
-								"onUpdate:value": t[0] ||= (e) => M.value = e,
-								options: ce.value.map((e) => ({
+							A(R(re), {
+								value: N.value,
+								"onUpdate:value": t[0] ||= (e) => N.value = e,
+								options: oe.value.map((e) => ({
 									label: e,
 									value: e
 								})),
@@ -835,11 +835,11 @@ spec:
 								class: "select",
 								"data-test": "run-form-namespace"
 							}, null, 8, ["value", "options"]),
-							O("span", null, I(S.value), 1),
-							A(L(re), {
-								value: z.value,
-								"onUpdate:value": t[1] ||= (e) => z.value = e,
-								options: pe.value.map((e) => ({
+							O("span", null, L(S.value), 1),
+							A(R(re), {
+								value: B.value,
+								"onUpdate:value": t[1] ||= (e) => B.value = e,
+								options: de.value.map((e) => ({
 									label: e,
 									value: e
 								})),
@@ -855,55 +855,55 @@ spec:
 							]),
 							t[7] ||= O("span", { class: "spacer" }, null, -1),
 							t[8] ||= O("span", null, "YAML view", -1),
-							A(L(ae), {
-								value: K.value,
-								"onUpdate:value": t[2] ||= (e) => K.value = e,
+							A(R(ae), {
+								value: q.value,
+								"onUpdate:value": t[2] ||= (e) => q.value = e,
 								"data-test": "run-form-yaml"
 							}, null, 8, ["value"])
 						]),
 						_: 1
 					}),
-					M.value && !ue.value ? (N(), T(L(l), {
+					N.value && !ce.value ? (P(), T(R(l), {
 						key: 0,
 						type: "warning",
 						class: "gap"
 					}, {
-						default: R(() => [k(I(M.value) + " is not a Project namespace: runs can be created only in Projects. ", 1)]),
+						default: z(() => [k(L(N.value) + " is not a Project namespace: runs can be created only in Projects. ", 1)]),
 						_: 1
 					})) : E("", !0),
-					K.value ? (N(), D(C, { key: 1 }, [(N(), T(fe(L(r)), {
-						value: xe.value,
-						"onUpdate:value": t[3] ||= (e) => xe.value = e,
-						problems: J.value,
+					q.value ? (P(), D(C, { key: 1 }, [(P(), T(ue(R(r)), {
+						value: ye.value,
+						"onUpdate:value": t[3] ||= (e) => ye.value = e,
+						problems: Y.value,
 						height: "50vh"
 					}, null, 40, ["value", "problems"])), t[9] ||= O("div", { class: "muted gap" }, [
 						k(" The run uses the Project's "),
 						O("code", null, "pipeline"),
 						k(" ServiceAccount (filled in by Capybara if left out). ")
-					], -1)], 64)) : B.value ? (N(), T(L(ie), { key: 2 })) : z.value ? (N(), T(L(h), {
+					], -1)], 64)) : V.value ? (P(), T(R(ie), { key: 2 })) : B.value ? (P(), T(R(h), {
 						key: 3,
 						"label-placement": "top"
 					}, {
-						default: R(() => [
-							V.value.length ? (N(), D("h4", tt, " Parameters ")) : E("", !0),
-							(N(!0), D(C, null, F(V.value, (e) => (N(), T(L(g), {
+						default: z(() => [
+							H.value.length ? (P(), D("h4", et, " Parameters ")) : E("", !0),
+							(P(!0), D(C, null, I(H.value, (e) => (P(), T(R(g), {
 								key: e.name,
 								label: e.name + (e.default === void 0 ? " (required)" : ""),
 								feedback: e.description
 							}, {
-								default: R(() => [e.type === "array" ? (N(), T(L(p), {
+								default: z(() => [e.type === "array" ? (P(), T(R(p), {
 									key: 0,
-									value: U[e.name],
-									"onUpdate:value": (t) => U[e.name] = t,
+									value: W[e.name],
+									"onUpdate:value": (t) => W[e.name] = t,
 									"data-test": `param-${e.name}`
 								}, null, 8, [
 									"value",
 									"onUpdate:value",
 									"data-test"
-								])) : (N(), T(L(te), {
+								])) : (P(), T(R(te), {
 									key: 1,
-									value: U[e.name],
-									"onUpdate:value": (t) => U[e.name] = t,
+									value: W[e.name],
+									"onUpdate:value": (t) => W[e.name] = t,
 									type: e.type === "object" ? "textarea" : "text",
 									"data-test": `param-${e.name}`
 								}, null, 8, [
@@ -914,81 +914,79 @@ spec:
 								]))]),
 								_: 2
 							}, 1032, ["label", "feedback"]))), 128)),
-							H.value.length ? (N(), D("h4", nt, " Workspaces ")) : E("", !0),
-							(N(!0), D(C, null, F(H.value, (e) => (N(), T(L(g), {
+							U.value.length ? (P(), D("h4", tt, " Workspaces ")) : E("", !0),
+							(P(!0), D(C, null, I(U.value, (e) => (P(), T(R(g), {
 								key: e.name,
 								label: e.name + (e.optional ? " (optional)" : ""),
 								feedback: e.description
 							}, {
-								default: R(() => [A(L(b), {
+								default: z(() => [A(R(b), {
 									vertical: "",
 									"data-test": `workspace-${e.name}`
 								}, {
-									default: R(() => [
-										A(L(y), {
-											value: W[e.name].kind,
-											"onUpdate:value": (t) => W[e.name].kind = t,
+									default: z(() => [
+										A(R(y), {
+											value: G[e.name].kind,
+											"onUpdate:value": (t) => G[e.name].kind = t,
 											size: "small"
 										}, {
-											default: R(() => [
-												e.optional ? (N(), T(L(v), {
+											default: z(() => [
+												e.optional ? (P(), T(R(v), {
 													key: 0,
 													value: "none"
 												}, {
-													default: R(() => [...t[10] ||= [k(" None ", -1)]]),
+													default: z(() => [...t[10] ||= [k(" None ", -1)]]),
 													_: 1
 												})) : E("", !0),
-												A(L(v), { value: "emptyDir" }, {
-													default: R(() => [...t[11] ||= [k(" Empty directory ", -1)]]),
+												A(R(v), { value: "emptyDir" }, {
+													default: z(() => [...t[11] ||= [k(" Empty directory ", -1)]]),
 													_: 1
 												}),
-												A(L(v), { value: "volumeClaimTemplate" }, {
-													default: R(() => [...t[12] ||= [k(" New volume ", -1)]]),
+												A(R(v), { value: "volumeClaimTemplate" }, {
+													default: z(() => [...t[12] ||= [k(" New volume ", -1)]]),
 													_: 1
 												}),
-												A(L(v), {
+												A(R(v), {
 													value: "configMap",
-													disabled: !he.value.length
+													disabled: !pe.value.length
 												}, {
-													default: R(() => [...t[13] ||= [k(" ConfigMap ", -1)]]),
+													default: z(() => [...t[13] ||= [k(" ConfigMap ", -1)]]),
 													_: 1
 												}, 8, ["disabled"]),
-												A(L(oe), null, {
-													trigger: R(() => [A(L(v), {
-														value: "secret",
-														disabled: "",
-														"data-test": "workspace-secret"
-													}, {
-														default: R(() => [...t[14] ||= [k(" Secret ", -1)]]),
-														_: 1
-													})]),
-													default: R(() => [t[15] ||= k(" Secrets come with sign-in (Phase 5): until then runs started from Capybara cannot use them. ", -1)]),
+												A(R(v), {
+													value: "secret",
+													disabled: "",
+													title: "Secrets come with sign-in (Phase 5)",
+													"data-test": "workspace-secret"
+												}, {
+													default: z(() => [...t[14] ||= [k(" Secret ", -1)]]),
 													_: 1
 												})
 											]),
 											_: 2
 										}, 1032, ["value", "onUpdate:value"]),
-										W[e.name].kind === "volumeClaimTemplate" ? (N(), T(L(b), {
+										t[16] ||= O("span", { class: "muted" }, "Secret workspaces become available with sign-in (Phase 5).", -1),
+										G[e.name].kind === "volumeClaimTemplate" ? (P(), T(R(b), {
 											key: 0,
 											align: "center"
 										}, {
-											default: R(() => [A(L(ne), {
-												value: W[e.name].sizeGi,
-												"onUpdate:value": (t) => W[e.name].sizeGi = t,
+											default: z(() => [A(R(ne), {
+												value: G[e.name].sizeGi,
+												"onUpdate:value": (t) => G[e.name].sizeGi = t,
 												min: 1,
 												max: 100,
 												size: "small"
 											}, {
-												suffix: R(() => [...t[16] ||= [k(" Gi ", -1)]]),
+												suffix: z(() => [...t[15] ||= [k(" Gi ", -1)]]),
 												_: 1
-											}, 8, ["value", "onUpdate:value"]), ge.value ? (N(), D("span", rt, "Project storage: " + I(ge.value), 1)) : E("", !0)]),
+											}, 8, ["value", "onUpdate:value"]), me.value ? (P(), D("span", nt, "Project storage: " + L(me.value), 1)) : E("", !0)]),
 											_: 2
 										}, 1024)) : E("", !0),
-										W[e.name].kind === "configMap" ? (N(), T(L(re), {
+										G[e.name].kind === "configMap" ? (P(), T(R(re), {
 											key: 1,
-											value: W[e.name].configMap,
-											"onUpdate:value": (t) => W[e.name].configMap = t,
-											options: he.value.map((e) => ({
+											value: G[e.name].configMap,
+											"onUpdate:value": (t) => G[e.name].configMap = t,
+											options: pe.value.map((e) => ({
 												label: e,
 												value: e
 											})),
@@ -1004,29 +1002,29 @@ spec:
 								}, 1032, ["data-test"])]),
 								_: 2
 							}, 1032, ["label", "feedback"]))), 128)),
-							A(L(g), { label: "Timeout" }, {
-								default: R(() => [A(L(b), { align: "center" }, {
-									default: R(() => [A(L(ne), {
-										value: _e.value,
-										"onUpdate:value": t[4] ||= (e) => _e.value = e,
+							A(R(g), { label: "Timeout" }, {
+								default: z(() => [A(R(b), { align: "center" }, {
+									default: z(() => [A(R(ne), {
+										value: he.value,
+										"onUpdate:value": t[4] ||= (e) => he.value = e,
 										min: 1,
 										max: 1440,
 										placeholder: "Default (1 hour)",
 										size: "small",
 										"data-test": "run-form-timeout"
 									}, {
-										suffix: R(() => [...t[17] ||= [k(" min ", -1)]]),
+										suffix: z(() => [...t[17] ||= [k(" min ", -1)]]),
 										_: 1
 									}, 8, ["value"])]),
 									_: 1
 								})]),
 								_: 1
 							}),
-							A(L(l), {
+							A(R(l), {
 								type: "info",
 								bordered: !1
 							}, {
-								default: R(() => [...t[18] ||= [
+								default: z(() => [...t[18] ||= [
 									k(" The run uses the Project's ", -1),
 									O("code", null, "pipeline", -1),
 									k(" ServiceAccount, which has no permissions and no API token. ", -1)
@@ -1035,72 +1033,72 @@ spec:
 							})
 						]),
 						_: 1
-					})) : (N(), T(L(l), {
+					})) : (P(), T(R(l), {
 						key: 4,
 						type: "info",
 						bordered: !1,
 						class: "gap"
 					}, {
-						default: R(() => [k(" Choose a " + I(S.value) + " " + I(pe.value.length ? "" : `(there are none in ${M.value} yet)`) + ". ", 1)]),
+						default: z(() => [k(" Choose a " + L(S.value) + " " + L(de.value.length ? "" : `(there are none in ${N.value} yet)`) + ". ", 1)]),
 						_: 1
 					})),
-					Se.value ? (N(), T(L(l), {
+					be.value ? (P(), T(R(l), {
 						key: 5,
 						type: "error",
 						class: "gap",
 						"data-test": "run-form-error"
 					}, {
-						default: R(() => [k(I(Se.value) + " ", 1), J.value.length ? (N(), D("ul", it, [(N(!0), D(C, null, F(J.value, (e) => (N(), D("li", { key: e.path + e.message }, [e.path ? (N(), D("code", at, I(e.path), 1)) : E("", !0), k(" " + I(e.message), 1)]))), 128))])) : E("", !0)]),
+						default: z(() => [k(L(be.value) + " ", 1), Y.value.length ? (P(), D("ul", rt, [(P(!0), D(C, null, I(Y.value, (e) => (P(), D("li", { key: e.path + e.message }, [e.path ? (P(), D("code", it, L(e.path), 1)) : E("", !0), k(" " + L(e.message), 1)]))), 128))])) : E("", !0)]),
 						_: 1
 					})) : E("", !0),
-					Ce.value.length ? (N(), T(L(l), {
+					xe.value.length ? (P(), T(R(l), {
 						key: 6,
 						type: "warning",
 						class: "gap"
 					}, {
-						default: R(() => [(N(!0), D(C, null, F(Ce.value, (e) => (N(), D("div", { key: e }, I(e), 1))), 128))]),
+						default: z(() => [(P(!0), D(C, null, I(xe.value, (e) => (P(), D("div", { key: e }, L(e), 1))), 128))]),
 						_: 1
 					})) : E("", !0),
-					A(L(b), {
+					A(R(b), {
 						justify: "end",
 						class: "gap"
 					}, {
-						default: R(() => [A(L(u), {
+						default: z(() => [A(R(u), {
 							type: "primary",
-							loading: q.value,
-							disabled: !ue.value || !K.value && (!z.value || Te.value.length > 0),
+							loading: J.value,
+							disabled: !ce.value || !q.value && (!B.value || we.value.length > 0),
 							"data-test": "run-form-create",
-							onClick: De
+							onClick: Ee
 						}, {
-							default: R(() => [...t[19] ||= [k(" Create ", -1)]]),
+							default: z(() => [...t[19] ||= [k(" Create ", -1)]]),
 							_: 1
 						}, 8, ["loading", "disabled"])]),
 						_: 1
 					})
-				], 64)) : (N(), T(L(l), {
+				], 64)) : (P(), T(R(l), {
 					key: 0,
 					type: "info",
 					"data-test": "run-form-no-projects"
 				}, {
-					default: R(() => [...t[5] ||= [k(" Runs can be created only in Project namespaces, and this cluster has no Projects yet. ", -1)]]),
+					default: z(() => [...t[5] ||= [k(" Runs can be created only in Project namespaces, and this cluster has no Projects yet. ", -1)]]),
 					_: 1
 				}))]),
 				_: 1
 			})]));
 		}
 	});
-})), ct = B((() => {})), lt = /* @__PURE__ */ V({ default: () => ut }), ut, dt = B((() => {
-	st(), st(), ct(), Xe(), ut = /*#__PURE__*/ $(ot, [["__scopeId", "data-v-0ae2f9c4"]]);
+})), st = V((() => {})), ct = /* @__PURE__ */ H({ default: () => lt }), lt, ut = V((() => {
+	ot(), ot(), st(), Ye(), lt = /*#__PURE__*/ $(at, [["__scopeId", "data-v-f6850e40"]]);
 }));
 //#endregion
 //#region src/graph.ts
-function ft(e, t) {
+function dt(e, t) {
 	let n = new Set(e.runAfter ?? []), r = JSON.stringify([e.params ?? [], e.when ?? []]);
-	for (let e of r.matchAll(mt)) n.add(e[1]);
+	for (let e of r.matchAll(pt)) n.add(e[1]);
 	return [...n].filter((n) => t.has(n) && n !== e.name).sort();
 }
-function pt(e, t = []) {
-	let n = new Set(e.map((e) => e.name)), r = new Map(e.map((e) => [e.name, ft(e, n)])), i = /* @__PURE__ */ new Map(), a = /* @__PURE__ */ new Set(), o = (e) => {
+function ft(e, t = []) {
+	let n = new Set(e.map((e) => e.name)), r = new Map(e.map((e) => [e.name, dt(e, n)])), i = /* @__PURE__ */ new Map(), a = /* @__PURE__ */ new Set(), o = (e) => {
 		let t = i.get(e);
 		if (t !== void 0) return t;
 		if (a.has(e)) return 0;
@@ -1143,28 +1141,28 @@ function pt(e, t = []) {
 		rows: f
 	};
 }
-var mt, ht = B((() => {
-	mt = /\$\(tasks\.([a-z0-9]([-a-z0-9]*[a-z0-9])?)\.results\./g;
-})), gt, _t = B((() => {
-	Q(), gt = /*@__PURE__*/ j({
+var pt, mt = V((() => {
+	pt = /\$\(tasks\.([a-z0-9]([-a-z0-9]*[a-z0-9])?)\.results\./g;
+})), ht, gt = V((() => {
+	Q(), ht = /*@__PURE__*/ j({
 		__name: "TaskRunLogs",
 		props: {
 			cluster: {},
 			taskRun: {}
 		},
 		setup(e) {
-			let t = e, { LogViewer: n } = G().components, r = w(() => t.taskRun.status?.podName ?? ""), i = w(() => t.taskRun.status?.steps ?? []), a = w(() => i.value.map((e) => ({
+			let t = e, { LogViewer: n } = K().components, r = w(() => t.taskRun.status?.podName ?? ""), i = w(() => t.taskRun.status?.steps ?? []), a = w(() => i.value.map((e) => ({
 				label: e.name,
 				value: e.container
 			}))), o = w(() => i.value.map((e) => e.terminated ? "t" : e.running ? "r" : "w").join(""));
-			return (t, i) => !r.value || !a.value.length ? (N(), T(L(l), {
+			return (t, i) => !r.value || !a.value.length ? (P(), T(R(l), {
 				key: 0,
 				type: "info",
 				bordered: !1
 			}, {
-				default: R(() => [...i[0] ||= [k(" The TaskRun has no pod yet: logs show once its steps start. ", -1)]]),
+				default: z(() => [...i[0] ||= [k(" The TaskRun has no pod yet: logs show once its steps start. ", -1)]]),
 				_: 1
-			})) : (N(), T(fe(L(n)), {
+			})) : (P(), T(ue(R(n)), {
 				key: `${r.value}/${o.value}`,
 				cluster: e.cluster,
 				namespace: e.taskRun.metadata.namespace ?? "",
@@ -1178,39 +1176,39 @@ var mt, ht = B((() => {
 			]));
 		}
 	});
-})), vt, yt = B((() => {
-	_t(), _t(), vt = gt;
-})), bt, xt, St, Ct, wt, Tt, Et, Dt, Ot, kt, At, jt, Mt = B((() => {
-	ht(), yt(), Q(), bt = { "data-test": "tekton-graph" }, xt = {
+})), _t, vt = V((() => {
+	gt(), gt(), _t = ht;
+})), yt, bt, xt, St, Ct, wt, Tt, Et, Dt, Ot, kt, At, jt = V((() => {
+	mt(), vt(), Q(), yt = { "data-test": "tekton-graph" }, bt = {
 		key: 1,
 		class: "scroll"
-	}, St = [
+	}, xt = [
 		"width",
 		"height",
 		"aria-label"
-	], Ct = ["d"], wt = [
+	], St = ["d"], Ct = [
 		"transform",
 		"data-test",
 		"data-state",
 		"onClick"
-	], Tt = ["stroke", "stroke-dasharray"], Et = ["cy", "fill"], Dt = ["y"], Ot = {
+	], wt = ["stroke", "stroke-dasharray"], Tt = ["cy", "fill"], Et = ["y"], Dt = {
 		key: 0,
 		x: "26",
 		y: "34",
 		class: "state"
-	}, kt = 170, At = 44, jt = /*@__PURE__*/ j({
+	}, Ot = 170, kt = 44, At = /*@__PURE__*/ j({
 		__name: "GraphTab",
 		props: {
 			cluster: {},
 			object: {}
 		},
 		setup(e) {
-			let t = e, n = w(() => t.object.kind === "PipelineRun"), r = w(() => n.value ? t.object.status?.pipelineSpec ?? t.object.spec?.pipelineSpec ?? {} : t.object.spec ?? {}), i = w(() => pt(r.value.tasks ?? [], r.value.finally ?? [])), a = n.value ? G().composables.useLiveList(() => ({
+			let t = e, n = w(() => t.object.kind === "PipelineRun"), r = w(() => n.value ? t.object.status?.pipelineSpec ?? t.object.spec?.pipelineSpec ?? {} : t.object.spec ?? {}), i = w(() => ft(r.value.tasks ?? [], r.value.finally ?? [])), a = n.value ? K().composables.useLiveList(() => ({
 				cluster: t.cluster,
-				type: Z,
+				type: Ce,
 				namespace: t.object.metadata.namespace,
 				labelSelector: `tekton.dev/pipelineRun=${t.object.metadata.name}`
-			})).items : P([]), o = w(() => new Map(a.value.map((e) => [e.metadata.labels?.["tekton.dev/pipelineTask"] ?? "", e]))), s = P(null), c = w(() => s.value ? o.value.get(s.value) ?? null : null), u = (e) => 10 + e * 230, d = (e) => 10 + e * 64, f = w(() => new Map(i.value.nodes.map((e) => [e.name, e]))), p = w(() => u(i.value.columns) + 10), h = w(() => d(i.value.rows) + 10), g = {
+			})).items : F([]), o = w(() => new Map(a.value.map((e) => [e.metadata.labels?.["tekton.dev/pipelineTask"] ?? "", e]))), s = F(null), c = w(() => s.value ? o.value.get(s.value) ?? null : null), u = (e) => 10 + e * 230, d = (e) => 10 + e * 64, f = w(() => new Map(i.value.nodes.map((e) => [e.name, e]))), p = w(() => u(i.value.columns) + 10), h = w(() => d(i.value.rows) + 10), g = {
 				success: "#18a058",
 				error: "#d03050",
 				warning: "#f0a020",
@@ -1227,7 +1225,7 @@ var mt, ht = B((() => {
 					label: "Not started",
 					color: g.default
 				};
-				let r = K(t);
+				let r = q(t);
 				return {
 					label: r.text,
 					color: g[r.tone] ?? g.default
@@ -1236,10 +1234,10 @@ var mt, ht = B((() => {
 			function te(e, t) {
 				let n = f.value.get(e), r = f.value.get(t);
 				if (!n || !r) return "";
-				let i = u(n.column) + kt, a = d(n.row) + At / 2, o = u(r.column), s = d(r.row) + At / 2, c = (i + o) / 2;
+				let i = u(n.column) + Ot, a = d(n.row) + kt / 2, o = u(r.column), s = d(r.row) + kt / 2, c = (i + o) / 2;
 				return `M${i},${a} C${c},${a} ${c},${s} ${o},${s}`;
 			}
-			return (t, r) => (N(), D("div", bt, [i.value.nodes.length ? (N(), D("div", xt, [(N(), D("svg", {
+			return (t, r) => (P(), D("div", yt, [i.value.nodes.length ? (P(), D("div", bt, [(P(), D("svg", {
 				width: p.value,
 				height: h.value,
 				role: "img",
@@ -1257,16 +1255,16 @@ var mt, ht = B((() => {
 					d: "M 0 0 L 10 5 L 0 10 z",
 					class: "arrow"
 				})])], -1),
-				(N(!0), D(C, null, F(i.value.edges, (e) => (N(), D("path", {
+				(P(!0), D(C, null, I(i.value.edges, (e) => (P(), D("path", {
 					key: e.from + ">" + e.to,
 					d: te(e.from, e.to),
 					class: "edge",
 					"marker-end": "url(#arrow)"
-				}, null, 8, Ct))), 128)),
-				(N(!0), D(C, null, F(i.value.nodes, (e) => (N(), D("g", {
+				}, null, 8, St))), 128)),
+				(P(!0), D(C, null, I(i.value.nodes, (e) => (P(), D("g", {
 					key: e.name,
 					transform: `translate(${u(e.column)},${d(e.row)})`,
-					class: M(["node", {
+					class: N(["node", {
 						clickable: n.value,
 						chosen: s.value === e.name
 					}]),
@@ -1275,65 +1273,65 @@ var mt, ht = B((() => {
 					onClick: (t) => n.value && (s.value = e.name)
 				}, [
 					O("rect", {
-						width: kt,
-						height: At,
+						width: Ot,
+						height: kt,
 						rx: "8",
 						stroke: ee(e.name).color,
 						"stroke-dasharray": e.finally ? "4 3" : void 0
-					}, null, 8, Tt),
+					}, null, 8, wt),
 					O("circle", {
 						cx: "14",
-						cy: At / 2,
+						cy: kt / 2,
 						r: "5",
 						fill: ee(e.name).color
-					}, null, 8, Et),
+					}, null, 8, Tt),
 					O("text", {
 						x: "26",
 						y: n.value ? 18 : 26,
 						class: "name"
-					}, I(e.name.length > 18 ? e.name.slice(0, 17) + "…" : e.name), 9, Dt),
-					n.value ? (N(), D("text", Ot, I(ee(e.name).label), 1)) : E("", !0)
-				], 10, wt))), 128))
-			], 8, St))])) : (N(), T(L(m), {
+					}, L(e.name.length > 18 ? e.name.slice(0, 17) + "…" : e.name), 9, Et),
+					n.value ? (P(), D("text", Dt, L(ee(e.name).label), 1)) : E("", !0)
+				], 10, Ct))), 128))
+			], 8, xt))])) : (P(), T(R(m), {
 				key: 0,
 				description: "No tasks."
-			})), n.value && s.value ? (N(), D(C, { key: 2 }, [O("h4", null, "Logs: " + I(s.value), 1), c.value ? (N(), T(vt, {
+			})), n.value && s.value ? (P(), D(C, { key: 2 }, [O("h4", null, "Logs: " + L(s.value), 1), c.value ? (P(), T(_t, {
 				key: 0,
 				cluster: e.cluster,
 				"task-run": c.value
-			}, null, 8, ["cluster", "task-run"])) : (N(), T(L(l), {
+			}, null, 8, ["cluster", "task-run"])) : (P(), T(R(l), {
 				key: 1,
 				type: "info",
 				bordered: !1
 			}, {
-				default: R(() => [...r[1] ||= [k(" This task has not started. ", -1)]]),
+				default: z(() => [...r[1] ||= [k(" This task has not started. ", -1)]]),
 				_: 1
 			}))], 64)) : E("", !0)]));
 		}
 	});
-})), Nt = B((() => {})), Pt = /* @__PURE__ */ V({ default: () => Ft }), Ft, It = B((() => {
-	Mt(), Mt(), Nt(), Xe(), Ft = /*#__PURE__*/ $(jt, [["__scopeId", "data-v-774e814d"]]);
-})), Lt, Rt = B((() => {
-	Q(), Lt = /*@__PURE__*/ j({
+})), Mt = V((() => {})), Nt = /* @__PURE__ */ H({ default: () => Pt }), Pt, Ft = V((() => {
+	jt(), jt(), Mt(), Ye(), Pt = /*#__PURE__*/ $(At, [["__scopeId", "data-v-774e814d"]]);
+})), It, Lt = V((() => {
+	Q(), It = /*@__PURE__*/ j({
 		__name: "PipelineRunTaskRunsTab",
 		props: {
 			cluster: {},
 			object: {}
 		},
 		setup(e) {
-			let t = e, { ResourceLink: n } = G().components, { items: r, loading: i } = G().composables.useLiveList(() => ({
+			let t = e, { ResourceLink: n } = K().components, { items: r, loading: i } = K().composables.useLiveList(() => ({
 				cluster: t.cluster,
-				type: Z,
+				type: Ce,
 				namespace: t.object.metadata.namespace,
 				labelSelector: `tekton.dev/pipelineRun=${t.object.metadata.name}`
-			}), { sort: (e, t) => Ae(e) - Ae(t) }), a = P(Date.now()), o = setInterval(() => a.value = Date.now(), 1e3);
-			ue(() => clearInterval(o));
+			}), { sort: (e, t) => ke(e) - ke(t) }), a = F(Date.now()), o = setInterval(() => a.value = Date.now(), 1e3);
+			ce(() => clearInterval(o));
 			let s = w(() => [
 				{
 					key: "name",
 					title: "TaskRun",
 					ellipsis: { tooltip: !0 },
-					render: (e) => se(n, {
+					render: (e) => M(n, {
 						resource: "tekton.taskruns",
 						namespace: e.metadata.namespace,
 						name: e.metadata.name
@@ -1348,7 +1346,7 @@ var mt, ht = B((() => {
 					key: "status",
 					title: "Status",
 					width: 160,
-					render: J
+					render: Y
 				},
 				{
 					key: "started",
@@ -1360,14 +1358,14 @@ var mt, ht = B((() => {
 					key: "duration",
 					title: "Duration",
 					width: 100,
-					render: (e) => q(e, a.value)
+					render: (e) => J(e, a.value)
 				}
 			]);
-			return (e, t) => (N(), T(L(f), {
+			return (e, t) => (P(), T(R(f), {
 				size: "small",
 				columns: s.value,
-				data: L(r),
-				loading: L(i),
+				data: R(r),
+				loading: R(i),
 				"row-key": (e) => e.metadata.uid,
 				"data-test": "tekton-taskruns"
 			}, null, 8, [
@@ -1378,28 +1376,28 @@ var mt, ht = B((() => {
 			]));
 		}
 	});
-})), zt = /* @__PURE__ */ V({ default: () => Bt }), Bt, Vt = B((() => {
-	Rt(), Rt(), Bt = Lt;
-})), Ht, Ut, Wt = B((() => {
-	Q(), Ht = { "data-test": "tekton-pipeline-runs" }, Ut = /*@__PURE__*/ j({
+})), Rt = /* @__PURE__ */ H({ default: () => zt }), zt, Bt = V((() => {
+	Lt(), Lt(), zt = It;
+})), Vt, Ht, Ut = V((() => {
+	Q(), Vt = { "data-test": "tekton-pipeline-runs" }, Ht = /*@__PURE__*/ j({
 		__name: "PipelineRunsTab",
 		props: {
 			cluster: {},
 			object: {}
 		},
 		setup(e) {
-			let t = e, { ResourceLink: n } = G().components, r = o(), { items: i, loading: a } = G().composables.useLiveList(() => ({
+			let t = e, { ResourceLink: n } = K().components, r = o(), { items: i, loading: a } = K().composables.useLiveList(() => ({
 				cluster: t.cluster,
-				type: we,
+				type: Se,
 				namespace: t.object.metadata.namespace,
 				labelSelector: `tekton.dev/pipeline=${t.object.metadata.name}`
-			}), { sort: je }), s = P(Date.now()), c = setInterval(() => s.value = Date.now(), 1e3);
-			ue(() => clearInterval(c));
-			let l = w(() => ye(t.object.metadata.namespace, t.cluster)), d = w(() => [
+			}), { sort: Ae }), s = F(Date.now()), c = setInterval(() => s.value = Date.now(), 1e3);
+			ce(() => clearInterval(c));
+			let l = w(() => _e(t.object.metadata.namespace, t.cluster)), d = w(() => [
 				{
 					key: "name",
 					title: "PipelineRun",
-					render: (e) => se(n, {
+					render: (e) => M(n, {
 						resource: "tekton.pipelineruns",
 						namespace: e.metadata.namespace,
 						name: e.metadata.name
@@ -1409,7 +1407,7 @@ var mt, ht = B((() => {
 					key: "status",
 					title: "Status",
 					width: 160,
-					render: J
+					render: Y
 				},
 				{
 					key: "started",
@@ -1421,7 +1419,7 @@ var mt, ht = B((() => {
 					key: "duration",
 					title: "Duration",
 					width: 100,
-					render: (e) => q(e, s.value)
+					render: (e) => J(e, s.value)
 				}
 			]), p = () => r({
 				name: "tekton.pipelineruns.new",
@@ -1431,26 +1429,26 @@ var mt, ht = B((() => {
 					pipeline: t.object.metadata.name
 				}
 			});
-			return (e, t) => (N(), D("div", Ht, [l.value ? (N(), T(L(b), {
+			return (e, t) => (P(), D("div", Vt, [l.value ? (P(), T(R(b), {
 				key: 0,
 				justify: "end",
 				class: "gap"
 			}, {
-				default: R(() => [A(L(u), {
+				default: z(() => [A(R(u), {
 					size: "small",
 					type: "primary",
 					"data-test": "pipeline-create-run",
 					onClick: p
 				}, {
-					default: R(() => [...t[0] ||= [k(" Create PipelineRun ", -1)]]),
+					default: z(() => [...t[0] ||= [k(" Create PipelineRun ", -1)]]),
 					_: 1
 				})]),
 				_: 1
-			})) : E("", !0), A(L(f), {
+			})) : E("", !0), A(R(f), {
 				size: "small",
 				columns: d.value,
-				data: L(i),
-				loading: L(a),
+				data: R(i),
+				loading: R(a),
 				"row-key": (e) => e.metadata.uid
 			}, null, 8, [
 				"columns",
@@ -1460,10 +1458,10 @@ var mt, ht = B((() => {
 			])]));
 		}
 	});
-})), Gt = B((() => {})), Kt = /* @__PURE__ */ V({ default: () => qt }), qt, Jt = B((() => {
-	Wt(), Wt(), Gt(), Xe(), qt = /*#__PURE__*/ $(Ut, [["__scopeId", "data-v-7107da21"]]);
-})), Yt, Xt, Zt = B((() => {
-	Yt = { "data-test": "tekton-parameters" }, Xt = /*@__PURE__*/ j({
+})), Wt = V((() => {})), Gt = /* @__PURE__ */ H({ default: () => Kt }), Kt, qt = V((() => {
+	Ut(), Ut(), Wt(), Ye(), Kt = /*#__PURE__*/ $(Ht, [["__scopeId", "data-v-7107da21"]]);
+})), Jt, Yt, Xt = V((() => {
+	Jt = { "data-test": "tekton-parameters" }, Yt = /*@__PURE__*/ j({
 		__name: "ParametersTab",
 		props: {
 			cluster: {},
@@ -1543,25 +1541,25 @@ var mt, ht = B((() => {
 					title: "Description"
 				}
 			]);
-			return (e, t) => (N(), D("div", Yt, [
+			return (e, t) => (P(), D("div", Jt, [
 				t[0] ||= O("h4", null, "Parameters", -1),
-				i.value.length ? (N(), T(L(f), {
+				i.value.length ? (P(), T(R(f), {
 					key: 0,
 					size: "small",
 					columns: o.value,
 					data: i.value
-				}, null, 8, ["columns", "data"])) : (N(), T(L(m), {
+				}, null, 8, ["columns", "data"])) : (P(), T(R(m), {
 					key: 1,
 					size: "small",
 					description: "No parameters."
 				})),
 				t[1] ||= O("h4", null, "Workspaces", -1),
-				a.value.length ? (N(), T(L(f), {
+				a.value.length ? (P(), T(R(f), {
 					key: 2,
 					size: "small",
 					columns: s.value,
 					data: a.value
-				}, null, 8, ["columns", "data"])) : (N(), T(L(m), {
+				}, null, 8, ["columns", "data"])) : (P(), T(R(m), {
 					key: 3,
 					size: "small",
 					description: "No workspaces."
@@ -1569,10 +1567,10 @@ var mt, ht = B((() => {
 			]));
 		}
 	});
-})), Qt = B((() => {})), $t = /* @__PURE__ */ V({ default: () => en }), en, tn = B((() => {
-	Zt(), Zt(), Qt(), Xe(), en = /*#__PURE__*/ $(Xt, [["__scopeId", "data-v-e2c1216c"]]);
-})), nn, rn, an, on = B((() => {
-	ge(), Q(), nn = { class: "reason" }, rn = { class: "hint" }, an = /*@__PURE__*/ j({
+})), Zt = V((() => {})), Qt = /* @__PURE__ */ H({ default: () => $t }), $t, en = V((() => {
+	Xt(), Xt(), Zt(), Ye(), $t = /*#__PURE__*/ $(Yt, [["__scopeId", "data-v-e2c1216c"]]);
+})), tn, nn, rn, an = V((() => {
+	me(), Q(), tn = { class: "reason" }, nn = { class: "hint" }, rn = /*@__PURE__*/ j({
 		__name: "ImagePullBanner",
 		props: {
 			cluster: {},
@@ -1580,18 +1578,18 @@ var mt, ht = B((() => {
 			pipelineRun: {}
 		},
 		setup(e) {
-			let t = e, n = S(), i = P(!1), a = w(() => t.taskRuns.flatMap((e) => H(e).map((t) => ({
+			let t = e, n = S(), i = F(!1), a = w(() => t.taskRuns.flatMap((e) => U(e).map((t) => ({
 				...t,
 				task: e.metadata.labels?.["tekton.dev/pipelineTask"] ?? e.metadata.name
 			})))), o = w(() => [...new Set(a.value.map((e) => e.image).filter((e) => !e.startsWith("(")))]), s = w(() => {
 				let e = t.pipelineRun;
-				return !!e && K(e).running && ye(e.metadata.namespace, t.cluster);
+				return !!e && q(e).running && _e(e.metadata.namespace, t.cluster);
 			});
 			async function c() {
 				let e = t.pipelineRun;
 				i.value = !0;
 				try {
-					await r(t.cluster, Y, "cancel", {
+					await r(t.cluster, X, "cancel", {
 						namespace: e.metadata.namespace,
 						name: e.metadata.name,
 						uid: e.metadata.uid
@@ -1602,24 +1600,24 @@ var mt, ht = B((() => {
 					i.value = !1;
 				}
 			}
-			return (t, n) => a.value.length ? (N(), T(L(l), {
+			return (t, n) => a.value.length ? (P(), T(R(l), {
 				key: 0,
 				type: "error",
 				title: "Waiting for an image that cannot be pulled",
 				class: "pull",
 				"data-test": "image-pull-problem"
 			}, {
-				default: R(() => [
-					(N(!0), D(C, null, F(a.value, (t) => (N(), D("div", { key: t.task + t.container }, [
-						O("strong", null, I(t.task), 1),
-						k(" (" + I(t.container) + "): " + I(L(W)(t, e.cluster)) + " ", 1),
-						O("span", nn, I(t.reason), 1)
+				default: z(() => [
+					(P(!0), D(C, null, I(a.value, (t) => (P(), D("div", { key: t.task + t.container }, [
+						O("strong", null, L(t.task), 1),
+						k(" (" + L(t.container) + "): " + L(R(G)(t, e.cluster)) + " ", 1),
+						O("span", tn, L(t.reason), 1)
 					]))), 128)),
-					O("div", rn, [n[0] ||= k(" The run stays waiting until the image is available or the run times out. On the local k3d clusters, import it on the host: ", -1), (N(!0), D(C, null, F(o.value, (t) => (N(), D("code", {
+					O("div", nn, [n[0] ||= k(" The run stays waiting until the image is available or the run times out. On the local k3d clusters, import it on the host: ", -1), (P(!0), D(C, null, I(o.value, (t) => (P(), D("code", {
 						key: t,
 						class: "cmd"
-					}, "docker pull " + I(t) + " && k3d image import " + I(t) + " -c capybara-" + I(e.cluster), 1))), 128))]),
-					s.value ? (N(), T(L(u), {
+					}, "docker pull " + L(t) + " && k3d image import " + L(t) + " -c capybara-" + L(e.cluster), 1))), 128))]),
+					s.value ? (P(), T(R(u), {
 						key: 0,
 						size: "small",
 						type: "error",
@@ -1629,7 +1627,7 @@ var mt, ht = B((() => {
 						"data-test": "image-pull-cancel",
 						onClick: c
 					}, {
-						default: R(() => [...n[1] ||= [k(" Cancel run ", -1)]]),
+						default: z(() => [...n[1] ||= [k(" Cancel run ", -1)]]),
 						_: 1
 					}, 8, ["loading"])) : E("", !0)
 				]),
@@ -1637,40 +1635,40 @@ var mt, ht = B((() => {
 			})) : E("", !0);
 		}
 	});
-})), sn = B((() => {})), cn, ln = B((() => {
-	on(), on(), sn(), Xe(), cn = /*#__PURE__*/ $(an, [["__scopeId", "data-v-7a8b8553"]]);
-})), un, dn, fn, pn, mn, hn, gn, _n, vn, yn = B((() => {
-	ln(), yt(), Q(), un = { "data-test": "tekton-run-logs" }, dn = {
+})), on = V((() => {})), sn, cn = V((() => {
+	an(), an(), on(), Ye(), sn = /*#__PURE__*/ $(rn, [["__scopeId", "data-v-7a8b8553"]]);
+})), ln, un, dn, fn, pn, mn, hn, gn, _n, vn = V((() => {
+	cn(), vt(), Q(), ln = { "data-test": "tekton-run-logs" }, un = {
 		key: 2,
 		class: "split"
-	}, fn = {
+	}, dn = {
 		class: "tasks",
 		role: "listbox"
-	}, pn = [
+	}, fn = [
 		"aria-selected",
 		"data-test",
 		"onClick"
-	], mn = { class: "name" }, hn = {
+	], pn = { class: "name" }, mn = {
 		class: "state",
 		"data-test": "run-status"
-	}, gn = { class: "time" }, _n = { class: "logs" }, vn = /*@__PURE__*/ j({
+	}, hn = { class: "time" }, gn = { class: "logs" }, _n = /*@__PURE__*/ j({
 		__name: "PipelineRunLogsTab",
 		props: {
 			cluster: {},
 			object: {}
 		},
 		setup(e) {
-			let t = e, { items: n, loading: r, error: i } = G().composables.useLiveList(() => ({
+			let t = e, { items: n, loading: r, error: i } = K().composables.useLiveList(() => ({
 				cluster: t.cluster,
-				type: Z,
+				type: Ce,
 				namespace: t.object.metadata.namespace,
 				labelSelector: `tekton.dev/pipelineRun=${t.object.metadata.name}`
-			}), { sort: (e, t) => Ae(e) - Ae(t) }), a = P(Date.now()), o = setInterval(() => a.value = Date.now(), 1e3);
-			ue(() => clearInterval(o));
-			let s = P(null), c = P(!1);
-			me(n, (e) => {
+			}), { sort: (e, t) => ke(e) - ke(t) }), a = F(Date.now()), o = setInterval(() => a.value = Date.now(), 1e3);
+			ce(() => clearInterval(o));
+			let s = F(null), c = F(!1);
+			fe(n, (e) => {
 				if (c.value && e.some((e) => e.metadata.uid === s.value)) return;
-				let t = e.find((e) => K(e).running);
+				let t = e.find((e) => q(e).running);
 				s.value = (t ?? e.at(-1))?.metadata.uid ?? null;
 			});
 			let u = w(() => n.value.find((e) => e.metadata.uid === s.value) ?? null), d = (e) => e.metadata.labels?.["tekton.dev/pipelineTask"] ?? e.metadata.name, f = {
@@ -1683,30 +1681,30 @@ var mt, ht = B((() => {
 			function p(e) {
 				s.value = e.metadata.uid, c.value = !0;
 			}
-			return (t, o) => (N(), D("div", un, [
-				A(cn, {
+			return (t, o) => (P(), D("div", ln, [
+				A(sn, {
 					cluster: e.cluster,
-					"task-runs": L(n),
+					"task-runs": R(n),
 					"pipeline-run": e.object
 				}, null, 8, [
 					"cluster",
 					"task-runs",
 					"pipeline-run"
 				]),
-				L(i) ? (N(), T(L(l), {
+				R(i) ? (P(), T(R(l), {
 					key: 0,
 					type: "warning",
 					class: "gap"
 				}, {
-					default: R(() => [k(I(L(i)), 1)]),
+					default: z(() => [k(L(R(i)), 1)]),
 					_: 1
 				})) : E("", !0),
-				!L(r) && !L(n).length ? (N(), T(L(m), {
+				!R(r) && !R(n).length ? (P(), T(R(m), {
 					key: 1,
 					description: "No tasks have started yet."
-				})) : (N(), D("div", dn, [O("ul", fn, [(N(!0), D(C, null, F(L(n), (e) => (N(), D("li", {
+				})) : (P(), D("div", un, [O("ul", dn, [(P(!0), D(C, null, I(R(n), (e) => (P(), D("li", {
 					key: e.metadata.uid,
-					class: M({ chosen: e.metadata.uid === s.value }),
+					class: N({ chosen: e.metadata.uid === s.value }),
 					role: "option",
 					"aria-selected": e.metadata.uid === s.value,
 					"data-test": `task-${d(e)}`,
@@ -1714,12 +1712,12 @@ var mt, ht = B((() => {
 				}, [
 					O("span", {
 						class: "dot",
-						style: ce({ background: f[L(K)(e).tone] })
+						style: oe({ background: f[R(q)(e).tone] })
 					}, null, 4),
-					O("span", mn, I(d(e)), 1),
-					O("span", hn, I(L(K)(e).text), 1),
-					O("span", gn, I(L(q)(e, a.value)), 1)
-				], 10, pn))), 128))]), O("div", _n, [u.value ? (N(), T(vt, {
+					O("span", pn, L(d(e)), 1),
+					O("span", mn, L(R(q)(e).text), 1),
+					O("span", hn, L(R(J)(e, a.value)), 1)
+				], 10, fn))), 128))]), O("div", gn, [u.value ? (P(), T(_t, {
 					key: 0,
 					cluster: e.cluster,
 					"task-run": u.value
@@ -1727,29 +1725,29 @@ var mt, ht = B((() => {
 			]));
 		}
 	});
-})), bn = B((() => {})), xn = /* @__PURE__ */ V({ default: () => Sn }), Sn, Cn = B((() => {
-	yn(), yn(), bn(), Xe(), Sn = /*#__PURE__*/ $(vn, [["__scopeId", "data-v-5ebe946e"]]);
-})), wn, Tn, En = B((() => {
-	ln(), yt(), wn = { "data-test": "tekton-taskrun-logs" }, Tn = /*@__PURE__*/ j({
+})), yn = V((() => {})), bn = /* @__PURE__ */ H({ default: () => xn }), xn, Sn = V((() => {
+	vn(), vn(), yn(), Ye(), xn = /*#__PURE__*/ $(_n, [["__scopeId", "data-v-5ebe946e"]]);
+})), Cn, wn, Tn = V((() => {
+	cn(), vt(), Cn = { "data-test": "tekton-taskrun-logs" }, wn = /*@__PURE__*/ j({
 		__name: "TaskRunLogsTab",
 		props: {
 			cluster: {},
 			object: {}
 		},
 		setup(e) {
-			return (t, n) => (N(), D("div", wn, [A(cn, {
+			return (t, n) => (P(), D("div", Cn, [A(sn, {
 				cluster: e.cluster,
 				"task-runs": [e.object]
-			}, null, 8, ["cluster", "task-runs"]), A(vt, {
+			}, null, 8, ["cluster", "task-runs"]), A(_t, {
 				cluster: e.cluster,
 				"task-run": e.object
 			}, null, 8, ["cluster", "task-run"])]));
 		}
 	});
-})), Dn = /* @__PURE__ */ V({ default: () => On }), On, kn = B((() => {
-	En(), En(), On = Tn;
-})), An, jn = B((() => {
-	An = /*@__PURE__*/ j({
+})), En = /* @__PURE__ */ H({ default: () => Dn }), Dn, On = V((() => {
+	Tn(), Tn(), Dn = wn;
+})), kn, An = V((() => {
+	kn = /*@__PURE__*/ j({
 		__name: "StartRunAction",
 		props: {
 			cluster: {},
@@ -1758,7 +1756,7 @@ var mt, ht = B((() => {
 		emits: ["close"],
 		setup(e, { emit: t }) {
 			let n = e, r = t, i = o();
-			return le(async () => {
+			return se(async () => {
 				await i({
 					name: "tekton.pipelineruns.new",
 					params: { cluster: n.cluster },
@@ -1767,13 +1765,13 @@ var mt, ht = B((() => {
 						pipeline: n.object.metadata.name
 					}
 				}), r("close");
-			}), (e, t) => (N(), D("span"));
+			}), (e, t) => (P(), D("span"));
 		}
 	});
-})), Mn = /* @__PURE__ */ V({ default: () => Nn }), Nn, Pn = B((() => {
-	jn(), jn(), Nn = An;
-})), Fn, In = B((() => {
-	Q(), Fn = /*@__PURE__*/ j({
+})), jn = /* @__PURE__ */ H({ default: () => Mn }), Mn, Nn = V((() => {
+	An(), An(), Mn = kn;
+})), Pn, Fn = V((() => {
+	Q(), Pn = /*@__PURE__*/ j({
 		__name: "StartLastRunAction",
 		props: {
 			cluster: {},
@@ -1781,8 +1779,8 @@ var mt, ht = B((() => {
 		},
 		emits: ["close"],
 		setup(e, { emit: n }) {
-			let i = e, a = n, s = o(), c = i.object.metadata.namespace ?? "", d = P(!0), f = P(null), p = P(null);
-			le(async () => {
+			let i = e, a = n, s = o(), c = i.object.metadata.namespace ?? "", d = F(!0), f = F(null), p = F(null);
+			se(async () => {
 				try {
 					let e = encodeURIComponent(`tekton.dev/pipeline=${i.object.metadata.name}`), t = await fetch(`/api/clusters/${encodeURIComponent(i.cluster)}/k8s/apis/tekton.dev/v1/namespaces/${encodeURIComponent(c)}/pipelineruns?labelSelector=${e}`, { headers: { Accept: "application/json" } }), n = [...(t.ok ? await t.json() : { items: [] }).items].sort((e, t) => Date.parse(t.metadata.creationTimestamp) - Date.parse(e.metadata.creationTimestamp))[0];
 					if (!n) {
@@ -1790,7 +1788,7 @@ var mt, ht = B((() => {
 						return;
 					}
 					p.value = n.metadata.name;
-					let o = await r(i.cluster, Y, "rerun", {
+					let o = await r(i.cluster, X, "rerun", {
 						namespace: c,
 						name: n.metadata.name,
 						uid: n.metadata.uid
@@ -1820,7 +1818,7 @@ var mt, ht = B((() => {
 					}
 				});
 			}
-			return (t, n) => (N(), T(L(_), {
+			return (t, n) => (P(), T(R(_), {
 				show: !0,
 				preset: "card",
 				title: `Start the last run of ${e.object.metadata.name}`,
@@ -1828,37 +1826,37 @@ var mt, ht = B((() => {
 				onClose: n[1] ||= (e) => a("close"),
 				onMaskClick: n[2] ||= (e) => a("close")
 			}, {
-				footer: R(() => [A(L(b), { justify: "end" }, {
-					default: R(() => [A(L(u), { onClick: n[0] ||= (e) => a("close") }, {
-						default: R(() => [...n[3] ||= [k(" Close ", -1)]]),
+				footer: z(() => [A(R(b), { justify: "end" }, {
+					default: z(() => [A(R(u), { onClick: n[0] ||= (e) => a("close") }, {
+						default: z(() => [...n[3] ||= [k(" Close ", -1)]]),
 						_: 1
-					}), f.value ? (N(), T(L(u), {
+					}), f.value ? (P(), T(R(u), {
 						key: 0,
 						type: "primary",
 						"data-test": "start-last-create",
 						onClick: m
 					}, {
-						default: R(() => [...n[4] ||= [k(" Create PipelineRun ", -1)]]),
+						default: z(() => [...n[4] ||= [k(" Create PipelineRun ", -1)]]),
 						_: 1
 					})) : E("", !0)]),
 					_: 1
 				})]),
-				default: R(() => [d.value ? (N(), T(L(ie), { key: 0 })) : f.value ? (N(), T(L(l), {
+				default: z(() => [d.value ? (P(), T(R(ie), { key: 0 })) : f.value ? (P(), T(R(l), {
 					key: 1,
 					type: "error",
 					"data-test": "start-last-error"
 				}, {
-					default: R(() => [k(I(f.value), 1)]),
+					default: z(() => [k(L(f.value), 1)]),
 					_: 1
 				})) : E("", !0)]),
 				_: 1
 			}, 8, ["title"]));
 		}
 	});
-})), Ln = /* @__PURE__ */ V({ default: () => Rn }), Rn, zn = B((() => {
-	In(), In(), Rn = Fn;
-})), Bn, Vn = B((() => {
-	Q(), Bn = /*@__PURE__*/ j({
+})), In = /* @__PURE__ */ H({ default: () => Ln }), Ln, Rn = V((() => {
+	Fn(), Fn(), Ln = Pn;
+})), zn, Bn = V((() => {
+	Q(), zn = /*@__PURE__*/ j({
 		__name: "EditAction",
 		props: {
 			cluster: {},
@@ -1867,8 +1865,8 @@ var mt, ht = B((() => {
 		emits: ["close"],
 		setup(e, { emit: t }) {
 			let n = e, r = t, i = o();
-			return le(async () => {
-				let e = ze[n.object.kind ?? ""];
+			return se(async () => {
+				let e = Re[n.object.kind ?? ""];
 				await i({
 					name: `tekton.${e}.edit`,
 					params: {
@@ -1877,16 +1875,16 @@ var mt, ht = B((() => {
 						name: n.object.metadata.name
 					}
 				}), r("close");
-			}), (e, t) => (N(), D("span"));
+			}), (e, t) => (P(), D("span"));
 		}
 	});
-})), Hn = /* @__PURE__ */ V({ default: () => Un }), Un, Wn = B((() => {
-	Vn(), Vn(), Un = Bn;
-})), Gn, Kn, qn, Jn = B((() => {
-	Q(), Gn = {
+})), Vn = /* @__PURE__ */ H({ default: () => Hn }), Hn, Un = V((() => {
+	Bn(), Bn(), Hn = zn;
+})), Wn, Gn, Kn, qn = V((() => {
+	Q(), Wn = {
 		key: 0,
 		"data-test": "rerun-created"
-	}, Kn = { key: 0 }, qn = /*@__PURE__*/ j({
+	}, Gn = { key: 0 }, Kn = /*@__PURE__*/ j({
 		__name: "RerunAction",
 		props: {
 			cluster: {},
@@ -1894,7 +1892,7 @@ var mt, ht = B((() => {
 		},
 		emits: ["close"],
 		setup(e, { emit: n }) {
-			let i = e, a = n, { ResourceLink: s } = G().components, c = o(), d = P(!1), f = i.object.spec?.pipelineRef?.name;
+			let i = e, a = n, { ResourceLink: s } = K().components, c = o(), d = F(!1), f = i.object.spec?.pipelineRef?.name;
 			async function p() {
 				await c({
 					name: "tekton.pipelineruns.new",
@@ -1906,7 +1904,7 @@ var mt, ht = B((() => {
 					}
 				}), a("close");
 			}
-			let m = P(!1), h = P(null), g = P(null);
+			let m = F(!1), h = F(null), g = F(null);
 			async function ee() {
 				m.value = !0, h.value = null;
 				try {
@@ -1922,7 +1920,7 @@ var mt, ht = B((() => {
 					m.value = !1;
 				}
 			}
-			return (t, n) => (N(), T(L(_), {
+			return (t, n) => (P(), T(R(_), {
 				show: !0,
 				preset: "card",
 				title: `Rerun ${e.object.metadata.name}`,
@@ -1930,25 +1928,25 @@ var mt, ht = B((() => {
 				onClose: n[1] ||= (e) => a("close"),
 				onMaskClick: n[2] ||= (e) => a("close")
 			}, {
-				footer: R(() => [A(L(b), { justify: "end" }, {
-					default: R(() => [A(L(u), { onClick: n[0] ||= (e) => a("close") }, {
-						default: R(() => [k(I(g.value ? "Close" : "Cancel"), 1)]),
+				footer: z(() => [A(R(b), { justify: "end" }, {
+					default: z(() => [A(R(u), { onClick: n[0] ||= (e) => a("close") }, {
+						default: z(() => [k(L(g.value ? "Close" : "Cancel"), 1)]),
 						_: 1
-					}), g.value ? E("", !0) : (N(), T(L(u), {
+					}), g.value ? E("", !0) : (P(), T(R(u), {
 						key: 0,
 						type: "primary",
 						loading: m.value,
 						"data-test": "confirm",
 						onClick: ee
 					}, {
-						default: R(() => [...n[6] ||= [k(" Rerun ", -1)]]),
+						default: z(() => [...n[6] ||= [k(" Rerun ", -1)]]),
 						_: 1
 					}, 8, ["loading"]))]),
 					_: 1
 				})]),
-				default: R(() => [g.value ? (N(), D("div", Gn, [
+				default: z(() => [g.value ? (P(), D("div", Wn, [
 					n[3] ||= k(" Started ", -1),
-					(N(), T(fe(L(s)), {
+					(P(), T(ue(R(s)), {
 						cluster: e.cluster,
 						resource: "tekton.pipelineruns",
 						namespace: e.object.metadata.namespace,
@@ -1959,18 +1957,18 @@ var mt, ht = B((() => {
 						"name"
 					])),
 					n[4] ||= k(". ", -1)
-				])) : (N(), D(C, { key: 1 }, [O("p", null, " Starts a new PipelineRun with the same pipeline, parameters, workspaces and service account (" + I(e.object.spec?.taskRunTemplate?.serviceAccountName ?? "default") + "). ", 1), h.value ? (N(), T(L(l), {
+				])) : (P(), D(C, { key: 1 }, [O("p", null, " Starts a new PipelineRun with the same pipeline, parameters, workspaces and service account (" + L(e.object.spec?.taskRunTemplate?.serviceAccountName ?? "default") + "). ", 1), h.value ? (P(), T(R(l), {
 					key: 0,
 					type: "error",
 					"data-test": "rerun-error"
 				}, {
-					default: R(() => [k(I(h.value) + " ", 1), d.value && L(f) ? (N(), D("div", Kn, [A(L(u), {
+					default: z(() => [k(L(h.value) + " ", 1), d.value && R(f) ? (P(), D("div", Gn, [A(R(u), {
 						size: "small",
 						class: "start-new",
 						"data-test": "rerun-start-new",
 						onClick: p
 					}, {
-						default: R(() => [...n[5] ||= [k(" Start a new run as pipeline ", -1)]]),
+						default: z(() => [...n[5] ||= [k(" Start a new run as pipeline ", -1)]]),
 						_: 1
 					})])) : E("", !0)]),
 					_: 1
@@ -1979,10 +1977,10 @@ var mt, ht = B((() => {
 			}, 8, ["title"]));
 		}
 	});
-})), Yn = B((() => {})), Xn = /* @__PURE__ */ V({ default: () => Zn }), Zn, Qn = B((() => {
-	Jn(), Jn(), Yn(), Xe(), Zn = /*#__PURE__*/ $(qn, [["__scopeId", "data-v-db36ac4d"]]);
-})), $n, er = B((() => {
-	Q(), $n = /*@__PURE__*/ j({
+})), Jn = V((() => {})), Yn = /* @__PURE__ */ H({ default: () => Xn }), Xn, Zn = V((() => {
+	qn(), qn(), Jn(), Ye(), Xn = /*#__PURE__*/ $(Kn, [["__scopeId", "data-v-db36ac4d"]]);
+})), Qn, $n = V((() => {
+	Q(), Qn = /*@__PURE__*/ j({
 		__name: "StopAction",
 		props: {
 			cluster: {},
@@ -1990,7 +1988,7 @@ var mt, ht = B((() => {
 		},
 		emits: ["close"],
 		setup(e, { emit: t }) {
-			let n = e, i = t, a = S(), o = P(!1), s = w(() => K(n.object).running);
+			let n = e, i = t, a = S(), o = F(!1), s = w(() => q(n.object).running);
 			async function c() {
 				if (!s.value) return i("close"), !0;
 				o.value = !0;
@@ -2008,7 +2006,7 @@ var mt, ht = B((() => {
 				}
 				return !1;
 			}
-			return (t, n) => (N(), T(L(_), {
+			return (t, n) => (P(), T(R(_), {
 				show: !0,
 				preset: "dialog",
 				type: s.value ? "warning" : "info",
@@ -2022,7 +2020,7 @@ var mt, ht = B((() => {
 				onClose: n[1] ||= (e) => i("close"),
 				onMaskClick: n[2] ||= (e) => i("close")
 			}, {
-				default: R(() => [s.value ? (N(), D(C, { key: 0 }, [k(" No new tasks start; tasks already running and the finally tasks finish. To stop everything at once, use Cancel run. ")], 64)) : (N(), D(C, { key: 1 }, [k(" It is " + I(L(K)(e.object).text) + "; there is nothing to stop. ", 1)], 64))]),
+				default: z(() => [s.value ? (P(), D(C, { key: 0 }, [k(" No new tasks start; tasks already running and the finally tasks finish. To stop everything at once, use Cancel run. ")], 64)) : (P(), D(C, { key: 1 }, [k(" It is " + L(R(q)(e.object).text) + "; there is nothing to stop. ", 1)], 64))]),
 				_: 1
 			}, 8, [
 				"type",
@@ -2033,13 +2031,13 @@ var mt, ht = B((() => {
 			]));
 		}
 	});
-})), tr = /* @__PURE__ */ V({ default: () => nr }), nr, rr = B((() => {
-	er(), er(), nr = $n;
-})), ir, ar, or = B((() => {
-	Q(), ir = {
+})), er = /* @__PURE__ */ H({ default: () => tr }), tr, nr = V((() => {
+	$n(), $n(), tr = Qn;
+})), rr, ir, ar = V((() => {
+	Q(), rr = {
 		key: 0,
 		"data-test": "cleanup-preview"
-	}, ar = /*@__PURE__*/ j({
+	}, ir = /*@__PURE__*/ j({
 		__name: "CleanupAction",
 		props: {
 			cluster: {},
@@ -2047,11 +2045,11 @@ var mt, ht = B((() => {
 		},
 		emits: ["close"],
 		setup(e, { emit: t }) {
-			let n = e, r = t, a = S(), o = P(10), s = P(null), c = P(!1), d = P(null), f = n.object.metadata.namespace ?? "";
+			let n = e, r = t, a = S(), o = F(10), s = F(null), c = F(!1), d = F(null), f = n.object.metadata.namespace ?? "";
 			async function p() {
 				d.value = null;
 				try {
-					s.value = (await i.cleanup(n.cluster, Y, "pipelineruns", f, {
+					s.value = (await i.cleanup(n.cluster, X, "pipelineruns", f, {
 						keep: o.value,
 						group: n.object.metadata.name,
 						dryRun: !0
@@ -2060,11 +2058,11 @@ var mt, ht = B((() => {
 					d.value = e instanceof Error ? e.message : String(e);
 				}
 			}
-			le(p), me(o, p);
+			se(p), fe(o, p);
 			async function m() {
 				c.value = !0;
 				try {
-					let { deleted: e } = await i.cleanup(n.cluster, Y, "pipelineruns", f, {
+					let { deleted: e } = await i.cleanup(n.cluster, X, "pipelineruns", f, {
 						keep: o.value,
 						group: n.object.metadata.name
 					});
@@ -2075,7 +2073,7 @@ var mt, ht = B((() => {
 					c.value = !1;
 				}
 			}
-			return (t, n) => (N(), T(L(_), {
+			return (t, n) => (P(), T(R(_), {
 				show: !0,
 				preset: "card",
 				title: `Clean up runs of ${e.object.metadata.name}`,
@@ -2083,27 +2081,27 @@ var mt, ht = B((() => {
 				onClose: n[2] ||= (e) => r("close"),
 				onMaskClick: n[3] ||= (e) => r("close")
 			}, {
-				footer: R(() => [A(L(b), { justify: "end" }, {
-					default: R(() => [A(L(u), { onClick: n[1] ||= (e) => r("close") }, {
-						default: R(() => [...n[6] ||= [k(" Cancel ", -1)]]),
+				footer: z(() => [A(R(b), { justify: "end" }, {
+					default: z(() => [A(R(u), { onClick: n[1] ||= (e) => r("close") }, {
+						default: z(() => [...n[6] ||= [k(" Cancel ", -1)]]),
 						_: 1
-					}), A(L(u), {
+					}), A(R(u), {
 						type: "error",
 						disabled: !s.value?.length,
 						loading: c.value,
 						"data-test": "cleanup-confirm",
 						onClick: m
 					}, {
-						default: R(() => [k(" Delete " + I(s.value?.length ?? 0) + " run(s) ", 1)]),
+						default: z(() => [k(" Delete " + L(s.value?.length ?? 0) + " run(s) ", 1)]),
 						_: 1
 					}, 8, ["disabled", "loading"])]),
 					_: 1
 				})]),
-				default: R(() => [
-					A(L(b), { align: "center" }, {
-						default: R(() => [
+				default: z(() => [
+					A(R(b), { align: "center" }, {
+						default: z(() => [
 							n[4] ||= k(" Keep the newest ", -1),
-							A(L(ne), {
+							A(R(ne), {
 								value: o.value,
 								"onUpdate:value": n[0] ||= (e) => o.value = e,
 								min: 0,
@@ -2116,12 +2114,12 @@ var mt, ht = B((() => {
 						]),
 						_: 1
 					}),
-					s.value ? (N(), D("p", ir, [s.value.length ? (N(), D(C, { key: 0 }, [k(I(s.value.length) + " run(s) will be deleted: " + I(s.value.join(", ")), 1)], 64)) : (N(), D(C, { key: 1 }, [k(" Nothing to delete. ")], 64))])) : E("", !0),
-					d.value ? (N(), T(L(l), {
+					s.value ? (P(), D("p", rr, [s.value.length ? (P(), D(C, { key: 0 }, [k(L(s.value.length) + " run(s) will be deleted: " + L(s.value.join(", ")), 1)], 64)) : (P(), D(C, { key: 1 }, [k(" Nothing to delete. ")], 64))])) : E("", !0),
+					d.value ? (P(), T(R(l), {
 						key: 1,
 						type: "error"
 					}, {
-						default: R(() => [k(I(d.value), 1)]),
+						default: z(() => [k(L(d.value), 1)]),
 						_: 1
 					})) : E("", !0)
 				]),
@@ -2129,10 +2127,10 @@ var mt, ht = B((() => {
 			}, 8, ["title"]));
 		}
 	});
-})), sr = /* @__PURE__ */ V({ default: () => cr }), cr, lr = B((() => {
-	or(), or(), cr = ar;
-})), ur, dr = B((() => {
-	Q(), ur = /*@__PURE__*/ j({
+})), or = /* @__PURE__ */ H({ default: () => sr }), sr, cr = V((() => {
+	ar(), ar(), sr = ir;
+})), lr, ur = V((() => {
+	Q(), lr = /*@__PURE__*/ j({
 		__name: "CancelAction",
 		props: {
 			cluster: {},
@@ -2140,7 +2138,7 @@ var mt, ht = B((() => {
 		},
 		emits: ["close"],
 		setup(e, { emit: t }) {
-			let n = e, i = t, a = S(), o = P(!1), s = w(() => K(n.object).running);
+			let n = e, i = t, a = S(), o = F(!1), s = w(() => q(n.object).running);
 			async function c() {
 				if (!s.value) return i("close"), !0;
 				o.value = !0;
@@ -2158,7 +2156,7 @@ var mt, ht = B((() => {
 				}
 				return !1;
 			}
-			return (t, n) => (N(), T(L(_), {
+			return (t, n) => (P(), T(R(_), {
 				show: !0,
 				preset: "dialog",
 				type: s.value ? "warning" : "info",
@@ -2172,7 +2170,7 @@ var mt, ht = B((() => {
 				onClose: n[1] ||= (e) => i("close"),
 				onMaskClick: n[2] ||= (e) => i("close")
 			}, {
-				default: R(() => [s.value ? (N(), D(C, { key: 0 }, [k(" Running tasks are stopped and the run ends as Cancelled. ")], 64)) : (N(), D(C, { key: 1 }, [k(" It is " + I(L(K)(e.object).text) + "; there is nothing to cancel. ", 1)], 64))]),
+				default: z(() => [s.value ? (P(), D(C, { key: 0 }, [k(" Running tasks are stopped and the run ends as Cancelled. ")], 64)) : (P(), D(C, { key: 1 }, [k(" It is " + L(R(q)(e.object).text) + "; there is nothing to cancel. ", 1)], 64))]),
 				_: 1
 			}, 8, [
 				"type",
@@ -2183,10 +2181,10 @@ var mt, ht = B((() => {
 			]));
 		}
 	});
-})), fr = /* @__PURE__ */ V({ default: () => pr }), pr, mr = B((() => {
-	dr(), dr(), pr = ur;
-})), hr, gr, _r = B((() => {
-	Q(), hr = { key: 0 }, gr = /*@__PURE__*/ j({
+})), dr = /* @__PURE__ */ H({ default: () => fr }), fr, pr = V((() => {
+	ur(), ur(), fr = lr;
+})), mr, hr, gr = V((() => {
+	Q(), mr = { key: 0 }, hr = /*@__PURE__*/ j({
 		__name: "DeleteAction",
 		props: {
 			cluster: {},
@@ -2194,8 +2192,8 @@ var mt, ht = B((() => {
 		},
 		emits: ["close"],
 		setup(e, { emit: t }) {
-			let n = e, r = t, a = o(), s = w(() => n.object.kind ?? ""), c = w(() => s.value === "PipelineRun" || s.value === "TaskRun"), d = P(""), f = P(!1), p = P(null), m = P([]);
-			le(async () => {
+			let n = e, r = t, a = o(), s = w(() => n.object.kind ?? ""), c = w(() => s.value === "PipelineRun" || s.value === "TaskRun"), d = F(""), f = F(!1), p = F(null), m = F([]);
+			se(async () => {
 				if (s.value !== "Task") return;
 				let e = n.object.metadata.namespace ?? "", t = await fetch(`/api/clusters/${encodeURIComponent(n.cluster)}/k8s/apis/tekton.dev/v1/namespaces/${encodeURIComponent(e)}/pipelines`, { headers: { Accept: "application/json" } });
 				if (!t.ok) return;
@@ -2207,8 +2205,8 @@ var mt, ht = B((() => {
 				f.value = !0, p.value = null;
 				let e = n.object.metadata;
 				try {
-					await i.remove(n.cluster, Y, ze[s.value], e.namespace ?? "", e.name, e.uid), r("close"), await a({
-						name: `tekton.${ze[s.value]}.list`,
+					await i.remove(n.cluster, X, Re[s.value], e.namespace ?? "", e.name, e.uid), r("close"), await a({
+						name: `tekton.${Re[s.value]}.list`,
 						params: { cluster: n.cluster },
 						query: { ns: e.namespace ?? "" }
 					});
@@ -2218,7 +2216,7 @@ var mt, ht = B((() => {
 					f.value = !1;
 				}
 			}
-			return (t, n) => (N(), T(L(_), {
+			return (t, n) => (P(), T(R(_), {
 				show: !0,
 				preset: "card",
 				title: `Delete ${s.value} ${e.object.metadata.name}?`,
@@ -2226,77 +2224,77 @@ var mt, ht = B((() => {
 				onClose: n[2] ||= (e) => r("close"),
 				onMaskClick: n[3] ||= (e) => r("close")
 			}, {
-				footer: R(() => [A(L(b), { justify: "end" }, {
-					default: R(() => [A(L(u), { onClick: n[1] ||= (e) => r("close") }, {
-						default: R(() => [...n[6] ||= [k(" Cancel ", -1)]]),
+				footer: z(() => [A(R(b), { justify: "end" }, {
+					default: z(() => [A(R(u), { onClick: n[1] ||= (e) => r("close") }, {
+						default: z(() => [...n[6] ||= [k(" Cancel ", -1)]]),
 						_: 1
-					}), A(L(u), {
+					}), A(R(u), {
 						type: "error",
 						disabled: !h.value,
 						loading: f.value,
 						"data-test": "delete-confirm",
 						onClick: g
 					}, {
-						default: R(() => [...n[7] ||= [k(" Delete ", -1)]]),
+						default: z(() => [...n[7] ||= [k(" Delete ", -1)]]),
 						_: 1
 					}, 8, ["disabled", "loading"])]),
 					_: 1
 				})]),
-				default: R(() => [c.value ? (N(), D("p", hr, " The run" + I(s.value === "PipelineRun" ? ", its TaskRuns" : "") + " and their pods are removed (with their logs). ", 1)) : (N(), D(C, { key: 1 }, [
-					m.value.length ? (N(), T(L(l), {
+				default: z(() => [c.value ? (P(), D("p", mr, " The run" + L(s.value === "PipelineRun" ? ", its TaskRuns" : "") + " and their pods are removed (with their logs). ", 1)) : (P(), D(C, { key: 1 }, [
+					m.value.length ? (P(), T(R(l), {
 						key: 0,
 						type: "warning",
 						class: "gap",
 						"data-test": "delete-used-by"
 					}, {
-						default: R(() => [k(" Used by " + I(m.value.join(", ")) + ": their next runs will fail until it exists again. ", 1)]),
+						default: z(() => [k(" Used by " + L(m.value.join(", ")) + ": their next runs will fail until it exists again. ", 1)]),
 						_: 1
 					})) : E("", !0),
 					O("p", null, [
 						n[4] ||= k("Type ", -1),
-						O("strong", null, I(e.object.metadata.name), 1),
+						O("strong", null, L(e.object.metadata.name), 1),
 						n[5] ||= k(" to delete it.", -1)
 					]),
-					A(L(te), {
+					A(R(te), {
 						value: d.value,
 						"onUpdate:value": n[0] ||= (e) => d.value = e,
 						"data-test": "delete-confirm-name"
 					}, null, 8, ["value"])
-				], 64)), p.value ? (N(), T(L(l), {
+				], 64)), p.value ? (P(), T(R(l), {
 					key: 2,
 					type: "error",
 					class: "gap"
 				}, {
-					default: R(() => [k(I(p.value), 1)]),
+					default: z(() => [k(L(p.value), 1)]),
 					_: 1
 				})) : E("", !0)]),
 				_: 1
 			}, 8, ["title"]));
 		}
 	});
-})), vr = B((() => {})), yr = /* @__PURE__ */ V({ default: () => br }), br, xr = B((() => {
-	_r(), _r(), vr(), Xe(), br = /*#__PURE__*/ $(gr, [["__scopeId", "data-v-d99fe515"]]);
-})), Sr, Cr, wr, Tr, Er, Dr, Or = B((() => {
-	Q(), Sr = { "data-test": "tekton-project-card" }, Cr = { key: 0 }, wr = { key: 3 }, Tr = { class: "muted" }, Er = { class: "muted" }, Dr = /*@__PURE__*/ j({
+})), _r = V((() => {})), vr = /* @__PURE__ */ H({ default: () => yr }), yr, br = V((() => {
+	gr(), gr(), _r(), Ye(), yr = /*#__PURE__*/ $(hr, [["__scopeId", "data-v-d99fe515"]]);
+})), xr, Sr, Cr, wr, Tr, Er, Dr = V((() => {
+	Q(), xr = { "data-test": "tekton-project-card" }, Sr = { key: 0 }, Cr = { key: 3 }, wr = { class: "muted" }, Tr = { class: "muted" }, Er = /*@__PURE__*/ j({
 		__name: "ProjectRunsCard",
 		props: {
 			cluster: {},
 			project: {}
 		},
 		setup(e) {
-			let t = e, { ResourceLink: n } = G().components, { items: r, loading: i, error: a } = G().composables.useLiveList(() => ({
+			let t = e, { ResourceLink: n } = K().components, { items: r, loading: i, error: a } = K().composables.useLiveList(() => ({
 				cluster: t.cluster,
-				type: we,
+				type: Se,
 				namespace: t.project.spec.namespace
 			}), {
-				sort: je,
+				sort: Ae,
 				max: 5
-			}), o = P(Date.now()), s = setInterval(() => o.value = Date.now(), 1e3);
-			return ue(() => clearInterval(s)), (t, s) => (N(), D("div", Sr, [L(a) ? (N(), D("span", Cr, I(L(a)), 1)) : L(i) ? (N(), T(L(ie), {
+			}), o = F(Date.now()), s = setInterval(() => o.value = Date.now(), 1e3);
+			return ce(() => clearInterval(s)), (t, s) => (P(), D("div", xr, [R(a) ? (P(), D("span", Sr, L(R(a)), 1)) : R(i) ? (P(), T(R(ie), {
 				key: 1,
 				size: "small"
-			})) : L(r).length ? (N(), D("table", wr, [(N(!0), D(C, null, F(L(r), (t) => (N(), D("tr", { key: t.metadata.uid }, [
-				O("td", null, [(N(), T(fe(L(n)), {
+			})) : R(r).length ? (P(), D("table", Cr, [(P(!0), D(C, null, I(R(r), (t) => (P(), D("tr", { key: t.metadata.uid }, [
+				O("td", null, [(P(), T(ue(R(n)), {
 					cluster: e.cluster,
 					resource: "tekton.pipelineruns",
 					namespace: t.metadata.namespace,
@@ -2306,46 +2304,46 @@ var mt, ht = B((() => {
 					"namespace",
 					"name"
 				]))]),
-				O("td", Tr, I(L(Se)(t)), 1),
-				O("td", null, [(N(), T(fe(L(J)(t))))]),
-				O("td", Er, I(L(q)(t, o.value)), 1)
-			]))), 128))])) : (N(), T(L(m), {
+				O("td", wr, L(R(be)(t)), 1),
+				O("td", null, [(P(), T(ue(R(Y)(t))))]),
+				O("td", Tr, L(R(J)(t, o.value)), 1)
+			]))), 128))])) : (P(), T(R(m), {
 				key: 2,
 				size: "small",
 				description: "No pipeline runs in this Project yet."
 			}))]));
 		}
 	});
-})), kr = B((() => {})), Ar = /* @__PURE__ */ V({ default: () => jr }), jr, Mr = B((() => {
-	Or(), Or(), kr(), Xe(), jr = /*#__PURE__*/ $(Dr, [["__scopeId", "data-v-0c4eea02"]]);
+})), Or = V((() => {})), kr = /* @__PURE__ */ H({ default: () => Ar }), Ar, jr = V((() => {
+	Dr(), Dr(), Or(), Ye(), Ar = /*#__PURE__*/ $(Er, [["__scopeId", "data-v-0c4eea02"]]);
 }));
 //#endregion
 //#region src/index.ts
 Q();
-var Nr = (e, t) => ye(e.metadata.namespace, t.cluster), Pr = n({
+var Mr = (e, t) => _e(e.metadata.namespace, t.cluster), Nr = n({
 	name: "tekton",
 	apiVersion: e,
 	minApi: "1.2",
 	register(e) {
-		_e(e), ve(), e.register({
+		he(e), ge(), e.register({
 			type: "nav-section",
 			id: "tekton.section",
 			label: "Pipelines",
 			order: 45
-		}), e.registerResource(Fe, {
+		}), e.registerResource(Pe, {
 			order: 10,
 			section: "tekton.section"
-		}), e.registerResource(Ie, {
+		}), e.registerResource(Fe, {
 			order: 20,
 			section: "tekton.section"
-		}), e.registerResource(Le, {
+		}), e.registerResource(Ie, {
 			order: 30,
 			section: "tekton.section"
-		}), e.registerResource(Re, {
+		}), e.registerResource(Le, {
 			order: 40,
 			section: "tekton.section"
 		});
-		let t = () => Promise.resolve().then(() => ($e(), Ze)), n = () => Promise.resolve().then(() => (dt(), lt));
+		let t = () => Promise.resolve().then(() => (Qe(), Xe)), n = () => Promise.resolve().then(() => (ut(), ct));
 		e.register({
 			type: "route",
 			id: "tekton.tasks.new",
@@ -2406,21 +2404,21 @@ var Nr = (e, t) => ye(e.metadata.namespace, t.cluster), Pr = n({
 			label: "Graph",
 			order: 12,
 			kinds: ["Pipeline", "PipelineRun"],
-			component: () => Promise.resolve().then(() => (It(), Pt))
+			component: () => Promise.resolve().then(() => (Ft(), Nt))
 		}), e.register({
 			type: "resource-detail-tab",
 			id: "tekton.tab.taskruns",
 			label: "TaskRuns",
 			order: 22,
 			kinds: ["PipelineRun"],
-			component: () => Promise.resolve().then(() => (Vt(), zt))
+			component: () => Promise.resolve().then(() => (Bt(), Rt))
 		}), e.register({
 			type: "resource-detail-tab",
 			id: "tekton.tab.pipelineruns",
 			label: "PipelineRuns",
 			order: 22,
 			kinds: ["Pipeline"],
-			component: () => Promise.resolve().then(() => (Jt(), Kt))
+			component: () => Promise.resolve().then(() => (qt(), Gt))
 		}), e.register({
 			type: "resource-detail-tab",
 			id: "tekton.tab.parameters",
@@ -2432,69 +2430,69 @@ var Nr = (e, t) => ye(e.metadata.namespace, t.cluster), Pr = n({
 				"PipelineRun",
 				"TaskRun"
 			],
-			component: () => Promise.resolve().then(() => (tn(), $t))
+			component: () => Promise.resolve().then(() => (en(), Qt))
 		}), e.register({
 			type: "resource-detail-tab",
 			id: "tekton.tab.logs",
 			label: "Logs",
 			order: 26,
 			kinds: ["PipelineRun"],
-			component: () => Promise.resolve().then(() => (Cn(), xn))
+			component: () => Promise.resolve().then(() => (Sn(), bn))
 		}), e.register({
 			type: "resource-detail-tab",
 			id: "tekton.tab.taskrun-logs",
 			label: "Logs",
 			order: 26,
 			kinds: ["TaskRun"],
-			component: () => Promise.resolve().then(() => (kn(), Dn))
+			component: () => Promise.resolve().then(() => (On(), En))
 		}), e.register({
 			type: "resource-action",
 			id: "tekton.action.start",
 			label: "Start",
 			order: 5,
 			kinds: ["Pipeline"],
-			appliesTo: Nr,
-			component: () => Promise.resolve().then(() => (Pn(), Mn))
+			appliesTo: Mr,
+			component: () => Promise.resolve().then(() => (Nn(), jn))
 		}), e.register({
 			type: "resource-action",
 			id: "tekton.action.start-last",
 			label: "Start last run",
 			order: 6,
 			kinds: ["Pipeline"],
-			appliesTo: Nr,
-			component: () => Promise.resolve().then(() => (zn(), Ln))
+			appliesTo: Mr,
+			component: () => Promise.resolve().then(() => (Rn(), In))
 		}), e.register({
 			type: "resource-action",
 			id: "tekton.action.edit",
 			label: "Edit",
 			order: 10,
 			kinds: ["Task", "Pipeline"],
-			appliesTo: Nr,
-			component: () => Promise.resolve().then(() => (Wn(), Hn))
+			appliesTo: Mr,
+			component: () => Promise.resolve().then(() => (Un(), Vn))
 		}), e.register({
 			type: "resource-action",
 			id: "tekton.action.rerun",
 			label: "Rerun",
 			order: 15,
 			kinds: ["PipelineRun"],
-			appliesTo: Nr,
-			component: () => Promise.resolve().then(() => (Qn(), Xn))
+			appliesTo: Mr,
+			component: () => Promise.resolve().then(() => (Zn(), Yn))
 		}), e.register({
 			type: "resource-action",
 			id: "tekton.action.stop",
 			label: "Stop",
 			order: 16,
 			kinds: ["PipelineRun"],
-			appliesTo: Nr,
-			component: () => Promise.resolve().then(() => (rr(), tr))
+			appliesTo: Mr,
+			component: () => Promise.resolve().then(() => (nr(), er))
 		}), e.register({
 			type: "resource-action",
 			id: "tekton.action.cleanup",
 			label: "Clean up runs",
 			order: 30,
 			kinds: ["Pipeline"],
-			appliesTo: Nr,
-			component: () => Promise.resolve().then(() => (lr(), sr))
+			appliesTo: Mr,
+			component: () => Promise.resolve().then(() => (cr(), or))
 		}), e.register({
 			type: "resource-action",
 			id: "tekton.action.cancel",
@@ -2502,8 +2500,8 @@ var Nr = (e, t) => ye(e.metadata.namespace, t.cluster), Pr = n({
 			order: 17,
 			danger: !0,
 			kinds: ["PipelineRun"],
-			appliesTo: Nr,
-			component: () => Promise.resolve().then(() => (mr(), fr))
+			appliesTo: Mr,
+			component: () => Promise.resolve().then(() => (pr(), dr))
 		}), e.register({
 			type: "resource-action",
 			id: "tekton.action.delete",
@@ -2516,16 +2514,16 @@ var Nr = (e, t) => ye(e.metadata.namespace, t.cluster), Pr = n({
 				"PipelineRun",
 				"TaskRun"
 			],
-			appliesTo: Nr,
-			component: () => Promise.resolve().then(() => (xr(), yr))
+			appliesTo: Mr,
+			component: () => Promise.resolve().then(() => (br(), vr))
 		}), e.register({
 			type: "project-overview-card",
 			id: "tekton.card.runs",
 			title: "Pipeline runs",
 			order: 30,
-			component: () => Promise.resolve().then(() => (Mr(), Ar))
+			component: () => Promise.resolve().then(() => (jr(), kr))
 		});
 	}
 });
 //#endregion
-export { Pr as default };
+export { Nr as default };
