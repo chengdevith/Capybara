@@ -3,6 +3,7 @@ import { NButton, NPopselect, type SelectOption } from 'naive-ui'
 import { computed, h, type Component, type VNodeChild } from 'vue'
 import LightModeIcon from '@/components/icons/LightModeIcon.vue'
 import { useThemeStore, type ThemePreference } from '@/stores/theme'
+import { mastheadButtonTheme } from './masthead'
 
 const theme = useThemeStore()
 
@@ -44,7 +45,9 @@ const renderLabel = (option: SelectOption) => {
     <NButton
       size="small"
       quaternary
-      class="theme-button"
+      :theme-overrides="mastheadButtonTheme"
+      class="theme-button masthead-button"
+      native-focus-behavior
       data-test="theme-switcher"
       :title="`Theme: ${current.label}`"
     >

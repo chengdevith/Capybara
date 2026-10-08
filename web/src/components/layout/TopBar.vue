@@ -3,6 +3,7 @@ import { NButton } from 'naive-ui'
 import logo from '@/assets/logo.png'
 import { useUiStore } from '@/stores/ui'
 import ClusterSwitcher from './ClusterSwitcher.vue'
+import { mastheadButtonTheme } from './masthead'
 import NamespaceSelector from './NamespaceSelector.vue'
 import ThemeSwitcher from './ThemeSwitcher.vue'
 
@@ -15,7 +16,9 @@ const ui = useUiStore()
       quaternary
       circle
       text-color="#ffffff"
-      class="menu-toggle"
+      :theme-overrides="mastheadButtonTheme"
+      class="menu-toggle masthead-button"
+      native-focus-behavior
       :aria-label="ui.sidebarCollapsed ? 'Show the sidebar' : 'Hide the sidebar'"
       :aria-expanded="!ui.sidebarCollapsed"
       :title="ui.sidebarCollapsed ? 'Show the sidebar' : 'Hide the sidebar'"
@@ -102,5 +105,21 @@ const ui = useUiStore()
   .selectors {
     gap: 6px;
   }
+}
+</style>
+
+<style>
+/* Masthead buttons (see masthead.ts). Naive keeps the hover colour while a
+   button has focus, and by default focuses it from script on mouse down,
+   which the browser counts as keyboard-like (:focus-visible): a click left
+   it highlighted until the next click elsewhere. With
+   native-focus-behavior the browser tells mouse from keyboard focus, and
+   only keyboard focus is shown, as a ring. */
+.masthead-button:focus:not(:focus-visible):not(:hover) {
+  background-color: transparent !important;
+}
+.masthead-button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 1px;
 }
 </style>
