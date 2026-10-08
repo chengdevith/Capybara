@@ -98,6 +98,7 @@ func run(args []string) error {
 		logger.Warn("serving unpinned plugin UI bundles (dev only)", "dir", cfg.PluginDevDir)
 	}
 
+	objects := &plugin.ObjectAPI{Mgmt: mgmt, Clusters: registry, Auditor: auditor, Logger: logger}
 	srv := &http.Server{
 		Addr: cfg.Addr,
 		Handler: newHandler(deps{
@@ -107,7 +108,9 @@ func run(args []string) error {
 				Bundles: &plugin.Bundles{Mgmt: mgmt, PluginsDir: cfg.PluginsDir, DevDir: cfg.PluginDevDir}},
 			backends: &plugin.BackendProxy{Backends: cfg.PluginBackends, Logger: logger},
 			scoped:   &plugin.ScopedProxy{Mgmt: mgmt, Credentials: creds, Clusters: registry, Logger: logger},
-			actions:  &plugin.ActionAPI{Mgmt: mgmt, Clusters: registry, Auditor: auditor, Logger: logger},
+			actions: &plugin.ActionAPI{Mgmt: mgmt, Clusters: registry, Auditor: auditor, Logger: logger,
+				Objects: objects},
+			objects: objects,
 			clusterAPI: &cluster.API{
 				Mgmt: mgmt, MgmtErr: mgmtErr, Registry: registry, Auditor: auditor, Logger: logger,
 				Opts: cluster.ValidateOptions{AllowInsecure: cfg.AllowInsecureKubeconfig},

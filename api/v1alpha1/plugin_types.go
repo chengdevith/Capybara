@@ -250,6 +250,19 @@ type PluginObject struct {
 	// namespace). On create they are loaded and must pass their policy.
 	// +optional
 	References []ObjectReference `json:"references,omitempty"`
+	// Cleanup allows deleting finished objects in bulk, keeping the newest
+	// per group (needs the delete verb).
+	// +optional
+	Cleanup *ObjectCleanup `json:"cleanup,omitempty"`
+}
+
+// ObjectCleanup says how objects are grouped and when one is finished.
+type ObjectCleanup struct {
+	// GroupLabel: objects with the same value of this label form a group.
+	GroupLabel string `json:"groupLabel"`
+	// FinishedCondition: an object is finished once this status condition
+	// is True or False (not Unknown).
+	FinishedCondition string `json:"finishedCondition"`
 }
 
 // ObjectReference says the value at Path names an Object in the same namespace.

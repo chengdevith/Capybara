@@ -164,6 +164,9 @@ func (h *Handlers) apply(w http.ResponseWriter, r *http.Request) {
 		if err := h.guardKubeconfigSecret(ctx, id, t, declared); err != nil {
 			return "", err
 		}
+		if err := h.guardGoverned(ctx, t); err != nil {
+			return "", err
+		}
 		out, err := res.Apply(ctx, t.Name, obj, opts)
 		if err != nil {
 			return "", asConflict(err)

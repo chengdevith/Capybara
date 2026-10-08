@@ -284,6 +284,24 @@ spec:
                         Audit maps a verb to the audited action name (default: the verb);
                         audited as <plugin>.<action>, e.g. create of pipelineruns as "start".
                       type: object
+                    cleanup:
+                      description: |-
+                        Cleanup allows deleting finished objects in bulk, keeping the newest
+                        per group (needs the delete verb).
+                      properties:
+                        finishedCondition:
+                          description: |-
+                            FinishedCondition: an object is finished once this status condition
+                            is True or False (not Unknown).
+                          type: string
+                        groupLabel:
+                          description: 'GroupLabel: objects with the same value of
+                            this label form a group.'
+                          type: string
+                      required:
+                      - finishedCondition
+                      - groupLabel
+                      type: object
                     group:
                       type: string
                     kind:

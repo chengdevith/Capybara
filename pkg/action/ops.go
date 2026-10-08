@@ -151,6 +151,9 @@ func (h *Handlers) delete(w http.ResponseWriter, r *http.Request) {
 		if err := h.guardKubeconfigSecret(ctx, id, t, ""); err != nil {
 			return "", err
 		}
+		if err := h.guardGoverned(ctx, t); err != nil {
+			return "", err
+		}
 		if isNamespace && IsProtected(t.Name, h.Protected) {
 			return "", fmt.Errorf("%w: namespace %q is protected and cannot be deleted", audit.ErrDenied, t.Name)
 		}

@@ -40,6 +40,9 @@ type ActionAPI struct {
 	Clusters DynamicClients
 	Auditor  *audit.Auditor
 	Logger   *slog.Logger
+	// Objects checks the result of actions that declare a policy (as for
+	// plugin objects: policy, Project ServiceAccounts, dry run).
+	Objects *ObjectAPI
 }
 
 // Register adds the route.
@@ -108,9 +111,20 @@ func (a *ActionAPI) run(w http.ResponseWriter, r *http.Request) {
 		if why := conditionBlocks(obj, action.When); why != "" {
 			return "", errorf(http.StatusConflict, "%s is not possible: %s", action.Title, why)
 		}
+		if action.ProjectOnly {
+			if err := RequireProjectNamespace(ctx, a.Mgmt, id, b.Namespace); err != nil {
+				return "", err
+			}
+		}
 		switch action.Type {
 		case v1alpha1.ActionCopy:
-			out, err := res.Create(ctx, copyOf(obj, action, pluginName), metav1.CreateOptions{FieldManager: "capybara"})
+			copied := copyOf(obj, action, pluginName)
+			if action.Policy != "" {
+				if err := a.checkPolicy(ctx, &p, action, id, b.Namespace, copied); err != nil {
+					return "", err
+				}
+			}
+			out, err := res.Create(ctx, copied, metav1.CreateOptions{FieldManager: "capybara"})
 			if err != nil {
 				return "", err
 			}
@@ -139,6 +153,36 @@ func (a *ActionAPI) run(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpjson.Write(w, http.StatusOK, map[string]any{"ok": true, "created": created})
+}
+
+// checkPolicy holds an action's result to its policy, like a plugin object
+// write: policy, Project ServiceAccounts, references, dry run.
+func (a *ActionAPI) checkPolicy(ctx context.Context, p *v1alpha1.Plugin, action v1alpha1.PluginAction, clusterID, ns string, u *unstructured.Unstructured) error {
+	if a.Objects == nil {
+		return errorf(http.StatusServiceUnavailable, "policy checks are not available")
+	}
+	decl := v1alpha1.PluginObject{Name: action.Resource, Group: action.Group, Version: action.Version, Resource: action.Resource, Kind: action.Kind}
+	if i := slices.IndexFunc(p.Spec.Objects, func(o v1alpha1.PluginObject) bool { return o.Group == action.Group && o.Resource == action.Resource }); i >= 0 {
+		decl = p.Spec.Objects[i]
+	}
+	decl.Policy = action.Policy
+	dyn, err := a.Objects.Clusters.Dynamic(clusterID)
+	if err != nil {
+		return errorf(http.StatusServiceUnavailable, "cluster %s is not available", clusterID)
+	}
+	cs, err := a.Objects.Clusters.Client(clusterID)
+	if err != nil {
+		return errorf(http.StatusServiceUnavailable, "cluster %s is not available", clusterID)
+	}
+	t := &target{plugin: p, object: decl, cluster: clusterID, ns: ns, dyn: dyn, cs: cs}
+	checked, err := a.Objects.check(ctx, t, u, v1alpha1.ObjectCreate)
+	if err != nil {
+		return err
+	}
+	if len(checked.Problems) > 0 {
+		return fmt.Errorf("%w: %w", audit.ErrDenied, problemsError(checked))
+	}
+	return nil
 }
 
 // conditionBlocks says why `when` does not hold for obj ("" when it does).

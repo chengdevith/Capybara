@@ -46,6 +46,8 @@ type fixture struct {
 	actions []k8stesting.Action
 	// reply lets a test choose what the fake cluster answers to a patch.
 	reply func(k8stesting.PatchActionImpl) (runtime.Object, error)
+	// governed: kinds a plugin manages (group/resource -> plugin).
+	governed map[string]string
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -96,6 +98,7 @@ func newFixture(t *testing.T) *fixture {
 		Auditor:   audit.NewAuditor(store, slog.New(slog.DiscardHandler)),
 		Protected: []string{"kube-system", "default", "openshift-*", "capybara-system"},
 		Logger:    slog.New(slog.DiscardHandler),
+		Governed:  func(_ context.Context, group, resource string) string { return f.governed[group+"/"+resource] },
 	}
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -476,5 +479,29 @@ func TestKubeconfigSecretsAreUntouchable(t *testing.T) {
 	raw, _ := os.ReadFile(f.auditPath)
 	if strings.Contains(string(raw), secretValue) {
 		t.Fatal("kubeconfig content reached the audit log")
+	}
+}
+
+// Kinds a plugin manages are written only through the plugin's validated
+// writes: core's Edit YAML and Delete refuse them (audited as denied).
+func TestApplyAndDeleteRefusePluginGovernedKinds(t *testing.T) {
+	f := newFixture(t)
+	f.governed = map[string]string{"tekton.dev/tasks": "Pipelines"}
+	target := Target{Group: "tekton.dev", Version: "v1", Resource: "tasks", Kind: "Task", Namespace: "team", Name: "say"}
+	obj := map[string]any{"apiVersion": "tekton.dev/v1", "kind": "Task", "metadata": map[string]any{"name": "say", "namespace": "team"}}
+	code, body := f.post(t, "/api/clusters/dev-1/apply", map[string]any{"target": target, "object": obj})
+	if code != 403 || !strings.Contains(body["error"].(string), "managed by the Pipelines plugin") {
+		t.Errorf("apply: %d %v", code, body)
+	}
+	if code, _ := f.post(t, "/api/clusters/dev-1/actions/delete", map[string]any{"target": target, "uid": "u1"}); code != 403 {
+		t.Errorf("delete: %d", code)
+	}
+	if len(f.patches()) != 0 {
+		t.Error("the cluster was written to")
+	}
+	for _, r := range f.records(t) {
+		if r.Result != audit.ResultDenied {
+			t.Errorf("audit %s = %s", r.Action, r.Result)
+		}
 	}
 }

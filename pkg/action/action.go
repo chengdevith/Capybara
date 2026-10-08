@@ -37,6 +37,21 @@ type Handlers struct {
 	// Protected namespace patterns (path.Match); these can never be deleted.
 	Protected []string
 	Logger    *slog.Logger
+	// Governed names the plugin that manages writes of a kind (its
+	// declared objects), whose own pages must be used ("" when none).
+	Governed func(ctx context.Context, group, resource string) string
+}
+
+// guardGoverned refuses generic writes to a kind a plugin manages: they go
+// through that plugin's validated writes instead.
+func (h *Handlers) guardGoverned(ctx context.Context, t Target) error {
+	if h.Governed == nil {
+		return nil
+	}
+	if plugin := h.Governed(ctx, t.Group, t.Resource); plugin != "" {
+		return fmt.Errorf("%w: %s %s is managed by the %s plugin; edit or delete it in its pages", audit.ErrDenied, t.Kind, t.Name, plugin)
+	}
+	return nil
 }
 
 // Register adds the action routes to mux.

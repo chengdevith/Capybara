@@ -400,6 +400,9 @@ func validateObjects(objects []v1alpha1.PluginObject, policies map[string]v1alph
 				add("audit maps %q to %q: needs a declared verb and a DNS-label action", verb, action)
 			}
 		}
+		if o.Cleanup != nil && (o.Cleanup.GroupLabel == "" || o.Cleanup.FinishedCondition == "" || !slices.Contains(o.Verbs, v1alpha1.ObjectDelete)) {
+			add("cleanup needs groupLabel, finishedCondition and the delete verb")
+		}
 		for _, ref := range o.References {
 			if err := ValidatePath(ref.Path); err != nil || !names[ref.Object] {
 				add("reference %q -> %q: needs a valid path and a declared object", ref.Path, ref.Object)

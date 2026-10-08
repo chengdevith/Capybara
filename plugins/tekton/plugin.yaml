@@ -146,6 +146,8 @@ objects:
     verbs: [create, delete]
     policy: run
     audit: {create: start}
+    # "Clean up runs": keep the newest finished runs per Pipeline.
+    cleanup: {groupLabel: tekton.dev/pipeline, finishedCondition: Succeeded}
     # Starting a run checks the Pipeline and its Tasks as they are now
     # (they may have been changed outside Capybara).
     references:
