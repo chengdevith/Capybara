@@ -1,8 +1,19 @@
-// Buttons on the masthead, which is charcoal in both themes: tint them with
-// white, not with the light theme's dark hover grey. Use together with the
-// `masthead-button` class (TopBar.vue) and `native-focus-behavior`: a mouse
-// click then leaves no highlight behind, and keyboard focus shows a ring.
+// Buttons on the masthead (charcoal in both themes) keep one fixed look:
+// no background in any state and white text, so clicking or hovering never
+// changes their colour. Use together with the `masthead-button` class
+// (TopBar.vue), which also pins this in CSS and shows keyboard focus as a
+// ring, and `native-focus-behavior`.
+const none = 'rgba(0, 0, 0, 0)'
+const white = '#ffffff'
 export const mastheadButtonTheme = {
-  colorQuaternaryHover: 'rgba(255, 255, 255, 0.12)',
-  colorQuaternaryPressed: 'rgba(255, 255, 255, 0.2)',
+  colorQuaternary: none,
+  colorQuaternaryHover: none,
+  colorQuaternaryPressed: none,
+  colorFocus: none,
+  textColor: white,
+  textColorHover: white,
+  textColorPressed: white,
+  textColorFocus: white,
+  textColorQuaternary: white,
+  rippleDuration: '0s',
 }

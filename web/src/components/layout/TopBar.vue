@@ -109,14 +109,19 @@ const ui = useUiStore()
 </style>
 
 <style>
-/* Masthead buttons (see masthead.ts). Naive keeps the hover colour while a
-   button has focus, and by default focuses it from script on mouse down,
-   which the browser counts as keyboard-like (:focus-visible): a click left
-   it highlighted until the next click elsewhere. With
-   native-focus-behavior the browser tells mouse from keyboard focus, and
-   only keyboard focus is shown, as a ring. */
-.masthead-button:focus:not(:focus-visible):not(:hover) {
+/* Masthead buttons (see masthead.ts): one fixed look. No background or
+   colour change on hover, press or focus in either theme; keyboard focus
+   alone shows a ring. */
+.masthead-button,
+.masthead-button:hover,
+.masthead-button:active,
+.masthead-button:focus {
   background-color: transparent !important;
+  color: #fff !important;
+}
+.masthead-button .n-button__border,
+.masthead-button .n-button__state-border {
+  border: none !important;
 }
 .masthead-button:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.7);
