@@ -123,6 +123,14 @@ export interface PluginComponents {
    * registered.
    */
   ResourceLink: Component
+  /**
+   * The console's YAML editor (1.2). Props: value (v-model), readOnly?,
+   * height? (CSS, default 60vh), problems? ({path, message}[]: shown as
+   * markers on the lines of those field paths).
+   */
+  YamlEditor: Component
+  /** Side-by-side YAML diff (1.2). Props: original, modified. */
+  YamlDiff: Component
 }
 
 export interface PluginComposables {

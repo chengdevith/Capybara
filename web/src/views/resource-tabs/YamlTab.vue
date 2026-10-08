@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { NAlert, NButton, NSpace, NSwitch, NTag, useDialog, useMessage } from 'naive-ui'
 import { computed, ref, shallowRef, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { revealSecret, targetOf } from '@/api/actions'
 import type { KubeObject } from '@/api/k8s'
 import MonacoDiff from '@/components/resource/MonacoDiff.vue'
@@ -9,6 +9,8 @@ import MonacoEditor from '@/components/resource/MonacoEditor.vue'
 import type { DetailTabProps } from '@/components/resource/types'
 import { toEditableYaml, toYaml } from '@/components/resource/yaml'
 import { useApplyFlow } from '@/composables/useApplyFlow'
+import { useRegistry } from '@/extensions'
+import { usePluginsStore } from '@/stores/plugins'
 
 const props = defineProps<DetailTabProps>()
 const message = useMessage()
@@ -17,6 +19,18 @@ const route = useRoute()
 const router = useRouter()
 
 const type = computed(() => props.resource.type)
+
+// Kinds a plugin manages are edited in that plugin's pages (its validated
+// writes); a plugin offers that page as route "<plugin>.<object>.edit".
+const plugins = usePluginsStore()
+const registry = useRegistry()
+const governed = computed(() => plugins.governing(type.value.group, type.value.plural))
+const governedEdit = computed(() => {
+  const g = governed.value
+  const id = g && `${g.plugin}.${g.object}.edit`
+  if (!id || !registry.get(id)) return null
+  return { name: id, params: { cluster: props.cluster, namespace: props.object.metadata.namespace ?? '', name: props.object.metadata.name } }
+})
 const sensitive = computed(() => props.resource.sensitive === true)
 
 // --- Secrets: values only after an explicit Reveal (audited server-side) ---
@@ -81,7 +95,7 @@ function stopEdit() {
 watch(
   () => route.query.edit,
   (e) => {
-    if (e && !editing.value) void startEdit()
+    if (e && !editing.value && !governed.value) void startEdit()
   },
   { immediate: true },
 )
@@ -125,6 +139,7 @@ async function copy() {
         class="toolbar"
       >
         <NButton
+          v-if="!governed"
           type="primary"
           size="small"
           :loading="revealing"
@@ -133,6 +148,19 @@ async function copy() {
         >
           Edit
         </NButton>
+        <span
+          v-else
+          class="governed"
+          data-test="yaml-governed"
+        >
+          Managed by {{ governed.displayName }}:
+          <RouterLink
+            v-if="governedEdit"
+            :to="governedEdit"
+            data-test="yaml-governed-edit"
+          >Edit in {{ governed.displayName }}</RouterLink>
+          <template v-else>edit it in its pages.</template>
+        </span>
         <template v-if="sensitive">
           <NButton
             v-if="!revealed"
@@ -343,6 +371,10 @@ async function copy() {
 </template>
 
 <style scoped>
+.governed {
+  font-size: 13px;
+  opacity: 0.85;
+}
 .toolbar {
   margin-bottom: 8px;
 }

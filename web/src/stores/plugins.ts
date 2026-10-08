@@ -63,6 +63,18 @@ export const usePluginsStore = defineStore('plugins', () => {
     return (cluster && enabledByCluster.value.get(cluster)) || none
   }
 
+  /**
+   * The plugin whose declared objects include this kind: its writes go
+   * through that plugin's pages, never core's generic YAML edit or delete.
+   */
+  function governing(group: string, resource: string): { plugin: string; object: string; displayName: string } | null {
+    for (const p of catalog.value) {
+      const o = p.spec.objects?.find((x) => x.group === group && x.resource === resource)
+      if (o) return { plugin: p.name, object: o.name, displayName: p.spec.displayName || p.name }
+    }
+    return null
+  }
+
   /** A plugin's display name (its id until the catalog is loaded). */
   function displayName(name: string): string {
     return catalog.value.find((p) => p.name === name)?.spec.displayName || name
@@ -75,5 +87,5 @@ export const usePluginsStore = defineStore('plugins', () => {
     loadErrors.value = next
   }
 
-  return { catalog, loaded, error, loadErrors, load, startPolling, stopPolling, onChange, enabledOn, setLoadError, displayName }
+  return { catalog, loaded, error, loadErrors, load, startPolling, stopPolling, onChange, enabledOn, setLoadError, displayName, governing }
 })

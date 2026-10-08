@@ -57,6 +57,8 @@ export interface PluginSpec {
   }
   configSchema?: ConfigSchema
   steps?: { name: string; title: string; modes?: InstallMode[] }[]
+  /** Kinds the plugin writes (in Project namespaces) through Capybara. */
+  objects?: { name: string; group: string; version: string; resource: string; kind: string; verbs: string[] }[]
 }
 
 /** Whether a plugin keeps data in volumes: its installer may delete

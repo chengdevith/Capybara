@@ -5,6 +5,7 @@ import type { KubeObject } from '@/api/k8s'
 import ExtensionHost from '@/components/extensions/ExtensionHost.vue'
 import { resourceActions, useRegistry, type Registered, type ResourceActionExtension } from '@/extensions'
 import { useExtensionContext } from '@/composables/useExtensionContext'
+import { usePluginsStore } from '@/stores/plugins'
 import type { ResourceDef } from './types'
 
 // Menu of resource-action extensions for one object; the chosen action's
@@ -13,7 +14,15 @@ const props = defineProps<{ cluster: string; resource: ResourceDef; object: Kube
 
 const registry = useRegistry()
 const ctx = useExtensionContext()
-const actions = computed(() => resourceActions(registry, props.resource.type.kind, ctx.value))
+// Kinds a plugin manages: core's generic Edit YAML and Delete would be
+// refused anyway; the plugin's own actions do those writes.
+const plugins = usePluginsStore()
+const coreWrites = ['core.action.edit-yaml', 'core.action.delete']
+const actions = computed(() => {
+  const all = resourceActions(registry, props.resource.type.kind, ctx.value)
+  const t = props.resource.type
+  return plugins.governing(t.group, t.plural) ? all.filter((a) => !coreWrites.includes(a.id)) : all
+})
 
 const options = computed<DropdownOption[]>(() =>
   actions.value.map((a) => ({

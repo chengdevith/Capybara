@@ -6,7 +6,14 @@ import { loadMonaco } from './monaco'
 
 // A YAML editor. Read-only views follow `value` live (keeping the scroll
 // position); editable views only take a new `value` when the parent sets one.
-const props = defineProps<{ value: string; readOnly?: boolean }>()
+// `markers` underline line ranges with a message (e.g. validation problems).
+export interface EditorMarker {
+  startLine: number
+  endLine: number
+  message: string
+  severity?: 'error' | 'warning'
+}
+const props = defineProps<{ value: string; readOnly?: boolean; height?: string; markers?: EditorMarker[] }>()
 const emit = defineEmits<{ 'update:value': [value: string] }>()
 
 const theme = useThemeStore()
@@ -18,6 +25,25 @@ let editor: ReturnType<Editor['create']> | null = null
 let monacoEditor: Editor | null = null
 let disposed = false
 let ownChange = false
+let monacoApi: Awaited<ReturnType<typeof loadMonaco>> | null = null
+
+function applyMarkers() {
+  const model = editor?.getModel()
+  if (!monacoApi || !model) return
+  monacoApi.editor.setModelMarkers(
+    model,
+    'capybara',
+    (props.markers ?? []).map((m) => ({
+      startLineNumber: m.startLine,
+      endLineNumber: m.endLine,
+      startColumn: 1,
+      endColumn: model.getLineMaxColumn(Math.min(m.endLine, model.getLineCount())),
+      message: m.message,
+      severity: m.severity === 'warning' ? monacoApi!.MarkerSeverity.Warning : monacoApi!.MarkerSeverity.Error,
+    })),
+  )
+}
+watch(() => props.markers, applyMarkers, { deep: true })
 
 onMounted(async () => {
   try {
@@ -42,6 +68,8 @@ onMounted(async () => {
       ownChange = true
       emit('update:value', editor.getValue())
     })
+    monacoApi = monaco
+    applyMarkers()
   } catch (e) {
     failed.value = e instanceof Error ? e.message : String(e)
   }
@@ -85,6 +113,7 @@ watch(
   <div
     ref="host"
     class="editor"
+    :style="height ? { height } : undefined"
     data-test="yaml-editor"
   />
 </template>

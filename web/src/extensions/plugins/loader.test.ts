@@ -123,6 +123,8 @@ describe('plugin loader', () => {
       register(api: PluginApi) {
         expect(api.apiMinor).toBe(EXTENSION_API_MINOR)
         expect(api.components.LogViewer).toBeDefined()
+        expect(api.components.YamlEditor).toBeDefined()
+        expect(api.components.YamlDiff).toBeDefined()
         expect(api.composables.useLiveList).toBeTypeOf('function')
         api.registerResource(def, { order: 10, section: 'monitoring.section' })
       },

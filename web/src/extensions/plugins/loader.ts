@@ -75,6 +75,8 @@ export function checkMinApi(minApi: string | undefined): string {
 const components: PluginApi['components'] = Object.freeze({
   LogViewer: defineAsyncComponent(() => import('@/components/logs/LogViewer.vue')),
   ResourceLink: defineAsyncComponent(() => import('@/components/resource/ResourceLink.vue')),
+  YamlEditor: defineAsyncComponent(() => import('@/components/plugins/PluginYamlEditor.vue')),
+  YamlDiff: defineAsyncComponent(() => import('@/components/resource/MonacoDiff.vue')),
 })
 type Composables = PluginApi['composables']
 const composables: Composables = Object.freeze({
