@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { NAlert, NCard, NH2, NResult } from 'naive-ui'
+import { NAlert, NButton, NCard, NH2, NResult } from 'naive-ui'
 import { computed, onBeforeUnmount, shallowRef, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import LiveIndicator from '@/components/resource/LiveIndicator.vue'
 import ResourceTable from '@/components/resource/ResourceTable.vue'
 import type { ResourceDef, RowExtra } from '@/components/resource/types'
 import { useExtensionContext } from '@/composables/useExtensionContext'
 import { useLiveList } from '@/composables/useLiveList'
 import { useNamespace } from '@/composables/useNamespace'
+import { useRegistry } from '@/extensions'
 
 // The one list page. Which kind it shows comes from the route's props.
 const props = defineProps<{ resource: ResourceDef }>()
@@ -19,6 +21,14 @@ const source = computed(() =>
   ctx.value.cluster ? { cluster: ctx.value.cluster, type: props.resource.type, namespace: scopedNamespace.value } : null,
 )
 const { items, loading, error, forbidden, live } = useLiveList(source)
+
+// A "Create" button when the kind declares a create page that exists.
+const registry = useRegistry()
+const createTo = computed(() => {
+  const c = props.resource.create
+  if (!c || !ctx.value.cluster || !registry.get(c.route)) return null
+  return { name: c.route, params: { cluster: ctx.value.cluster }, query: namespace.value ? { ns: namespace.value } : {} }
+})
 
 // Optional per-row extras from the server, refreshed (debounced) as the
 // live list changes.
@@ -54,6 +64,19 @@ onBeforeUnmount(() => clearTimeout(extrasTimer))
         :live="live"
         :loading="loading"
       />
+      <RouterLink
+        v-if="createTo"
+        :to="createTo"
+        class="create"
+        data-test="resource-create"
+      >
+        <NButton
+          type="primary"
+          size="small"
+        >
+          {{ resource.create!.label }}
+        </NButton>
+      </RouterLink>
     </div>
     <NCard v-if="forbidden">
       <NResult
@@ -91,6 +114,9 @@ onBeforeUnmount(() => clearTimeout(extrasTimer))
 }
 .title {
   margin: 0 0 16px;
+}
+.create {
+  margin-left: auto;
 }
 .error {
   margin-bottom: 12px;

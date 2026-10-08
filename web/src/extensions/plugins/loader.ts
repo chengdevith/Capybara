@@ -4,6 +4,8 @@ import type { CatalogEntry } from '@/api/plugins'
 import { isActiveInstallation } from '@/api/plugins'
 import type { ResourceDef } from '@/components/resource/types'
 import { useLiveList } from '@/composables/useLiveList'
+import { stringify } from 'yaml'
+import { editableObjectYaml, parseObject } from '@/components/resource/yaml'
 import { registerResource } from '../core/resources/register'
 import type { ExtensionRegistry } from '../registry'
 import { EXTENSION_API_MINOR, EXTENSION_API_VERSION, type Extension, type ExtensionContext } from '../types'
@@ -78,6 +80,12 @@ const components: PluginApi['components'] = Object.freeze({
   YamlEditor: defineAsyncComponent(() => import('@/components/plugins/PluginYamlEditor.vue')),
   YamlDiff: defineAsyncComponent(() => import('@/components/resource/MonacoDiff.vue')),
 })
+const pluginYaml: PluginApi['yaml'] = Object.freeze({
+  parse: parseObject,
+  stringify: (v: unknown) => stringify(v, { lineWidth: 0 }),
+  editable: editableObjectYaml,
+})
+
 type Composables = PluginApi['composables']
 const composables: Composables = Object.freeze({
   // Same objects as the console's own; only the SDK's narrower types differ.
@@ -145,6 +153,7 @@ export function createPluginLoader(deps: LoaderDeps) {
       },
       components,
       composables,
+      yaml: pluginYaml,
     }
     try {
       await mod.register(api)

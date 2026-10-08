@@ -15,7 +15,8 @@ export const EXTENSION_API_VERSION = 1
  * 1.1  registerResource(), components (LogViewer, ResourceLink),
  *      composables (useLiveList), pluginAction()
  * 1.2  components (YamlEditor, YamlDiff), pluginObjects (validate,
- *      create, update, remove, cleanup) for declared plugin objects
+ *      create, update, remove, cleanup) for declared plugin objects,
+ *      useNavigate/useQuery/useParams, a "create" button on resources
  */
 export const EXTENSION_API_MINOR = 2
 
@@ -103,6 +104,8 @@ export interface ResourceActionExtension extends ExtensionBase {
   kinds: KindMatcher
   /** Destructive: shown last and in red. */
   danger?: boolean
+  /** Shown only for objects this accepts (1.2); may read reactive state. */
+  appliesTo?: (object: { metadata: { name: string; namespace?: string }; [key: string]: unknown }, ctx: ExtensionContext) => boolean
   component: LazyComponent
 }
 

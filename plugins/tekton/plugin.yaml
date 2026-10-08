@@ -41,7 +41,7 @@ chart:
 
 ui:
   bundle: ui/dist/tekton.js
-  sha256: d1fe4027ed49c142871f96024d346d0d85c92e9f8e4c8c2312c9644fc1380125
+  sha256: cc91fcb3eb97375bddb97ec697b0517a01c8ebfdcb5cf59068f8508ca936d3c0
 
 # An existing Tekton: connect needs one of these served; install is refused
 # when a CRD here belongs to another install, or a namespace exists.
@@ -285,22 +285,3 @@ steps:
       kind: Deployment
       name: tekton-pipelines-remote-resolvers
       namespace: tekton-pipelines-resolvers
-  - name: admission
-    title: PipelineRuns accepted
-    check:
-      # A server-side dry run through Tekton's webhooks, with Capybara's
-      # account (its console permissions).
-      type: dryRun
-      namespace: default
-      object:
-        apiVersion: tekton.dev/v1
-        kind: PipelineRun
-        spec:
-          pipelineSpec:
-            tasks:
-              - name: check
-                taskSpec:
-                  steps:
-                    - name: check
-                      image: cgr.dev/chainguard/busybox
-                      script: "true"

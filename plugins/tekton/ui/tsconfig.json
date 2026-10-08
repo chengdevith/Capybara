@@ -17,5 +17,6 @@
       "vue-router": ["./node_modules/vue-router"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.vue"]
+  "include": ["src/**/*.ts", "src/**/*.vue"],
+  "exclude": ["src/**/*.test.ts"]
 }

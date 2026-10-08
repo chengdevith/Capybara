@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { pluginAction, type KubeObject } from '@capybara/sdk'
+import { pluginAction, PluginRequestError, useNavigate, type KubeObject } from '@capybara/sdk'
 import { NAlert, NButton, NModal, NSpace } from 'naive-ui'
 import { ref } from 'vue'
 import { api } from './tekton'
@@ -9,6 +9,15 @@ import { api } from './tekton'
 const props = defineProps<{ cluster: string; object: KubeObject }>()
 const emit = defineEmits<{ close: [] }>()
 const { ResourceLink } = api().components
+const navigate = useNavigate()
+// Refused because the run used another ServiceAccount: offer a new run of
+// its Pipeline (as the Project's pipeline account) instead.
+const otherAccount = ref(false)
+const pipeline = props.object.spec?.pipelineRef?.name as string | undefined
+async function startNew() {
+  await navigate({ name: 'tekton.pipelines.start', params: { cluster: props.cluster, namespace: props.object.metadata.namespace ?? '', name: pipeline! }, query: { from: props.object.metadata.name } })
+  emit('close')
+}
 
 const busy = ref(false)
 const error = ref<string | null>(null)
@@ -22,6 +31,10 @@ async function rerun() {
     created.value = await pluginAction(props.cluster, 'tekton', 'rerun', { namespace: m.namespace, name: m.name, uid: m.uid })
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
+    if (e instanceof PluginRequestError) {
+      otherAccount.value = e.problems.some((p) => p.path.endsWith('serviceAccountName'))
+      if (e.problems.length) error.value = e.problems.map((p) => p.message).join('; ')
+    }
   } finally {
     busy.value = false
   }
@@ -58,8 +71,19 @@ async function rerun() {
       <NAlert
         v-if="error"
         type="error"
+        data-test="rerun-error"
       >
         {{ error }}
+        <div v-if="otherAccount && pipeline">
+          <NButton
+            size="small"
+            class="start-new"
+            data-test="rerun-start-new"
+            @click="startNew"
+          >
+            Start a new run as pipeline
+          </NButton>
+        </div>
       </NAlert>
     </template>
     <template #footer>
@@ -80,3 +104,9 @@ async function rerun() {
     </template>
   </NModal>
 </template>
+
+<style scoped>
+.start-new {
+  margin-top: 8px;
+}
+</style>

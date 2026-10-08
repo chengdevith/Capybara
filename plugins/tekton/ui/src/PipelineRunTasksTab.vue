@@ -2,6 +2,7 @@
 import type { KubeObject } from '@capybara/sdk'
 import { NAlert, NDataTable, NEmpty, type DataTableColumns } from 'naive-ui'
 import { computed, h, onScopeDispose, ref, watch } from 'vue'
+import ImagePullBanner from './ImagePullBanner.vue'
 import TaskRunLogs from './TaskRunLogs.vue'
 import { api, duration, runStatus, startedAt, statusTag, TASK_RUNS } from './tekton'
 
@@ -58,6 +59,11 @@ const rowClass = (t: KubeObject) => (t.metadata.uid === selected.value ? 'select
 
 <template>
   <div data-test="tekton-tasks">
+    <ImagePullBanner
+      :cluster="cluster"
+      :task-runs="items"
+      :pipeline-run="object"
+    />
     <NAlert
       v-if="error"
       type="warning"

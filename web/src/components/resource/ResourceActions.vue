@@ -21,7 +21,8 @@ const coreWrites = ['core.action.edit-yaml', 'core.action.delete']
 const actions = computed(() => {
   const all = resourceActions(registry, props.resource.type.kind, ctx.value)
   const t = props.resource.type
-  return plugins.governing(t.group, t.plural) ? all.filter((a) => !coreWrites.includes(a.id)) : all
+  const shown = all.filter((a) => !a.appliesTo || a.appliesTo(props.object, ctx.value))
+  return plugins.governing(t.group, t.plural) ? shown.filter((a) => !coreWrites.includes(a.id)) : shown
 })
 
 const options = computed<DropdownOption[]>(() =>

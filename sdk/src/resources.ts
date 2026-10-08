@@ -73,6 +73,9 @@ export interface PluginResourceDef {
   status?: (obj: KubeObject) => { text: string; tone: Tone }
   /** Shown when the cluster refuses to list this kind (403). */
   forbiddenHint?: string
+  /** A "Create" button on the list page opening this route (1.2), with the
+   * selected namespace as ?ns=. */
+  create?: { label: string; route: string }
 }
 
 /** Where a resource's sidebar item goes. */

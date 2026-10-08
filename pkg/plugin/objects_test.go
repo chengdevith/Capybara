@@ -168,6 +168,13 @@ spec: {steps: [{name: s, image: "busybox:1.36", script: "echo hi"}]}`)})
 		t.Fatal(err)
 	}
 
+	// Validating an edit needs no uid (nothing is written).
+	if code, body := f.do(t, http.MethodPost, objBase+"tasks/team/_validate", ObjectRequest{Name: "hello", Object: yamlObj(t, `
+metadata: {name: hello}
+spec: {steps: [{name: s, image: "busybox:1.36", securityContext: {privileged: true}}]}`)}); code != 200 || problemPaths(body) != "spec.steps[0].securityContext.privileged" {
+		t.Errorf("validate an edit: %d %v", code, body)
+	}
+
 	// Update: stale uid refused; the right one accepted; a privileged step refused.
 	edit := yamlObj(t, `
 metadata: {name: hello}

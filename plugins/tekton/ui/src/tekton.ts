@@ -1,6 +1,9 @@
 import type { KubeObject, PluginApi, PluginResourceDef, ResourceType, Tone } from '@capybara/sdk'
 import { NTag } from 'naive-ui'
-import { h } from 'vue'
+import { h, shallowRef } from 'vue'
+import { imagePullProblems } from './pulls'
+
+export const PLUGIN = 'tekton'
 
 // The console's API, set once by register() (components use its
 // LogViewer, ResourceLink and useLiveList).
@@ -17,6 +20,48 @@ const tekton = (plural: string, kind: string): ResourceType => ({ group: 'tekton
 export const PIPELINE_RUNS = tekton('pipelineruns', 'PipelineRun')
 export const TASK_RUNS = tekton('taskruns', 'TaskRun')
 export const PIPELINES = tekton('pipelines', 'Pipeline')
+export const TASKS = tekton('tasks', 'Task')
+
+// --- Project namespaces: the only places Tekton objects may be written ---
+
+interface ProjectView {
+  spec: { cluster: string; namespace: string }
+  status?: { phase?: string }
+}
+const projectKeys = shallowRef<Set<string> | null>(null)
+let projectsLoading: Promise<void> | null = null
+let projectsLoadedAt = 0
+
+/** Loads the Ready Projects' namespaces (again when older than a minute,
+ * or when forced). */
+export function loadProjects(force = false): Promise<void> {
+  if (projectsLoading && !force && Date.now() - projectsLoadedAt < 60_000) return projectsLoading
+  projectsLoadedAt = Date.now()
+  projectsLoading = (async () => {
+    try {
+      const res = await fetch('/api/projects', { headers: { Accept: 'application/json' } })
+      if (!res.ok) return
+      const body = (await res.json()) as { items?: ProjectView[] } | ProjectView[]
+      const items = Array.isArray(body) ? body : (body.items ?? [])
+      projectKeys.value = new Set(items.filter((p) => p.status?.phase === 'Ready').map((p) => `${p.spec.cluster}/${p.spec.namespace}`))
+    } catch {
+      // keep the last known set
+    }
+  })()
+  return projectsLoading
+}
+
+/** Whether ns on cluster is a Ready Project's namespace (reactive). */
+export function isProjectNamespace(ns: string | undefined, cluster: string | null): boolean {
+  void loadProjects()
+  return !!ns && !!projectKeys.value?.has(`${cluster}/${ns}`)
+}
+
+/** Project namespaces on a cluster (reactive). */
+export function projectNamespaces(cluster: string): string[] {
+  void loadProjects()
+  return [...(projectKeys.value ?? [])].filter((k) => k.startsWith(`${cluster}/`)).map((k) => k.slice(cluster.length + 1)).sort()
+}
 
 interface Condition {
   type: string
@@ -25,9 +70,13 @@ interface Condition {
   message?: string
 }
 
-/** A run's state from its Succeeded condition (PipelineRun and TaskRun). */
+/** A run's state from its Succeeded condition (PipelineRun and TaskRun).
+ * A TaskRun stuck pulling an image says so instead of "Running". */
 export function runStatus(o: KubeObject): { text: string; tone: Tone; running: boolean } {
   const c = ((o.status?.conditions as Condition[] | undefined) ?? []).find((x) => x.type === 'Succeeded')
+  if (c?.status !== 'True' && c?.status !== 'False' && imagePullProblems(o).length > 0) {
+    return { text: 'Image pull failed', tone: 'error', running: true }
+  }
   if (!c) return { text: 'Pending', tone: 'default', running: true }
   if (c.status === 'True') return { text: 'Succeeded', tone: 'success', running: false }
   if (c.status === 'False') {
@@ -124,6 +173,7 @@ export const pipelinesDef: PluginResourceDef = {
   label: 'Pipelines',
   singular: 'Pipeline',
   path: 'tekton/pipelines',
+  create: { label: 'Create Pipeline', route: 'tekton.pipelines.new' },
   columns: [
     { key: 'tasks', title: 'Tasks', width: 90, render: (o) => String((o.spec?.tasks as unknown[] | undefined)?.length ?? 0) },
     { key: 'description', title: 'Description', minWidth: 200, render: (o) => o.spec?.description ?? '' },
@@ -135,3 +185,25 @@ export const pipelinesDef: PluginResourceDef = {
   ],
   forbiddenHint,
 }
+
+export const tasksDef: PluginResourceDef = {
+  id: 'tekton.tasks',
+  type: TASKS,
+  label: 'Tasks',
+  singular: 'Task',
+  path: 'tekton/tasks',
+  create: { label: 'Create Task', route: 'tekton.tasks.new' },
+  columns: [
+    { key: 'steps', title: 'Steps', width: 90, render: (o) => String((o.spec?.steps as unknown[] | undefined)?.length ?? 0) },
+    { key: 'description', title: 'Description', minWidth: 200, render: (o) => o.spec?.description ?? '' },
+  ],
+  overview: [
+    { label: 'Steps', render: (o) => ((o.spec?.steps as { name?: string; image?: string }[] | undefined) ?? []).map((s) => `${s.name ?? '?'} (${s.image ?? '—'})`).join(', ') || '—' },
+    { label: 'Parameters', render: (o) => ((o.spec?.params as { name: string }[] | undefined) ?? []).map((p) => p.name).join(', ') || '—' },
+    { label: 'Workspaces', render: (o) => ((o.spec?.workspaces as { name: string }[] | undefined) ?? []).map((w) => w.name).join(', ') || '—' },
+  ],
+  forbiddenHint,
+}
+
+/** The plugin object (manifest `objects`) of each kind. */
+export const objectOf: Record<string, 'tasks' | 'pipelines' | 'pipelineruns'> = { Task: 'tasks', Pipeline: 'pipelines', PipelineRun: 'pipelineruns' }

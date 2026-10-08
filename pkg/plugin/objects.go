@@ -498,6 +498,16 @@ func (a *ObjectAPI) validate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if verb == v1alpha1.ObjectUpdate {
+		// Validating writes nothing: check against the current version
+		// (saving still requires the loaded one).
+		if b.UID == "" {
+			cur, err := t.dyn.Resource(t.gvr(t.object)).Namespace(t.ns).Get(r.Context(), u.GetName(), metav1.GetOptions{})
+			if err != nil {
+				writeObjectErr(w, err)
+				return
+			}
+			b.UID, b.ResourceVersion = string(cur.GetUID()), cur.GetResourceVersion()
+		}
 		if err := t.carryVersion(r.Context(), u, b); err != nil {
 			writeErr(w, err)
 			return

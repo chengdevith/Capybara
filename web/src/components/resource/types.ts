@@ -60,6 +60,9 @@ export interface ResourceDef {
    * key names from a server-side summary. Reloaded when the list changes.
    */
   rowExtras?: (cluster: string, namespace: string | null) => Promise<Map<string, RowExtra>>
+  /** A "Create" button on the list page, opening this route (with the
+   * selected namespace as ?ns=); shown only once the route exists. */
+  create?: { label: string; route: string }
 }
 
 export const listRouteOf = (def: ResourceDef): string => `${def.id}.list`

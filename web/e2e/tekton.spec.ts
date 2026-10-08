@@ -85,7 +85,7 @@ test('install on dev-1 from the Marketplace', async ({ page, request }) => {
   await expect.poll(() => pluginInstalls(request, 'dev-1'), { timeout: 60_000 }).toBe('Enabled')
   await installFromMarketplace(page, 'tekton', 'dev-1', 'Install')
   await expect(phase(page, 'dev-1')).toHaveText('Ready', { timeout: 300_000 })
-  for (const step of ['chart', 'api', 'controller', 'webhook', 'resolvers', 'admission']) {
+  for (const step of ['chart', 'api', 'controller', 'webhook', 'resolvers']) {
     await expect(page.getByTestId(`step-${step}`)).toBeVisible()
   }
   // Upstream's namespace labels survive the chart (the controller sets them),

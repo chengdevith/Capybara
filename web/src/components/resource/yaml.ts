@@ -30,6 +30,14 @@ export function toEditableYaml(type: ResourceType, obj: KubeObject): string {
   return stringify({ apiVersion: apiVersionOf(type), kind: type.kind, metadata: meta, ...rest }, { lineWidth: 0 })
 }
 
+/** An object for editing, whatever its kind (apiVersion and kind kept). */
+export function editableObjectYaml(obj: Record<string, unknown>): string {
+  const { apiVersion, kind, metadata, status: _status, ...rest } = obj as Record<string, unknown> & { metadata?: Record<string, unknown> }
+  const meta: Record<string, unknown> = { ...(metadata ?? {}) }
+  for (const f of [...SERVER_METADATA, 'uid', 'resourceVersion']) delete meta[f]
+  return stringify({ apiVersion, kind, metadata: meta, ...rest }, { lineWidth: 0 })
+}
+
 /** Parses editor text into an object, or throws a readable error. */
 export function parseObject(text: string): Record<string, unknown> {
   let value: unknown

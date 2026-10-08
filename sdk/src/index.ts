@@ -9,7 +9,7 @@
  * older Capybara).
  */
 import { computed, type ComputedRef } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import type { Extension } from './extensions'
 import type { PluginComponents, PluginComposables, PluginResourceDef, ResourceNav } from './resources'
 
@@ -41,6 +41,17 @@ export interface PluginApi {
   readonly components: PluginComponents
   /** Console composables plugins may use (1.1). */
   readonly composables: PluginComposables
+  /** The console's YAML helpers (1.2). */
+  readonly yaml: PluginYaml
+}
+
+/** YAML as the console's editor writes and reads it. */
+export interface PluginYaml {
+  /** One object (a mapping); throws a readable error otherwise. */
+  parse(text: string): Record<string, unknown>
+  stringify(value: unknown): string
+  /** An object for editing: kubectl key order; no status or server-owned metadata. */
+  editable(obj: Record<string, unknown>): string
 }
 
 /** A plugin UI bundle's default export. */
@@ -57,6 +68,25 @@ export interface PluginModule {
 /** Declares a plugin bundle (typed identity helper). */
 export function definePlugin(m: PluginModule): PluginModule {
   return m
+}
+
+/** Opens a console route by name (1.2): navigate({ name, params, query }).
+ * Call it in setup; the returned function may be used later. */
+export function useNavigate(): (to: { name: string; params?: Record<string, string>; query?: Record<string, string> }) => Promise<unknown> {
+  const router = useRouter()
+  return (to) => router.push(to)
+}
+
+/** The current route's query parameters (1.2), e.g. ?ns= and ?from=. */
+export function useQuery(): ComputedRef<Record<string, string>> {
+  const route = useRoute()
+  return computed(() => Object.fromEntries(Object.entries(route.query).filter(([, v]) => typeof v === 'string')) as Record<string, string>)
+}
+
+/** The current route's path parameters (1.2). */
+export function useParams(): ComputedRef<Record<string, string>> {
+  const route = useRoute()
+  return computed(() => Object.fromEntries(Object.entries(route.params).filter(([, v]) => typeof v === 'string')) as Record<string, string>)
 }
 
 /** The cluster id in the current URL, or null on global pages. */

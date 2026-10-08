@@ -145,6 +145,7 @@ lint-go: lint-generated lint-plugin-images
 lint-plugin-ui:
 	@for p in $(UI_PLUGINS); do \
 	  ./hack/plugin-ui.sh check $$p && npm --prefix plugins/$$p/ui run --silent typecheck || exit 1; \
+	  if ls plugins/$$p/ui/src/*.test.ts >/dev/null 2>&1; then (cd plugins/$$p/ui && node --test src/*.test.ts) || exit 1; fi; \
 	done
 	cd plugins/$(firstword $(UI_PLUGINS))/ui && node --test ../../_ui-build/
 
