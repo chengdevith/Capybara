@@ -225,7 +225,7 @@ func (p *ScopedProxy) serve(w http.ResponseWriter, r *http.Request) error {
 	if err := p.Mgmt.Get(r.Context(), types.NamespacedName{Name: v1alpha1.InstallationName(name, id)}, &in); err != nil {
 		return &scopedError{http.StatusForbidden, name + " is not installed on " + id}
 	}
-	if in.Status.Phase != v1alpha1.InstallReady || !in.Spec.Enabled || !in.DeletionTimestamp.IsZero() {
+	if !Usable(&in) {
 		return &scopedError{http.StatusForbidden, name + " is not ready and enabled on " + id}
 	}
 	tok, err := p.token(r.Context(), name, id)

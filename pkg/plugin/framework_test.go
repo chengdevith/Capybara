@@ -13,6 +13,7 @@ import (
 	chartcommon "helm.sh/helm/v4/pkg/chart/common"
 	chart "helm.sh/helm/v4/pkg/chart/v2"
 	chartutil "helm.sh/helm/v4/pkg/chart/v2/util"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -21,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -474,5 +476,42 @@ func TestInstallerRulesSufficeForProjectAccess(t *testing.T) {
 		Subjects: []rbacv1.Subject{{Kind: "User", APIGroup: rbacv1.GroupName, Name: "x"}}}, metav1.CreateOptions{})
 	if !apierrors.IsForbidden(err) {
 		t.Errorf("binding cluster-admin: %v", err)
+	}
+}
+
+func TestUsableAndWorkloadReadiness(t *testing.T) {
+	installed := []metav1.Condition{{Type: ConditionInstalled, Status: metav1.ConditionTrue}}
+	in := func(phase v1alpha1.InstallationPhase, version string, conds []metav1.Condition, enabled bool) *v1alpha1.PluginInstallation {
+		return &v1alpha1.PluginInstallation{Spec: v1alpha1.PluginInstallationSpec{Enabled: enabled},
+			Status: v1alpha1.PluginInstallationStatus{Phase: phase, InstalledVersion: version, Conditions: conds}}
+	}
+	for name, c := range map[string]struct {
+		in   *v1alpha1.PluginInstallation
+		want bool
+	}{
+		"ready":                    {in(v1alpha1.InstallReady, "0.2.0", installed, true), true},
+		"a step failing later":     {in(v1alpha1.InstallError, "0.2.0", installed, true), true},
+		"refused, never installed": {in(v1alpha1.InstallError, "", nil, true), false},
+		"installing":               {in(v1alpha1.InstallInstalling, "", nil, true), false},
+		"disabled":                 {in(v1alpha1.InstallReady, "0.2.0", installed, false), false},
+	} {
+		if got := Usable(c.in); got != c.want {
+			t.Errorf("%s: Usable = %v", name, got)
+		}
+	}
+
+	dep := func(name string, replicas, ready int32) *appsv1.Deployment {
+		return &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "t"},
+			Spec: appsv1.DeploymentSpec{Replicas: &replicas}, Status: appsv1.DeploymentStatus{ReadyReplicas: ready}}
+	}
+	cs := k8sfake.NewClientset(dep("scaling", 2, 1), dep("down", 1, 0), dep("zero", 0, 0))
+	ctx := context.Background()
+	if err := workloadReady(ctx, cs, "t", "Deployment", "scaling"); err != nil {
+		t.Errorf("an autoscaler adding a replica made it not ready: %v", err)
+	}
+	for _, n := range []string{"down", "zero", "missing"} {
+		if err := workloadReady(ctx, cs, "t", "Deployment", n); err == nil {
+			t.Errorf("%s counted as ready", n)
+		}
 	}
 }

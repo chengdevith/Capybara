@@ -675,10 +675,25 @@ func workloadReady(ctx context.Context, cs kubernetes.Interface, ns, kind, name 
 	default:
 		return fmt.Errorf("unknown kind %s", kind)
 	}
-	if want == 0 || ready < want {
+	// Serving once one replica is ready: an autoscaler adding replicas (a
+	// webhook under load) is not a failure.
+	if want == 0 || ready == 0 {
 		return fmt.Errorf("%s %s: %d/%d ready", kind, name, ready, want)
 	}
 	return nil
+}
+
+// Usable reports whether an installation's UI and writes are available: it
+// is enabled, not being removed, and installed. A step failing after
+// installation (Error with an installed version) keeps it usable, so a
+// passing problem does not unload pages that are open; the card shows it.
+func Usable(in *v1alpha1.PluginInstallation) bool {
+	if !in.Spec.Enabled || !in.DeletionTimestamp.IsZero() {
+		return false
+	}
+	return in.Status.Phase == v1alpha1.InstallReady ||
+		(in.Status.Phase == v1alpha1.InstallError && in.Status.InstalledVersion != "" &&
+			meta.IsStatusConditionTrue(in.Status.Conditions, ConditionInstalled))
 }
 
 func notYet(kind, name string, err error) error {

@@ -290,7 +290,7 @@ test('uninstall: connect leaves the existing Tekton; install removes the release
   await page.getByTestId('confirm').click()
   await expect(page.getByTestId('installation-dev-1')).toHaveCount(0, { timeout: 300_000 })
   expect(kubectl('dev-1', '-n', 'tekton-pipelines', 'get', 'secret', '-l', 'owner=helm', '-o', 'name')).toBe('')
-  expect(tektonCRDs()).toEqual([])
+  await expect.poll(() => tektonCRDs(), { timeout: 120_000 }).toEqual([])
   expect(() => kubectl('dev-1', 'get', 'clusterrolebinding', 'capybara-plugin-tekton-console')).toThrow()
   expect(() => kubectl('dev-1', '-n', NS, 'get', 'rolebinding', 'capybara-plugin-tekton-project')).toThrow()
   expect(() => kubectl('dev-1', '-n', NS, 'get', 'sa', 'pipeline')).toThrow()

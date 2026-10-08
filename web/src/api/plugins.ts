@@ -153,4 +153,8 @@ export const setConnectToken = (id: string, token: string) =>
   apiSend('PUT', `/api/plugins/installations/${enc(id)}/connect-token`, { token })
 
 /** Whether an installation's UI is shown: installed (Ready) and enabled. */
-export const isActiveInstallation = (i: Installation) => i.spec.enabled && i.status.phase === 'Ready' && !i.deleting
+export const isActiveInstallation = (i: Installation) =>
+  i.spec.enabled && !i.deleting &&
+  (i.status.phase === 'Ready' ||
+    // A step failing after installation keeps the UI (no unloading open pages); the card shows the error.
+    (i.status.phase === 'Error' && !!i.status.installedVersion && !!i.status.conditions?.some((c) => c.type === 'Installed' && c.status === 'True')))

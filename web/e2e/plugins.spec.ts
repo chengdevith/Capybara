@@ -170,6 +170,7 @@ test('reinstall over the kept CRDs and volume, then uninstall removing data and 
   await page.getByTestId('confirm-name').locator('input').fill('monitoring.dev-1')
   await page.getByTestId('confirm').click()
   await expect(page.getByTestId('installation-dev-1')).toHaveCount(0, { timeout: 300_000 })
-  expect(monitoringCRDs()).toEqual([])
+  // CRD deletion finishes once Kubernetes has removed their objects.
+  await expect.poll(() => monitoringCRDs(), { timeout: 120_000 }).toEqual([])
   expect(pvcs()).toEqual([])
 })

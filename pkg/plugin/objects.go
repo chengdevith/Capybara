@@ -124,8 +124,7 @@ func (a *ObjectAPI) resolve(ctx context.Context, r *http.Request, verb v1alpha1.
 		return nil, fmt.Errorf("%w: plugin %s does not allow %s on %s", audit.ErrDenied, pluginName, verb, obj.Resource)
 	}
 	var in v1alpha1.PluginInstallation
-	if err := a.Mgmt.Get(ctx, types.NamespacedName{Name: v1alpha1.InstallationName(pluginName, id)}, &in); err != nil ||
-		in.Status.Phase != v1alpha1.InstallReady || !in.Spec.Enabled || !in.DeletionTimestamp.IsZero() {
+	if err := a.Mgmt.Get(ctx, types.NamespacedName{Name: v1alpha1.InstallationName(pluginName, id)}, &in); err != nil || !Usable(&in) {
 		return nil, fmt.Errorf("%w: %s is not installed and enabled on %s", audit.ErrDenied, p.Spec.DisplayName, id)
 	}
 	if err := a.requireProject(ctx, id, ns); err != nil {

@@ -92,8 +92,7 @@ func (a *ActionAPI) run(w http.ResponseWriter, r *http.Request) {
 			return "", errorf(http.StatusBadRequest, "namespace and name must be Kubernetes names")
 		}
 		var in v1alpha1.PluginInstallation
-		if err := a.Mgmt.Get(ctx, types.NamespacedName{Name: v1alpha1.InstallationName(pluginName, id)}, &in); err != nil ||
-			in.Status.Phase != v1alpha1.InstallReady || !in.Spec.Enabled || !in.DeletionTimestamp.IsZero() {
+		if err := a.Mgmt.Get(ctx, types.NamespacedName{Name: v1alpha1.InstallationName(pluginName, id)}, &in); err != nil || !Usable(&in) {
 			return "", fmt.Errorf("%w: %s is not installed and enabled on %s", audit.ErrDenied, p.Spec.DisplayName, id)
 		}
 		dyn, err := a.Clusters.Dynamic(id)
