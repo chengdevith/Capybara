@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/capybara/capybara/api/v1alpha1"
 )
@@ -259,4 +260,32 @@ func (c staleClient) Get(ctx context.Context, key client.ObjectKey, obj client.O
 		return nil
 	}
 	return c.Client.Get(ctx, key, obj, opts...)
+}
+
+// Status writes (the controller's own) must not start another reconcile:
+// a refused install would re-run its pre-flight forever and its Error would
+// never be seen.
+func TestInstallationEventsIgnoreStatusWrites(t *testing.T) {
+	base := &v1alpha1.PluginInstallation{ObjectMeta: metav1.ObjectMeta{Name: "x.dev-1", Generation: 1, Finalizers: []string{v1alpha1.FinalizerPluginUninstall}}}
+	changed := func(mut func(*v1alpha1.PluginInstallation)) bool {
+		n := base.DeepCopy()
+		mut(n)
+		return installationChanged.Update(event.UpdateEvent{ObjectOld: base, ObjectNew: n})
+	}
+	if changed(func(n *v1alpha1.PluginInstallation) {
+		n.Status.Phase, n.Status.Message = v1alpha1.InstallError, "pre-flight refused"
+		n.ResourceVersion = "2"
+	}) {
+		t.Error("a status write starts a reconcile")
+	}
+	for name, mut := range map[string]func(*v1alpha1.PluginInstallation){
+		"spec":       func(n *v1alpha1.PluginInstallation) { n.Generation = 2 },
+		"annotation": func(n *v1alpha1.PluginInstallation) { n.Annotations = map[string]string{"a": "b"} },
+		"deletion":   func(n *v1alpha1.PluginInstallation) { now := metav1.Now(); n.DeletionTimestamp = &now },
+		"finalizer":  func(n *v1alpha1.PluginInstallation) { n.Finalizers = nil },
+	} {
+		if !changed(mut) {
+			t.Errorf("%s change ignored", name)
+		}
+	}
 }

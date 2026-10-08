@@ -24,10 +24,13 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/capybara/capybara/api/v1alpha1"
@@ -100,12 +103,28 @@ func (r *InstallationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		r.Now = time.Now
 	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.PluginInstallation{}).
+		For(&v1alpha1.PluginInstallation{}, builder.WithPredicates(installationChanged)).
 		Watches(&v1alpha1.Plugin{}, handler.EnqueueRequestsFromMapFunc(r.forPlugin)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 2}).
 		Named("plugin-installation").
 		Complete(r)
 }
+
+// installationChanged passes changes to what a user asked for (spec,
+// annotations, labels, deletion), not the controller's own status writes.
+// Reacting to those made every status write start the next reconcile: a
+// refused install re-ran its pre-flight forever and its Error was replaced
+// by Installing within milliseconds. Progress is driven by explicit
+// requeues and installer-credential events instead.
+var installationChanged = predicate.Or(
+	predicate.GenerationChangedPredicate{},
+	predicate.AnnotationChangedPredicate{},
+	predicate.LabelChangedPredicate{},
+	predicate.Funcs{UpdateFunc: func(e event.UpdateEvent) bool {
+		return e.ObjectOld.GetDeletionTimestamp().IsZero() != e.ObjectNew.GetDeletionTimestamp().IsZero() ||
+			len(e.ObjectOld.GetFinalizers()) != len(e.ObjectNew.GetFinalizers())
+	}},
+)
 
 func (r *InstallationReconciler) forPlugin(ctx context.Context, o client.Object) []reconcile.Request {
 	var list v1alpha1.PluginInstallationList

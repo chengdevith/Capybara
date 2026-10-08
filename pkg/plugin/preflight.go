@@ -96,6 +96,10 @@ func Preflight(ctx context.Context, in PreflightInput) (*PreflightResult, error)
 		problem("plugin installs are disabled on %s: it has no installer credential (set one on the cluster's page)", in.Cluster)
 		return res, nil
 	}
+	// The checks are many small requests (one access review per declared
+	// rule): client-go's default 5 requests/s made a refusal take ~30s.
+	in.Installer = rest.CopyConfig(in.Installer)
+	in.Installer.QPS, in.Installer.Burst = 50, 100
 	cs, err := kubernetes.NewForConfig(in.Installer)
 	if err != nil {
 		return nil, err

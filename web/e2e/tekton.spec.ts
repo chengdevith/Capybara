@@ -4,7 +4,8 @@ import { DEMO_NS, kubectl, kubectlStdin } from './kube'
 import { cleanup, installerCan, installFromMarketplace, phase, pluginInstalls, repo, setInstallerFor, tektonRelease } from './plugin-helpers'
 
 // The Pipelines (Tekton) plugin end to end:
-//  1. dev-1: Tekton installed from the Marketplace until Ready.
+//  1. dev-1: an installer made for another plugin is refused (the fix shown
+//     and kept), then Tekton installed from the Marketplace until Ready.
 //  2. A sample run: its tasks and step logs; nothing of the plugin on dev-2.
 //  3. Rerun and cancel from the console, both in the audit log.
 //  4. dev-2: Connect existing to a hand-applied Tekton (the vendored
@@ -54,6 +55,22 @@ async function runAction(page: Page, label: string) {
   await page.getByTestId('actions').click()
   await page.locator('.n-dropdown-option', { hasText: label }).click()
 }
+
+test('an installer made for another plugin is refused, with the fix shown and kept', async ({ page, request }) => {
+  await setInstallerFor(request, 'dev-1', 'monitoring')
+  await expect.poll(() => pluginInstalls(request, 'dev-1'), { timeout: 60_000 }).toBe('Enabled')
+  const res = await request.post('/api/plugins/installations', { data: { plugin: 'tekton', cluster: 'dev-1', mode: 'install' } })
+  expect(res.ok(), await res.text()).toBe(true)
+  await page.goto('/marketplace/tekton')
+  await expect(phase(page, 'dev-1')).toHaveText('Error', { timeout: 60_000 })
+  await expect(page.getByTestId('installation-message')).toContainText('hack/capybara-sa.sh dev-1 --installer tekton')
+  // It stays refused (no retry loop flipping it back to Installing).
+  await page.waitForTimeout(10_000)
+  await expect(phase(page, 'dev-1')).toHaveText('Error')
+  const inst = (await (await request.get('/api/plugins/installations/tekton.dev-1')).json()) as { uid: string }
+  await request.delete(`/api/plugins/installations/tekton.dev-1?confirm=tekton.dev-1&uid=${inst.uid}&keepData=false`)
+  await expect(page.getByTestId('installation-dev-1')).toHaveCount(0, { timeout: 60_000 })
+})
 
 test('install on dev-1 from the Marketplace', async ({ page, request }) => {
   await setInstallerFor(request, 'dev-1', 'tekton')
