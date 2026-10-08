@@ -122,6 +122,7 @@ e2e: web/node_modules ## Browser end-to-end tests (needs make cluster-up; resets
 	@test -f $(KUBECONFIGS)/capybara-dev-1.yaml || { echo "run make cluster-up first" >&2; exit 1; }
 	./deploy/samples/demo.sh up
 	@for p in $(IMAGE_PLUGINS); do ./hack/plugin-images.sh $$p dev-1 dev-2 || exit 1; done
+	./hack/plugin-images.sh web/e2e/images.txt dev-1
 	cd web && npx playwright install chromium-headless-shell
 	cd web && npx playwright test
 	cd web && npx playwright test -c playwright.plugin-dev.config.ts

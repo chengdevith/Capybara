@@ -1,0 +1,172 @@
+# An in-cluster Git server for the GitOps end-to-end tests: one repository,
+# "apps", built at start from the files below ("__" in a key is a "/" in the
+# repository) and served read-only over Git's smart HTTP (git.cgi below,
+# run by busybox httpd: the image has no git daemon or http-backend) at
+# http://git.e2e-git.svc.cluster.local/cgi-bin/git/apps. Tests change it
+# with kubectl exec. Images: alpine/git (web/e2e/images.txt) and the demo's
+# busybox (copied in, with its glibc, for httpd).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: e2e-git
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: repo-files
+  namespace: e2e-git
+data:
+  # A small app: a Deployment, a Service and a ConfigMap.
+  app__deployment.yaml: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web
+    spec:
+      replicas: 1
+      selector:
+        matchLabels: {app: web}
+      template:
+        metadata:
+          labels: {app: web}
+        spec:
+          containers:
+            - name: web
+              image: busybox:1.36
+              command: ["sh", "-c", "sleep 3600"]
+              resources:
+                requests: {cpu: 10m, memory: 16Mi}
+                limits: {memory: 32Mi}
+  app__service.yaml: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web
+    spec:
+      selector: {app: web}
+      ports: [{port: 80, targetPort: 8080}]
+  app__configmap.yaml: |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: web-config
+    data:
+      greeting: hello
+  # A second app, for "delete the Application only".
+  keep__configmap.yaml: |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: kept-config
+    data:
+      note: stays after its Application is deleted
+  # Refused by the Project's Argo CD project.
+  cluster__namespace.yaml: |
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: e2e-gitops-extra
+  quota__quota.yaml: |
+    apiVersion: v1
+    kind: ResourceQuota
+    metadata:
+      name: more
+    spec:
+      hard: {pods: "1000"}
+  # Git's smart HTTP, read-only (protocol v0/v1): ref advertisement, then
+  # upload-pack on the request body.
+  git.cgi: |
+    #!/bin/sh
+    case "$PATH_INFO" in
+      */info/refs)
+        repo="/srv${PATH_INFO%/info/refs}"
+        if [ "$QUERY_STRING" != "service=git-upload-pack" ]; then
+          printf 'Status: 403 Forbidden\r\n\r\nread-only\n'
+          exit 0
+        fi
+        printf 'Content-Type: application/x-git-upload-pack-advertisement\r\nCache-Control: no-cache\r\n\r\n'
+        printf '001e# service=git-upload-pack\n0000'
+        exec git upload-pack --stateless-rpc --advertise-refs "$repo"
+        ;;
+      */git-upload-pack)
+        repo="/srv${PATH_INFO%/git-upload-pack}"
+        printf 'Content-Type: application/x-git-upload-pack-result\r\nCache-Control: no-cache\r\n\r\n'
+        if [ "$HTTP_CONTENT_ENCODING" = gzip ]; then
+          gunzip -c | git upload-pack --stateless-rpc "$repo"
+        else
+          exec git upload-pack --stateless-rpc "$repo"
+        fi
+        ;;
+      *)
+        printf 'Status: 404 Not Found\r\n\r\n'
+        ;;
+    esac
+  start.sh: |
+    set -eu
+    mkdir -p /srv/apps
+    cd /srv/apps
+    for f in /files/*__*; do
+      dest="$(basename "$f" | sed 's#__#/#g')"
+      mkdir -p "$(dirname "$dest")"
+      cp "$f" "$dest"
+    done
+    git init -q -b main
+    git config user.email e2e@capybara.local
+    git config user.name e2e
+    git add -A
+    git commit -q -m "first"
+    git config http.receivepack false
+    mkdir -p /www/cgi-bin
+    cp /files/git.cgi /www/cgi-bin/git
+    chmod +x /www/cgi-bin/git
+    git config --global --add safe.directory '*'
+    touch /srv/ready
+    # busybox is linked against glibc (copied with it); git is Alpine's own.
+    exec /tools/lib/ld-linux-* --library-path /tools/lib /tools/busybox httpd -f -v -p 8080 -h /www
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: git
+  namespace: e2e-git
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: git}
+  template:
+    metadata:
+      labels: {app: git}
+    spec:
+      initContainers:
+        - name: tools
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "cp /bin/busybox /tools/busybox && cp -r /lib /tools/lib"]
+          volumeMounts:
+            - {name: tools, mountPath: /tools}
+      containers:
+        - name: git
+          image: alpine/git:v2.49.1
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "/files/start.sh"]
+          ports: [{containerPort: 8080, name: http}]
+          readinessProbe:
+            exec: {command: ["test", "-f", "/srv/ready"]}
+            periodSeconds: 2
+          volumeMounts:
+            - {name: files, mountPath: /files}
+            - {name: tools, mountPath: /tools}
+      volumes:
+        - name: files
+          configMap: {name: repo-files}
+        - name: tools
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: git
+  namespace: e2e-git
+spec:
+  selector: {app: git}
+  ports: [{port: 80, targetPort: http, name: http}]

@@ -11,7 +11,23 @@ export const installerFile = (id: string) => resolve(repo, `.local/kubeconfig/ca
 export const sa = (...args: string[]) => execFileSync(resolve(repo, 'hack/capybara-sa.sh'), args, { stdio: 'pipe' })
 export const connectFlags = ['--connect', '--set', 'namespace=monitoring', '--set', 'service=prometheus', '--set', 'port=9090']
 /** Installer flags per plugin for connect mode. */
-const connectFlagsOf: Record<string, string[]> = { monitoring: connectFlags, tekton: ['--connect'] }
+const connectFlagsOf: Record<string, string[]> = { monitoring: connectFlags, tekton: ['--connect'], argocd: ['--connect', '--set', 'namespace=argocd'] }
+
+/** Deletes every Argo CD Application on a cluster without cascading (GitOps
+ * refuses to uninstall while any exist). No-op without the CRD. */
+export function deleteApplications(cluster: 'dev-1' | 'dev-2') {
+  let names: string[]
+  try {
+    names = kubectl(cluster, 'get', 'applications.argoproj.io', '-A', '-o', 'jsonpath={range .items[*]}{.metadata.namespace}/{.metadata.name}{"\\n"}{end}').split('\n').filter(Boolean)
+  } catch {
+    return
+  }
+  for (const n of names) {
+    const [ns, name] = n.split('/') as [string, string]
+    kubectl(cluster, '-n', ns, 'patch', 'applications.argoproj.io', name, '--type=merge', '-p', '{"metadata":{"finalizers":null}}')
+    kubectl(cluster, '-n', ns, 'delete', 'applications.argoproj.io', name, '--ignore-not-found', '--wait=false')
+  }
+}
 
 export interface Inst {
   id: string
@@ -45,6 +61,8 @@ export async function pluginInstalls(api: APIRequestContext, id: string): Promis
 /** Back to a clean slate: no installations, no installer credentials, no sample Prometheus. */
 export async function cleanup(api: APIRequestContext) {
   const existing = await installations(api)
+  deleteApplications('dev-1')
+  deleteApplications('dev-2')
   if (existing.length) {
     // Uninstalling needs the installer credentials: each plugin's, for its mode.
     for (const i of existing) {

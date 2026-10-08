@@ -8,6 +8,7 @@
 # the node's containerd refuses (same as deploy/samples/demo.sh).
 #
 # Usage: hack/plugin-images.sh <plugin> [cluster-id ...]   (default: dev-1 dev-2)
+#        hack/plugin-images.sh <list.txt> [cluster-id ...]  (another pinned list, e.g. web/e2e/images.txt)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -16,6 +17,10 @@ shift
 clusters=("$@")
 ((${#clusters[@]})) || clusters=(dev-1 dev-2)
 list="plugins/${plugin}/images.txt"
+if [[ "$plugin" == *.txt ]]; then
+  list="$plugin"
+  plugin="$(basename "$(dirname "$plugin")")"
+fi
 [[ -f "$list" ]] || { echo "no image list: $list" >&2; exit 1; }
 
 platform="$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')"
