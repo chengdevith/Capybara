@@ -387,3 +387,110 @@ func dryRunCreate(ctx context.Context, cfg *rest.Config, ns string, raw []byte) 
 	_, err = dyn.Resource(plural).Namespace(ns).Create(ctx, &obj, metav1.CreateOptions{DryRun: []string{metav1.DryRunAll}})
 	return err
 }
+
+// ProjectRole names the ClusterRole holding a plugin's per-Project rules;
+// a RoleBinding of the same name grants it in each Project namespace.
+func ProjectRole(plugin string) string { return "capybara-plugin-" + plugin + "-project" }
+
+// LabelProjectAccess marks the per-Project RoleBindings and ServiceAccounts
+// a plugin created (so stale ones can be found and removed).
+const LabelProjectAccess = "platform.capybara.io/plugin-project-access"
+
+// ProjectAccessResult says which Project namespaces got the plugin's
+// per-Project access, and which could not (e.g. a ServiceAccount of that
+// name exists there and is not Capybara's: it is never adopted).
+type ProjectAccessResult struct {
+	Granted  []string
+	Problems []string
+}
+
+// syncProjectAccess makes the plugin's per-Project access exactly the
+// given namespaces: the ClusterRole, and in each namespace a RoleBinding
+// to Capybara's account plus the declared ServiceAccounts (no permissions;
+// no API token unless declared). Stale ones (Projects gone) are removed.
+// With the installer credential.
+func syncProjectAccess(ctx context.Context, cs kubernetes.Interface, plugin, clusterID, identity string,
+	pa *v1alpha1.ProjectAccess, namespaces []string) (ProjectAccessResult, error) {
+	var res ProjectAccessResult
+	name := ProjectRole(plugin)
+	labels := pluginLabels(plugin, clusterID)
+	labels[LabelProjectAccess] = "true"
+	opts := metav1.PatchOptions{FieldManager: "capybara-controller", Force: ptr.To(true)}
+	if pa != nil && len(namespaces) > 0 {
+		subject, err := subjectFor(identity)
+		if err != nil {
+			return res, err
+		}
+		role := &rbacv1.ClusterRole{TypeMeta: metav1.TypeMeta{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "ClusterRole"},
+			ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels}, Rules: toRBAC(pa.Rules)}
+		body, _ := jsonMarshal(role)
+		if _, err := cs.RbacV1().ClusterRoles().Patch(ctx, name, types.ApplyPatchType, body, opts); err != nil {
+			return res, fmt.Errorf("project role: %w", err)
+		}
+	nextNamespace:
+		for _, ns := range namespaces {
+			for _, sa := range pa.ServiceAccounts {
+				existing, err := cs.CoreV1().ServiceAccounts(ns).Get(ctx, sa.Name, metav1.GetOptions{})
+				if err == nil && existing.Labels[LabelProjectAccess] != "true" {
+					res.Problems = append(res.Problems, fmt.Sprintf(
+						"%s: a ServiceAccount %q exists there and was not created by Capybara (never adopted)", ns, sa.Name))
+					continue nextNamespace
+				}
+				if err != nil && !apierrors.IsNotFound(err) {
+					return res, err
+				}
+				obj := &corev1.ServiceAccount{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ServiceAccount"},
+					ObjectMeta:                   metav1.ObjectMeta{Name: sa.Name, Namespace: ns, Labels: labels},
+					AutomountServiceAccountToken: ptr.To(sa.AutomountToken)}
+				body, _ := jsonMarshal(obj)
+				if _, err := cs.CoreV1().ServiceAccounts(ns).Patch(ctx, sa.Name, types.ApplyPatchType, body, opts); err != nil {
+					return res, fmt.Errorf("%s: service account %s: %w", ns, sa.Name, err)
+				}
+			}
+			binding := &rbacv1.RoleBinding{TypeMeta: metav1.TypeMeta{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "RoleBinding"},
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns, Labels: labels},
+				RoleRef:    rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: name},
+				Subjects:   []rbacv1.Subject{subject}}
+			body, _ := jsonMarshal(binding)
+			if _, err := cs.RbacV1().RoleBindings(ns).Patch(ctx, name, types.ApplyPatchType, body, opts); err != nil {
+				return res, fmt.Errorf("%s: role binding: %w", ns, err)
+			}
+			res.Granted = append(res.Granted, ns)
+		}
+	}
+
+	// Remove what no longer belongs to a Project.
+	want := map[string]bool{}
+	for _, ns := range res.Granted {
+		want[ns] = true
+	}
+	selector := metav1.ListOptions{LabelSelector: v1alpha1.LabelPlugin + "=" + plugin + "," + LabelProjectAccess + "=true"}
+	bindings, err := cs.RbacV1().RoleBindings("").List(ctx, selector)
+	if err != nil {
+		return res, fmt.Errorf("list project role bindings: %w", err)
+	}
+	for _, b := range bindings.Items {
+		if b.Name == name && !want[b.Namespace] {
+			if err := cs.RbacV1().RoleBindings(b.Namespace).Delete(ctx, b.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+				return res, err
+			}
+		}
+	}
+	accounts, err := cs.CoreV1().ServiceAccounts("").List(ctx, selector)
+	if err != nil {
+		return res, fmt.Errorf("list project service accounts: %w", err)
+	}
+	for _, a := range accounts.Items {
+		if !want[a.Namespace] {
+			if err := cs.CoreV1().ServiceAccounts(a.Namespace).Delete(ctx, a.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+				return res, err
+			}
+		}
+	}
+	if pa == nil || len(res.Granted) == 0 {
+		if err := cs.RbacV1().ClusterRoles().Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return res, err
+		}
+	}
+	return res, nil
+}

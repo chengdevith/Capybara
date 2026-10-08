@@ -47,6 +47,9 @@ const (
 	// failing steps afterwards mean the installation is degraded (Error),
 	// not still installing.
 	ConditionInstalled = "Installed"
+	// ConditionProjectAccess: the plugin's per-Project access is in place in
+	// every Project namespace of the cluster.
+	ConditionProjectAccess = "ProjectAccess"
 )
 
 // TokenSecretName is the mgmt Secret holding a plugin's token for a cluster.
@@ -105,6 +108,7 @@ func (r *InstallationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.PluginInstallation{}, builder.WithPredicates(installationChanged)).
 		Watches(&v1alpha1.Plugin{}, handler.EnqueueRequestsFromMapFunc(r.forPlugin)).
+		Watches(&v1alpha1.Project{}, handler.EnqueueRequestsFromMapFunc(r.forProject)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 2}).
 		Named("plugin-installation").
 		Complete(r)
@@ -125,6 +129,26 @@ var installationChanged = predicate.Or(
 			len(e.ObjectOld.GetFinalizers()) != len(e.ObjectNew.GetFinalizers())
 	}},
 )
+
+// forProject: a Project changed on a cluster; its plugins' per-Project
+// access follows.
+func (r *InstallationReconciler) forProject(ctx context.Context, o client.Object) []reconcile.Request {
+	pr, ok := o.(*v1alpha1.Project)
+	if !ok {
+		return nil
+	}
+	var list v1alpha1.PluginInstallationList
+	if err := r.Client.List(ctx, &list); err != nil {
+		return nil
+	}
+	var out []reconcile.Request
+	for _, in := range list.Items {
+		if in.Spec.Cluster == pr.Spec.Cluster {
+			out = append(out, reconcile.Request{NamespacedName: types.NamespacedName{Name: in.Name}})
+		}
+	}
+	return out
+}
 
 func (r *InstallationReconciler) forPlugin(ctx context.Context, o client.Object) []reconcile.Request {
 	var list v1alpha1.PluginInstallationList
@@ -292,7 +316,62 @@ func (r *InstallationReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			tokenWarn = err.Error()
 		}
 	}
+	if p.Spec.Permissions.Project != nil && st.InstalledVersion != "" {
+		r.syncProjects(ctx, &in, &p, inst, instErr, st)
+	}
 	return r.checkSteps(ctx, &in, &p, services, st, tokenWarn)
+}
+
+// projectNamespaces lists the namespaces of the Ready Projects on a cluster.
+func (r *InstallationReconciler) projectNamespaces(ctx context.Context, clusterID string) ([]string, error) {
+	var projects v1alpha1.ProjectList
+	if err := r.Client.List(ctx, &projects); err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, pr := range projects.Items {
+		if pr.Spec.Cluster == clusterID && pr.DeletionTimestamp.IsZero() && pr.Status.Phase == v1alpha1.PhaseReady {
+			out = append(out, pr.Spec.Namespace)
+		}
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
+// syncProjects keeps the plugin's per-Project access in step with the
+// cluster's Projects (with the installer credential) and reports it in the
+// ProjectAccess condition.
+func (r *InstallationReconciler) syncProjects(ctx context.Context, in *v1alpha1.PluginInstallation, p *v1alpha1.Plugin,
+	inst *rest.Config, instErr error, st *v1alpha1.PluginInstallationStatus) {
+	fail := func(reason, msg string) { setCond(st, ConditionProjectAccess, metav1.ConditionFalse, reason, msg) }
+	if instErr != nil {
+		fail("NoInstaller", "Project namespaces are kept up to date with the installer credential: "+instErr.Error())
+		return
+	}
+	namespaces, err := r.projectNamespaces(ctx, in.Spec.Cluster)
+	if err != nil {
+		fail("Failed", err.Error())
+		return
+	}
+	var cl v1alpha1.Cluster
+	if err := r.Client.Get(ctx, types.NamespacedName{Name: in.Spec.Cluster}, &cl); err != nil {
+		fail("Failed", err.Error())
+		return
+	}
+	cs, err := kubernetes.NewForConfig(inst)
+	if err != nil {
+		fail("Failed", err.Error())
+		return
+	}
+	res, err := syncProjectAccess(ctx, cs, p.Name, in.Spec.Cluster, cl.Status.Identity, p.Spec.Permissions.Project, namespaces)
+	switch {
+	case err != nil:
+		fail("Failed", err.Error())
+	case len(res.Problems) > 0:
+		fail("Partial", strings.Join(res.Problems, "; "))
+	default:
+		setCond(st, ConditionProjectAccess, metav1.ConditionTrue, "Granted", fmt.Sprintf("%d Project namespace(s)", len(res.Granted)))
+	}
 }
 
 func (r *InstallationReconciler) apply(ctx context.Context, in *v1alpha1.PluginInstallation, p *v1alpha1.Plugin, dir string,
@@ -764,6 +843,11 @@ func (r *InstallationReconciler) uninstall(ctx context.Context, in *v1alpha1.Plu
 			if err := r.removeCRDs(uctx, ref, in, p, inst, confirmed); err != nil {
 				return ctrl.Result{}, err
 			}
+		}
+	}
+	if p.Spec.Permissions.Project != nil {
+		if _, err := syncProjectAccess(ctx, cs, in.Spec.Plugin, in.Spec.Cluster, "", p.Spec.Permissions.Project, nil); err != nil {
+			return r.blocked(ctx, in, st, "revoke the per-Project access: "+err.Error())
 		}
 	}
 	if len(p.Spec.Permissions.Console.ClusterRules) > 0 {

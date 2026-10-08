@@ -14,11 +14,15 @@ import (
 	chart "helm.sh/helm/v4/pkg/chart/v2"
 	chartutil "helm.sh/helm/v4/pkg/chart/v2/util"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/capybara/capybara/api/v1alpha1"
@@ -309,5 +313,166 @@ func TestCancelRefusedRequestNeedsNoInstaller(t *testing.T) {
 	f.reconcile(t, "monitoring.dev-2")
 	if err := f.c.Get(ctx, types.NamespacedName{Name: "monitoring.dev-2"}, &v1alpha1.PluginInstallation{}); !apierrors.IsNotFound(err) {
 		t.Errorf("refused request not removed without an installer: %v", err)
+	}
+}
+
+func readyProject(t *testing.T, f *envFixture, name, clusterID string) *v1alpha1.Project {
+	t.Helper()
+	ctx := f.ctx
+	_ = f.c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}})
+	pr := &v1alpha1.Project{ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: v1alpha1.ProjectSpec{Cluster: clusterID, Namespace: name, Owner: "team", Size: "S"}}
+	if err := f.c.Create(ctx, pr); err != nil {
+		t.Fatal(err)
+	}
+	pr.Status.Phase = v1alpha1.PhaseReady
+	if err := f.c.Status().Update(ctx, pr); err != nil {
+		t.Fatal(err)
+	}
+	return pr
+}
+
+// A plugin's per-Project access: a RoleBinding to Capybara's account and
+// the declared ServiceAccount (no API token) in each Ready Project
+// namespace of the installation's cluster only; a ServiceAccount of that
+// name that is not Capybara's is never adopted; gone with the Project and
+// on uninstall.
+func TestProjectAccessFollowsProjects(t *testing.T) {
+	f := newEnv(t)
+	ctx := f.ctx
+	root := t.TempDir()
+	f.r.PluginsDir = root
+	f.setInstaller(t, "dev-1", nil)
+	cl := &v1alpha1.Cluster{ObjectMeta: metav1.ObjectMeta{Name: "dev-1"},
+		Spec: v1alpha1.ClusterSpec{Environment: v1alpha1.EnvDev, KubeconfigSecret: v1alpha1.SecretRef{Name: "dev-1-kubeconfig"}}}
+	if err := f.c.Create(ctx, cl); err != nil {
+		t.Fatal(err)
+	}
+	cl.Status.Identity = "system:serviceaccount:capybara-system:capybara"
+	_ = f.c.Status().Update(ctx, cl)
+
+	spec := writeWidgetsPlugin(t, root, "1.0.0", "one")
+	spec.Permissions.Project = &v1alpha1.ProjectAccess{
+		Rules:           []v1alpha1.PolicyRule{{APIGroups: []string{"example.com"}, Resources: []string{"widgets"}, Verbs: []string{"create", "update", "delete"}}},
+		ServiceAccounts: []v1alpha1.ProjectServiceAccount{{Name: "pipeline"}},
+	}
+	p := &v1alpha1.Plugin{ObjectMeta: metav1.ObjectMeta{Name: "widgets"}, Spec: *spec}
+	if err := f.c.Create(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	p.Status.Available = true
+	_ = f.c.Status().Update(ctx, p)
+
+	readyProject(t, f, "team-a", "dev-1")
+	readyProject(t, f, "team-b", "dev-1")
+	readyProject(t, f, "elsewhere", "dev-2")
+	// team-b already has its own "pipeline" ServiceAccount.
+	if _, err := f.cs.CoreV1().ServiceAccounts("team-b").Create(ctx, &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: "pipeline"}}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	install := &v1alpha1.PluginInstallation{ObjectMeta: metav1.ObjectMeta{Name: "widgets.dev-1"},
+		Spec: v1alpha1.PluginInstallationSpec{Plugin: "widgets", Cluster: "dev-1", Mode: v1alpha1.ModeInstall, Enabled: true, Version: "1.0.0"}}
+	if err := f.c.Create(ctx, install); err != nil {
+		t.Fatal(err)
+	}
+	var in v1alpha1.PluginInstallation
+	deadline := time.Now().Add(30 * time.Second)
+	for in = f.reconcile(t, "widgets.dev-1"); in.Status.Phase != v1alpha1.InstallReady && time.Now().Before(deadline); in = f.reconcile(t, "widgets.dev-1") {
+		time.Sleep(300 * time.Millisecond)
+	}
+	role := ProjectRole("widgets")
+	if _, err := f.cs.RbacV1().ClusterRoles().Get(ctx, role, metav1.GetOptions{}); err != nil {
+		t.Fatalf("project role: %v", err)
+	}
+	rb, err := f.cs.RbacV1().RoleBindings("team-a").Get(ctx, role, metav1.GetOptions{})
+	if err != nil || rb.RoleRef.Name != role || rb.Subjects[0].Name != "capybara" {
+		t.Fatalf("team-a binding = %+v, %v", rb, err)
+	}
+	sa, err := f.cs.CoreV1().ServiceAccounts("team-a").Get(ctx, "pipeline", metav1.GetOptions{})
+	if err != nil || sa.AutomountServiceAccountToken == nil || *sa.AutomountServiceAccountToken {
+		t.Fatalf("team-a pipeline account = %+v, %v", sa, err)
+	}
+	if _, err := f.cs.RbacV1().RoleBindings("team-b").Get(ctx, role, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Error("team-b got access although its pipeline ServiceAccount is not Capybara's")
+	}
+	if _, err := f.cs.RbacV1().RoleBindings("elsewhere").Get(ctx, role, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Error("a Project on another cluster got access")
+	}
+	c := meta.FindStatusCondition(in.Status.Conditions, ConditionProjectAccess)
+	if c == nil || c.Status != metav1.ConditionFalse || !strings.Contains(c.Message, "team-b") {
+		t.Errorf("ProjectAccess = %+v", c)
+	}
+
+	// team-a's Project goes: so does its access.
+	var pa v1alpha1.Project
+	_ = f.c.Get(ctx, types.NamespacedName{Name: "team-a"}, &pa)
+	_ = f.c.Delete(ctx, &pa)
+	f.reconcile(t, "widgets.dev-1")
+	if _, err := f.cs.RbacV1().RoleBindings("team-a").Get(ctx, role, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Error("binding kept after the Project went")
+	}
+	if _, err := f.cs.CoreV1().ServiceAccounts("team-a").Get(ctx, "pipeline", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Error("pipeline account kept after the Project went")
+	}
+	if _, err := f.cs.CoreV1().ServiceAccounts("team-b").Get(ctx, "pipeline", metav1.GetOptions{}); err != nil {
+		t.Error("someone else's pipeline account was removed")
+	}
+
+	// Uninstall removes the rest.
+	readyProject(t, f, "team-c", "dev-1")
+	f.reconcile(t, "widgets.dev-1")
+	if _, err := f.cs.RbacV1().RoleBindings("team-c").Get(ctx, role, metav1.GetOptions{}); err != nil {
+		t.Fatalf("team-c binding: %v", err)
+	}
+	_ = f.c.Get(ctx, types.NamespacedName{Name: "widgets.dev-1"}, &in)
+	_ = f.c.Delete(ctx, &in)
+	f.reconcile(t, "widgets.dev-1")
+	if _, err := f.cs.RbacV1().RoleBindings("team-c").Get(ctx, role, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Error("binding kept after uninstall")
+	}
+	if _, err := f.cs.RbacV1().ClusterRoles().Get(ctx, role, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Error("project role kept after uninstall")
+	}
+}
+
+// The installer's declared rules (not cluster-admin) are enough to create
+// the per-Project access, thanks to escalate/bind on that one ClusterRole.
+func TestInstallerRulesSufficeForProjectAccess(t *testing.T) {
+	f := newEnv(t)
+	ctx := f.ctx
+	spec := &v1alpha1.PluginSpec{Name: "widgets", Permissions: v1alpha1.PluginPermissions{Project: &v1alpha1.ProjectAccess{
+		Rules:           []v1alpha1.PolicyRule{{APIGroups: []string{"example.com"}, Resources: []string{"widgets"}, Verbs: []string{"create", "update", "delete"}}},
+		ServiceAccounts: []v1alpha1.ProjectServiceAccount{{Name: "pipeline"}},
+	}}}
+	rules, _ := InstallerRules(spec, v1alpha1.ModeConnect, nil, "")
+	role := &rbacv1.ClusterRole{ObjectMeta: metav1.ObjectMeta{Name: "test-installer"}, Rules: rules}
+	if _, err := f.cs.RbacV1().ClusterRoles().Create(ctx, role, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.cs.RbacV1().ClusterRoleBindings().Create(ctx, &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: "test-installer"},
+		RoleRef:  rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: "test-installer"},
+		Subjects: []rbacv1.Subject{{Kind: "User", APIGroup: rbacv1.GroupName, Name: "least-installer"}}}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	u, err := f.env.AddUser(envtest.User{Name: "least-installer"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs := kubernetes.NewForConfigOrDie(u.Config())
+	_ = f.c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "team-z"}})
+	res, err := syncProjectAccess(ctx, cs, "widgets", "dev-1", "system:serviceaccount:capybara-system:capybara", spec.Permissions.Project, []string{"team-z"})
+	if err != nil || len(res.Granted) != 1 {
+		t.Fatalf("grant as the installer: %+v %v", res, err)
+	}
+	if _, err := syncProjectAccess(ctx, cs, "widgets", "dev-1", "", spec.Permissions.Project, nil); err != nil {
+		t.Fatalf("revoke as the installer: %v", err)
+	}
+	// It may not bind any other role.
+	_, err = cs.RbacV1().RoleBindings("team-z").Create(ctx, &rbacv1.RoleBinding{ObjectMeta: metav1.ObjectMeta{Name: ProjectRole("widgets")},
+		RoleRef:  rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: "cluster-admin"},
+		Subjects: []rbacv1.Subject{{Kind: "User", APIGroup: rbacv1.GroupName, Name: "x"}}}, metav1.CreateOptions{})
+	if !apierrors.IsForbidden(err) {
+		t.Errorf("binding cluster-admin: %v", err)
 	}
 }

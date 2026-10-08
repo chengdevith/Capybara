@@ -158,6 +158,30 @@ func InstallerRules(spec *v1alpha1.PluginSpec, mode v1alpha1.InstallMode, servic
 		)
 		cluster = append(cluster, console...)
 	}
+	// Per-Project access: the installer creates the project ClusterRole
+	// without holding its rules (escalate, on that name only) and binds it
+	// in Project namespaces (bind, on that name only), and manages the
+	// RoleBindings and ServiceAccounts (create/list anywhere: Project
+	// namespaces come and go; get/patch/delete only those names).
+	if pa := spec.Permissions.Project; pa != nil {
+		role := ProjectRole(pluginNameOf(spec))
+		var accounts []string
+		for _, sa := range pa.ServiceAccounts {
+			accounts = append(accounts, sa.Name)
+		}
+		cluster = append(cluster,
+			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"clusterroles"}, Verbs: []string{"create"}},
+			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"clusterroles"}, ResourceNames: []string{role}, Verbs: []string{"get", "patch", "delete", "escalate", "bind"}},
+			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"rolebindings"}, Verbs: []string{"create", "list"}},
+			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"rolebindings"}, ResourceNames: []string{role}, Verbs: []string{"get", "patch", "delete"}},
+		)
+		if len(accounts) > 0 {
+			cluster = append(cluster,
+				rbacv1.PolicyRule{APIGroups: []string{""}, Resources: []string{"serviceaccounts"}, Verbs: []string{"create", "list"}},
+				rbacv1.PolicyRule{APIGroups: []string{""}, Resources: []string{"serviceaccounts"}, ResourceNames: accounts, Verbs: []string{"get", "patch", "delete"}},
+			)
+		}
+	}
 	return cluster, ns
 }
 
