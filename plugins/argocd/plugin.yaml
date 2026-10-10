@@ -1,26 +1,22 @@
-# GitOps (id: argocd): Argo CD Applications in Project namespaces,
-# installed from the vendored argo-cd chart (controller, repo server and
-# Redis; Capybara's console is the UI) or connected to an Argo CD already in
-# the cluster (on OpenShift: OpenShift GitOps; never install a second one
-# there). See ADR 0009.
+# GitOps (id: argocd): Argo CD, installed from the vendored argo-cd chart
+# (with its own web UI, opened from the console's tools launcher) or
+# connected to an Argo CD already in the cluster (on OpenShift: OpenShift
+# GitOps; never install a second one there). Each Project gets its own
+# Argo CD project limited to its namespace. See ADR 0009.
 name: argocd
 displayName: GitOps
-version: 0.1.0
+version: 0.2.0
 description: >-
-  Argo CD Applications for each Project: create them from a form or YAML,
-  follow sync and health, the deployed resources and the sync history;
-  sync, refresh, roll back, and switch auto-sync, self-heal and auto-prune.
-  Each Project gets its own Argo CD project limited to its namespace, with
-  no cluster-wide kinds and no changes to its quota, limits, network
-  policies or role bindings. Installs Argo CD v3.5.4 (no API server, Dex,
-  notifications or ApplicationSets), or connects to an existing Argo CD.
+  Argo CD with its own web UI, opened from the tools launcher in the top
+  bar. Each Project gets its own Argo CD project limited to its namespace,
+  with no cluster-wide kinds and no changes to its quota, limits, network
+  policies or role bindings. Installs Argo CD v3.5.4 (no Dex, notifications
+  or ApplicationSets; log in as admin until Phase 5), or connects to an
+  existing Argo CD (its UI address can be given).
 icon: icon.svg
 extensionApi: 1
-# Action inputs and confirmation, delete modes (1.3).
-minExtensionApi: "1.3"
 scope: per-cluster
 modes: [install, connect]
-extensionPoints: [nav-section, nav-item, route, resource-detail-tab, resource-action, project-overview-card]
 
 chart:
   archive: chart/argo-cd-10.10.1.tgz
@@ -40,17 +36,18 @@ chart:
       keys:
         - name: auth
           random: true
-  # A proxy for reaching Git servers, if the cluster needs one.
+  # Argo CD's UI answers under the path Capybara serves it at (one per
+  # cluster); a proxy for reaching Git servers, if the cluster needs one.
   installValues:
+    configs:
+      params:
+        server.rootpath: "/api/plugins/argocd/tools/argocd/{{cluster}}"
+        server.basehref: "/api/plugins/argocd/tools/argocd/{{cluster}}"
     repoServer:
       env:
         - {name: HTTP_PROXY, value: "{{config.httpProxy}}"}
         - {name: HTTPS_PROXY, value: "{{config.httpsProxy}}"}
         - {name: NO_PROXY, value: "{{config.noProxy}}"}
-
-ui:
-  bundle: ui/dist/argocd.js
-  sha256: 1365bbe56834a4efc5a2ea06f02957f6286a5d11976924f2da27242041f5ebe0
 
 # An existing Argo CD: connect needs Applications served; install is refused
 # when its CRDs belong to another install, or OpenShift GitOps' namespace
@@ -84,6 +81,11 @@ config:
         title: No proxy
         description: "Install: hosts reached directly, comma-separated."
         pattern: "^[^\\s]*$"
+      uiURL:
+        type: string
+        title: Argo CD UI address
+        description: "Connect: the existing Argo CD's web address (https://…, e.g. the OpenShift GitOps route), for the tools launcher."
+        pattern: "^(https://[^\\s]+)?$"
 
 # Generated AppProjects live in Argo CD's namespace.
 connectNamespaceKey: namespace
@@ -132,8 +134,9 @@ permissions:
   # (added from permissions.project.objects) and the per-Project access.
   connect: {}
   # Capybara's own account, while the plugin is installed: reading
-  # Applications and AppProjects, and what the connect checks look at.
-  # Never ApplicationSets.
+  # Applications (uninstall safety) and AppProjects, and what the connect
+  # check looks at; reaching the argocd-server Service (the UI, added from
+  # tools). Never ApplicationSets.
   console:
     clusterRules:
       - apiGroups: [argoproj.io]
@@ -142,14 +145,9 @@ permissions:
       - apiGroups: [argoproj.io]
         resources: [argocds]
         verbs: [get, list]
-  # Writes, only in Project namespaces (ClusterRole
-  # capybara-plugin-argocd-project, bound in each Project namespace), and
-  # one AppProject per Project in Argo CD's namespace.
+  # One Argo CD project per Project, in Argo CD's namespace (no access is
+  # granted to Capybara in Projects).
   project:
-    rules:
-      - apiGroups: [argoproj.io]
-        resources: [applications]
-        verbs: [create, update, patch, delete]
     objects:
       # The Project's Argo CD project: Applications only from the Project's
       # namespace, deploying only into it, on this cluster; no
@@ -176,196 +174,6 @@ permissions:
               - {group: networking.k8s.io, kind: NetworkPolicy}
               - {group: rbac.authorization.k8s.io, kind: RoleBinding}
 
-# Applications, written only in Project namespaces after the policy below,
-# and only where Argo CD accepts them there (step apps-in-any-namespace).
-objects:
-  - name: applications
-    group: argoproj.io
-    version: v1alpha1
-    resource: applications
-    kind: Application
-    verbs: [create, update, delete]
-    policy: application
-    requiresStep: apps-in-any-namespace
-    # Deleting an Application: with the resources it deployed (Argo CD's
-    # cascade finalizer), or the Application only (they stay).
-    deleteModes:
-      - name: cascade
-        title: Delete the Application and the resources it deployed
-        ensureFinalizers: [resources-finalizer.argocd.argoproj.io]
-      - name: app-only
-        title: Delete the Application only (deployed resources stay)
-        removeFinalizers:
-          - resources-finalizer.argocd.argoproj.io
-          - resources-finalizer.argocd.argoproj.io/background
-          - resources-finalizer.argocd.argoproj.io/foreground
-
-policies:
-  application:
-    rules:
-      # Its Project's own Argo CD project, deploying only into its own
-      # namespace on this cluster.
-      - {path: spec.project, default: "capybara-{{project}}"}
-      - {path: spec.project, allow: ["capybara-{{project}}"], message: "Applications use their Project's Argo CD project (capybara-{{project}})"}
-      - {path: spec.destination.server, default: "https://kubernetes.default.svc"}
-      - {path: spec.destination.server, allow: ["https://kubernetes.default.svc"], message: "Applications deploy to this cluster only"}
-      - {path: spec.destination.name, deny: true, message: "name the destination by server (this cluster), not by name"}
-      - {path: spec.destination.namespace, default: "{{namespace}}"}
-      - {path: spec.destination.namespace, allow: ["{{namespace}}"], message: "Applications deploy only into their Project's namespace ({{namespace}})"}
-      # One source (rollback and history assume it).
-      - {path: spec.sources, deny: true, message: "multiple sources are not supported yet; use spec.source"}
-      - {path: spec.sourceHydrator, deny: true, message: "source hydration is not supported"}
-      # https:// anywhere; http:// and git:// only to in-cluster services.
-      - path: spec.source.repoURL
-        match: '^(https://[^\s]+|(http|git)://[a-z0-9]([-a-z0-9.]*[a-z0-9])?\.svc(\.cluster\.local)?(:[0-9]+)?(/[^\s]*)?)$'
-        message: "repository URLs must be https://, or http:// or git:// to a service in this cluster (*.svc); no SSH"
-      - {path: spec.source.plugin, deny: true, message: "config management plugins are not allowed"}
-      # The namespace stays the Project's: never created or relabelled.
-      - {path: spec.syncPolicy.managedNamespaceMetadata, deny: true, message: "an Application may not change its namespace's labels or annotations"}
-      - {path: "spec.syncPolicy.syncOptions.*", deny: true, equals: "CreateNamespace=true", message: "the namespace exists (it is the Project's)"}
-      # Only Argo CD's own deletion finalizers.
-      - path: "metadata.finalizers.*"
-        allow:
-          - resources-finalizer.argocd.argoproj.io
-          - resources-finalizer.argocd.argoproj.io/background
-          - resources-finalizer.argocd.argoproj.io/foreground
-        message: "only Argo CD's resources finalizer is allowed"
-      # Syncs are started by the Sync action, never by writing an operation.
-      - {path: operation, deny: true, message: "start a sync with Sync, not by writing an operation"}
-
-# Writes the console may make, only as declared here (core runs them,
-# audited as argocd.<action>), only in Project namespaces, and only where
-# Argo CD accepts Applications there.
-actions:
-  - name: refresh
-    title: Refresh
-    group: argoproj.io
-    version: v1alpha1
-    resource: applications
-    kind: Application
-    type: patch
-    patch: {metadata: {annotations: {argocd.argoproj.io/refresh: normal}}}
-    projectOnly: true
-    requiresStep: apps-in-any-namespace
-  - name: hard-refresh
-    title: Hard refresh
-    group: argoproj.io
-    version: v1alpha1
-    resource: applications
-    kind: Application
-    type: patch
-    patch: {metadata: {annotations: {argocd.argoproj.io/refresh: hard}}}
-    projectOnly: true
-    requiresStep: apps-in-any-namespace
-  # Sync now (to the target revision, or one given); pruning deletes
-  # resources no longer in Git, so it asks for the name.
-  - name: sync
-    title: Sync
-    group: argoproj.io
-    version: v1alpha1
-    resource: applications
-    kind: Application
-    type: patch
-    patch:
-      operation:
-        initiatedBy: {username: "$(user)"}
-        sync: {revision: "$(inputs.revision)", prune: "$(inputs.prune)"}
-    inputs:
-      - {name: revision, title: Revision, type: string, pattern: "[A-Za-z0-9._/+-]{1,200}", optional: true}
-      - {name: prune, title: Prune, type: bool}
-    confirmName: {input: prune, equals: "true"}
-    when: {absent: [operation]}
-    projectOnly: true
-    requiresStep: apps-in-any-namespace
-  # "Sync to this revision" from the history: only for single-source
-  # Applications without auto-sync (which would undo it), never pruning.
-  - name: sync-revision
-    title: Sync to this revision
-    group: argoproj.io
-    version: v1alpha1
-    resource: applications
-    kind: Application
-    type: patch
-    patch:
-      operation:
-        initiatedBy: {username: "$(user)"}
-        sync: {revision: "$(inputs.revision)", prune: false}
-    inputs:
-      - {name: revision, title: Revision, type: string, pattern: "[A-Za-z0-9._/+-]{1,200}"}
-    when: {absent: [operation, spec.syncPolicy.automated, spec.sources]}
-    projectOnly: true
-    requiresStep: apps-in-any-namespace
-    danger: true
-  - name: auto-sync-on
-    title: Turn on auto-sync
-    group: argoproj.io
-    version: v1alpha1
-    resource: applications
-    kind: Application
-    type: patch
-    patch: {spec: {syncPolicy: {automated: {prune: false, selfHeal: false}}}}
-    when: {absent: [spec.syncPolicy.automated]}
-    projectOnly: true
-    requiresStep: apps-in-any-namespace
-  - name: auto-sync-off
-    title: Turn off auto-sync
-    group: argoproj.io
-    version: v1alpha1
-    resource: applications
-    kind: Application
-    type: patch
-    patch: {spec: {syncPolicy: {automated: null}}}
-    when: {present: [spec.syncPolicy.automated]}
-    projectOnly: true
-    requiresStep: apps-in-any-namespace
-  - name: self-heal-on
-    title: Turn on self-heal
-    group: argoproj.io
-    version: v1alpha1
-    resource: applications
-    kind: Application
-    type: patch
-    patch: {spec: {syncPolicy: {automated: {selfHeal: true}}}}
-    when: {present: [spec.syncPolicy.automated]}
-    projectOnly: true
-    requiresStep: apps-in-any-namespace
-  - name: self-heal-off
-    title: Turn off self-heal
-    group: argoproj.io
-    version: v1alpha1
-    resource: applications
-    kind: Application
-    type: patch
-    patch: {spec: {syncPolicy: {automated: {selfHeal: false}}}}
-    when: {present: [spec.syncPolicy.automated]}
-    projectOnly: true
-    requiresStep: apps-in-any-namespace
-  # Auto-prune deletes resources removed from Git on every sync.
-  - name: auto-prune-on
-    title: Turn on auto-prune
-    group: argoproj.io
-    version: v1alpha1
-    resource: applications
-    kind: Application
-    type: patch
-    patch: {spec: {syncPolicy: {automated: {prune: true}}}}
-    confirmName: {}
-    when: {present: [spec.syncPolicy.automated]}
-    projectOnly: true
-    requiresStep: apps-in-any-namespace
-    danger: true
-  - name: auto-prune-off
-    title: Turn off auto-prune
-    group: argoproj.io
-    version: v1alpha1
-    resource: applications
-    kind: Application
-    type: patch
-    patch: {spec: {syncPolicy: {automated: {prune: false}}}}
-    when: {present: [spec.syncPolicy.automated]}
-    projectOnly: true
-    requiresStep: apps-in-any-namespace
-
 # Uninstalling Argo CD while Applications exist would orphan them (and a
 # later CRD removal would delete them, cascading into what they deployed).
 uninstallBlockers:
@@ -375,8 +183,8 @@ uninstallBlockers:
     kind: Application
     flagFinalizer: resources-finalizer.argocd.argoproj.io
     message: >-
-      Delete the Applications first (GitOps > Applications > Delete): either
-      with the resources they deployed, or the Application only.
+      Delete the Applications first (in Argo CD's UI: with or without the
+      resources they deployed).
 
 steps:
   - name: chart
@@ -410,9 +218,16 @@ steps:
       type: workload
       kind: StatefulSet
       name: argocd-application-controller
-  # Whether Argo CD accepts Applications outside its own namespace: without
-  # it, GitOps is view-only on this cluster (no create, edit, delete, sync
-  # or refresh). Installed: always (the preset sets it).
+  - name: server
+    title: Web UI ready
+    modes: [install]
+    check:
+      type: workload
+      kind: Deployment
+      name: argocd-server
+  # Whether Argo CD accepts Applications outside its own namespace (so each
+  # Project's Applications can live in the Project). Installed: always (the
+  # preset sets it).
   - name: apps-in-any-namespace
     title: Applications in Project namespaces
     informational: true
@@ -421,3 +236,19 @@ steps:
       fields:
         - {version: v1, resource: configmaps, name: argocd-cmd-params-cm, path: 'data.application\.namespaces', contains: "*"}
         - {group: argoproj.io, version: v1beta1, resource: argocds, path: spec.sourceNamespaces, contains: "*"}
+
+# The tools launcher: Argo CD's web UI. Installed: served by Capybara from
+# the argocd-server Service (login cookie argocd.token only). Connected:
+# the address given in the config, if any.
+tools:
+  - name: argocd
+    title: Argo CD
+    icon: argocd
+    modes: [install]
+    service: {service: argocd-server, port: http}
+    cookies: [argocd.token]
+  - name: argocd-ui
+    title: Argo CD
+    icon: argocd
+    modes: [connect]
+    urlKey: uiURL

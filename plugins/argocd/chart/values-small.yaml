@@ -1,8 +1,10 @@
 # Capybara's preset for the argo-cd chart 10.10.1 (Argo CD v3.5.4) on k3d:
-# the application controller, repo server and Redis only. Capybara's
-# console is the UI, so there is no Argo CD API server, Dex or
-# notifications; ApplicationSets are not offered (no replicas, and
-# Capybara grants no permission on them). See ADR 0009.
+# the application controller, repo server, Redis, and Argo CD's own API
+# server and web UI (opened from the console's tools launcher, served by
+# Capybara under /api/plugins/argocd/tools/argocd/<cluster>/: that path is
+# set per cluster in plugin.yaml). No Dex or notifications; ApplicationSets
+# are not offered (no replicas, and Capybara grants no permission on them).
+# See ADR 0009.
 
 # Argo CD's own names (argocd-cm, argocd-application-controller, ...).
 fullnameOverride: argocd
@@ -29,19 +31,26 @@ configs:
     # Applications may use is decided by its generated AppProject
     # (sourceNamespaces: the Project's namespace only).
     application.namespaces: "*"
+    # Plain HTTP behind Capybara's proxy (TLS is the Kubernetes API's).
+    server.insecure: "true"
   cm:
-    # Capybara's GitOps tab finds an Application's resources by this
-    # annotation (argocd.argoproj.io/tracking-id).
     application.resourceTrackingMethod: annotation
-    # No local users: there is no Argo CD API server.
-    admin.enabled: "false"
-  # argocd-secret holds the server's signing key (unused without a
-  # server); no credentials are put into it.
+    # The local admin user, until Phase 5 brings per-user logins. Argo CD
+    # generates its password at first start, in the Secret
+    # argocd-initial-admin-secret (argocd namespace); it never passes
+    # through Capybara's values, config or logs.
+    admin.enabled: "true"
+  # argocd-secret holds the server's signing key; no credentials are put
+  # into it by Capybara.
   secret:
     createSecret: true
 
 server:
-  enabled: false
+  enabled: true
+  replicas: 1
+  resources:
+    requests: {cpu: 20m, memory: 64Mi}
+    limits: {memory: 256Mi}
 
 dex:
   enabled: false

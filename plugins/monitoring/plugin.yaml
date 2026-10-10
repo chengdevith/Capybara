@@ -217,3 +217,13 @@ steps:
       type: workload
       kind: Deployment
       name: capybara-monitoring-grafana
+
+# The tools launcher: Grafana, at the address Capybara already serves it
+# from (anonymous Viewer through the backend). Install mode only: connect
+# mode reaches a Prometheus, without Grafana.
+tools:
+  - name: grafana
+    title: Grafana
+    icon: grafana
+    modes: [install]
+    url: "/api/plugins/monitoring/grafana/{{cluster}}/"
