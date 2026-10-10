@@ -5,7 +5,7 @@
 # Argo CD project limited to its namespace. See ADR 0009.
 name: argocd
 displayName: GitOps
-version: 0.2.0
+version: 0.2.1
 description: >-
   Argo CD with its own web UI, opened from the tools launcher in the top
   bar. Each Project gets its own Argo CD project limited to its namespace,
@@ -37,9 +37,14 @@ chart:
         - name: auth
           random: true
   # Argo CD's UI answers under the path Capybara serves it at (one per
-  # cluster); a proxy for reaching Git servers, if the cluster needs one.
+  # cluster); its own address (url: logout and links) is that path on a
+  # placeholder host that never resolves, and Capybara's proxy turns its
+  # redirects into paths on the console's address; a proxy for reaching Git
+  # servers, if the cluster needs one.
   installValues:
     configs:
+      cm:
+        url: "https://capybara.invalid/api/plugins/argocd/tools/argocd/{{cluster}}"
       params:
         server.rootpath: "/api/plugins/argocd/tools/argocd/{{cluster}}"
         server.basehref: "/api/plugins/argocd/tools/argocd/{{cluster}}"

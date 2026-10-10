@@ -234,7 +234,7 @@ func toolReverseProxy(base *rest.Config, ns string, tool v1alpha1.Tool, root, fw
 				resp.Header.Add("Set-Cookie", c.String())
 			}
 			if loc := resp.Header.Get("Location"); loc != "" {
-				resp.Header.Set("Location", strings.Replace(loc, prefix, "", 1))
+				resp.Header.Set("Location", toolLocation(strings.Replace(loc, prefix, "", 1), root))
 			}
 			return unrewriteHTML(resp, prefix)
 		},
@@ -244,6 +244,22 @@ func toolReverseProxy(base *rest.Config, ns string, tool v1alpha1.Tool, root, fw
 			httpjson.Error(w, http.StatusBadGateway, "the cluster did not answer")
 		},
 	}, nil
+}
+
+// toolLocation keeps a tool's redirects on the console's own address: an
+// absolute URL into the tool's path (the tool only knows a placeholder
+// host for itself, e.g. Argo CD's logout) becomes that path. Anything else
+// is left as it is.
+func toolLocation(loc, root string) string {
+	u, err := url.Parse(loc)
+	if err != nil || !u.IsAbs() {
+		return loc
+	}
+	if u.Path != root && !strings.HasPrefix(u.Path, root+"/") {
+		return loc
+	}
+	u.Scheme, u.Host, u.User = "", "", nil
+	return u.String()
 }
 
 // statusRecorder notes the status a handler wrote.

@@ -114,6 +114,19 @@ func TestToolProxy(t *testing.T) {
 	if loc := resp.Header.Get("Location"); resp.StatusCode != http.StatusFound || loc != "/api/plugins/argocd/tools/argocd/dev-1/applications" {
 		t.Errorf("redirect %d to %q", resp.StatusCode, loc)
 	}
+	// Absolute redirects into the tool (its placeholder address) stay on
+	// the console's own address; others are left alone.
+	for loc, want := range map[string]string{
+		"https://capybara.invalid/api/plugins/argocd/tools/argocd/dev-1":           "/api/plugins/argocd/tools/argocd/dev-1",
+		"https://capybara.invalid/api/plugins/argocd/tools/argocd/dev-1/login?x=1": "/api/plugins/argocd/tools/argocd/dev-1/login?x=1",
+		"/api/plugins/argocd/tools/argocd/dev-1/applications":                      "/api/plugins/argocd/tools/argocd/dev-1/applications",
+		"https://idp.example/logout":                                               "https://idp.example/logout",
+		"https://capybara.invalid/api/plugins/argocd/tools/argocd/dev-10":          "https://capybara.invalid/api/plugins/argocd/tools/argocd/dev-10",
+	} {
+		if got := toolLocation(loc, "/api/plugins/argocd/tools/argocd/dev-1"); got != want {
+			t.Errorf("toolLocation(%q) = %q, want %q", loc, got, want)
+		}
+	}
 	// Writes are audited; reads are not.
 	recs, _ := store.List(context.Background(), audit.Filter{})
 	if len(recs) != 1 || recs[0].Action != "argocd.tool-request" || recs[0].Name != "argocd" || !strings.Contains(recs[0].Detail, "POST /login → 302") {

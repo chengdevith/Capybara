@@ -136,6 +136,11 @@ func TestArgoCDChart(t *testing.T) {
 			if v, _, _ := unstructured.NestedString(o.Object, "data", "admin.enabled"); v != "true" {
 				t.Errorf("admin.enabled = %q", v)
 			}
+			// Its own address: the tool path on a placeholder host (the proxy
+			// turns redirects there into paths on the console's address).
+			if v, _, _ := unstructured.NestedString(o.Object, "data", "url"); v != "https://capybara.invalid/api/plugins/argocd/tools/argocd/dev-1" {
+				t.Errorf("url = %q", v)
+			}
 		}
 		if strings.Contains(o.GetName(), "dex") || strings.Contains(o.GetName(), "notifications") {
 			t.Errorf("unexpected %s %s", o.GetKind(), o.GetName())
