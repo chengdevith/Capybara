@@ -108,6 +108,7 @@ func run(args []string) error {
 				Bundles: &plugin.Bundles{Mgmt: mgmt, PluginsDir: cfg.PluginsDir, DevDir: cfg.PluginDevDir}},
 			backends: &plugin.BackendProxy{Backends: cfg.PluginBackends, Logger: logger},
 			scoped:   &plugin.ScopedProxy{Mgmt: mgmt, Credentials: creds, Clusters: registry, Logger: logger},
+			tools:    &plugin.ToolProxy{Mgmt: mgmt, Clusters: registry, Auditor: auditor, Logger: logger},
 			actions: &plugin.ActionAPI{Mgmt: mgmt, Clusters: registry, Auditor: auditor, Logger: logger,
 				Objects: objects},
 			objects: objects,

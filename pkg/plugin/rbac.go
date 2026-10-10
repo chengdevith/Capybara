@@ -151,7 +151,7 @@ func InstallerRules(spec *v1alpha1.PluginSpec, mode v1alpha1.InstallMode, servic
 	}
 	// Granting the console permissions: the installer creates the role and
 	// binding, and must hold what it grants (RBAC escalation rules).
-	if console := toRBAC(spec.Permissions.Console.ClusterRules); len(console) > 0 {
+	if console := ConsoleRules(spec); len(console) > 0 {
 		name := ConsoleRole(pluginNameOf(spec))
 		cluster = append(cluster,
 			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"clusterroles", "clusterrolebindings"}, Verbs: []string{"create"}},
@@ -170,12 +170,14 @@ func InstallerRules(spec *v1alpha1.PluginSpec, mode v1alpha1.InstallMode, servic
 		for _, sa := range pa.ServiceAccounts {
 			accounts = append(accounts, sa.Name)
 		}
-		cluster = append(cluster,
-			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"clusterroles"}, Verbs: []string{"create"}},
-			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"clusterroles"}, ResourceNames: []string{role}, Verbs: []string{"get", "patch", "delete", "escalate", "bind"}},
-			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"rolebindings"}, Verbs: []string{"create", "list"}},
-			rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"rolebindings"}, ResourceNames: []string{role}, Verbs: []string{"get", "patch", "delete"}},
-		)
+		if len(pa.Rules) > 0 {
+			cluster = append(cluster,
+				rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"clusterroles"}, Verbs: []string{"create"}},
+				rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"clusterroles"}, ResourceNames: []string{role}, Verbs: []string{"get", "patch", "delete", "escalate", "bind"}},
+				rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"rolebindings"}, Verbs: []string{"create", "list"}},
+				rbacv1.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"rolebindings"}, ResourceNames: []string{role}, Verbs: []string{"get", "patch", "delete"}},
+			)
+		}
 		// Generated per-Project objects: in the plugin's namespace (a Role
 		// there in connect mode; install mode's rules are cluster-wide, and
 		// the namespace does not exist before the install), or in Project

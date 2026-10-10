@@ -484,7 +484,7 @@ func (r *InstallationReconciler) apply(ctx context.Context, in *v1alpha1.PluginI
 		}
 		setStep(st, "chart", v1alpha1.StepDone, "")
 	}
-	if console := toRBAC(p.Spec.Permissions.Console.ClusterRules); len(console) > 0 {
+	if console := ConsoleRules(&p.Spec); len(console) > 0 {
 		var cl v1alpha1.Cluster
 		if err := r.Client.Get(ctx, types.NamespacedName{Name: in.Spec.Cluster}, &cl); err != nil {
 			return fmt.Errorf("cluster %s: %w", in.Spec.Cluster, err)
@@ -972,7 +972,7 @@ func (r *InstallationReconciler) uninstall(ctx context.Context, in *v1alpha1.Plu
 			return r.blocked(ctx, in, st, "revoke the per-Project access: "+err.Error())
 		}
 	}
-	if len(p.Spec.Permissions.Console.ClusterRules) > 0 {
+	if len(ConsoleRules(&p.Spec)) > 0 {
 		if err := deleteConsole(ctx, cs, in.Spec.Plugin); err != nil {
 			return r.blocked(ctx, in, st, "revoke the console permissions: "+err.Error())
 		}

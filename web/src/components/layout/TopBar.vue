@@ -6,6 +6,7 @@ import ClusterSwitcher from './ClusterSwitcher.vue'
 import { mastheadButtonTheme } from './masthead'
 import NamespaceSelector from './NamespaceSelector.vue'
 import ThemeSwitcher from './ThemeSwitcher.vue'
+import ToolsLauncher from './ToolsLauncher.vue'
 
 const ui = useUiStore()
 </script>
@@ -56,6 +57,7 @@ const ui = useUiStore()
       <NamespaceSelector />
     </div>
     <span class="spacer" />
+    <ToolsLauncher />
     <ThemeSwitcher />
   </div>
 </template>

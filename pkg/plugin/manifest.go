@@ -78,6 +78,7 @@ type Manifest struct {
 	Policies            map[string]v1alpha1.ObjectPolicy `json:"policies,omitempty"`
 	Detect              *v1alpha1.Detect                 `json:"detect,omitempty"`
 	UninstallBlockers   []v1alpha1.UninstallBlocker      `json:"uninstallBlockers,omitempty"`
+	Tools               []v1alpha1.Tool                  `json:"tools,omitempty"`
 }
 
 // ConfigSection holds the installation config schema.
@@ -215,6 +216,39 @@ func ParseManifest(raw []byte) (*Manifest, error) {
 	for _, a := range m.Actions {
 		problems = append(problems, validateAction(a, m.Permissions, m.Policies)...)
 		requiresStep("action "+a.Name, a.RequiresStep)
+	}
+	toolNames := map[string]bool{}
+	for _, t := range m.Tools {
+		at := fmt.Sprintf("tool %q", t.Name)
+		if !nameRE.MatchString(t.Name) || t.Title == "" || toolNames[t.Name] {
+			add("%s: needs a unique DNS-label name and a title", at)
+		}
+		toolNames[t.Name] = true
+		set := 0
+		for _, ok := range []bool{t.URL != "", t.URLKey != "", t.Service != nil} {
+			if ok {
+				set++
+			}
+		}
+		if set != 1 {
+			add("%s: needs exactly one of url, urlKey, service", at)
+		}
+		if t.URL != "" && (!strings.HasPrefix(t.URL, "/api/plugins/"+m.Name+"/") || strings.Contains(t.URL, "..")) {
+			add("%s: url must be a path under /api/plugins/%s/", at, m.Name)
+		}
+		if s := t.Service; s != nil && (!dnsRE.MatchString(s.Service) || s.Port == "" || (s.Namespace != "" && !dnsRE.MatchString(s.Namespace))) {
+			add("%s: service needs a service name and port", at)
+		}
+		for _, c := range t.Cookies {
+			if !regexp.MustCompile(`^[A-Za-z0-9._-]+$`).MatchString(c) {
+				add("%s: cookie %q is not a cookie name", at, c)
+			}
+		}
+		for _, mode := range t.Modes {
+			if !slices.Contains(m.Modes, mode) {
+				add("%s: mode %q is not one of the plugin's", at, mode)
+			}
+		}
 	}
 	for _, b := range m.UninstallBlockers {
 		if !dnsRE.MatchString(b.Resource) || b.Version == "" || b.Kind == "" || b.Message == "" {
@@ -393,8 +427,8 @@ func validateProjectAccess(pa *v1alpha1.ProjectAccess) []string {
 		return nil
 	}
 	var problems []string
-	if len(pa.Rules) == 0 {
-		problems = append(problems, "permissions.project needs rules")
+	if len(pa.Rules) == 0 && len(pa.Objects) == 0 && len(pa.ServiceAccounts) == 0 {
+		problems = append(problems, "permissions.project needs rules, serviceAccounts or objects")
 	}
 	for _, sa := range pa.ServiceAccounts {
 		if !dnsRE.MatchString(sa.Name) {
@@ -514,7 +548,7 @@ func LoadDir(dir, repository string) (*Manifest, *v1alpha1.PluginSpec, error) {
 		Chart: m.Chart, UI: m.UI, Backend: m.Backend, Permissions: m.Permissions, Steps: m.Steps,
 		Dependencies: m.Dependencies, ConnectNamespaceKey: m.ConnectNamespaceKey,
 		MinExtensionAPI: m.MinExtensionAPI, Actions: m.Actions, Detect: m.Detect,
-		Objects: m.Objects, Policies: m.Policies, UninstallBlockers: m.UninstallBlockers,
+		Objects: m.Objects, Policies: m.Policies, UninstallBlockers: m.UninstallBlockers, Tools: m.Tools,
 	}
 	if m.Config != nil {
 		b, _ := json.Marshal(m.Config.Schema)

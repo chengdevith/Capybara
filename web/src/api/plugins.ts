@@ -127,6 +127,18 @@ export const listPlugins = () => apiGet<CatalogEntry[]>('/api/plugins')
 export const getPlugin = (name: string) => apiGet<CatalogEntry>(`/api/plugins/_catalog/${enc(name)}`)
 export const getInstallation = (id: string) => apiGet<Installation>(`/api/plugins/installations/${enc(id)}`)
 
+/** A web UI a plugin brings (tools launcher), for one cluster. */
+export interface ToolLink {
+  plugin: string
+  name: string
+  title: string
+  icon?: string
+  url: string
+}
+
+/** Tools of the plugins installed and enabled on a cluster. */
+export const listTools = (cluster: string) => apiGet<ToolLink[]>(`/api/clusters/${enc(cluster)}/tools`)
+
 export interface InstallRequest {
   plugin: string
   cluster: string

@@ -62,6 +62,7 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/plugins/installations/{id}", a.remove)
 	mux.HandleFunc("POST /api/plugins/installations/{id}/_crd-scan", a.crdScan)
 	mux.HandleFunc("PUT /api/plugins/installations/{id}/connect-token", a.setConnectToken)
+	mux.HandleFunc("GET /api/clusters/{id}/tools", a.tools)
 	if a.Bundles != nil {
 		mux.HandleFunc("GET /api/plugins/_ui/{name}/{file}", a.Bundles.ServeHTTP)
 	}

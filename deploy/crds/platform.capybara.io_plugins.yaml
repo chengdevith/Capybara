@@ -653,8 +653,9 @@ spec:
                           type: object
                         type: array
                       rules:
-                        description: Rules granted to Capybara's account in each Project
-                          namespace.
+                        description: |-
+                          Rules granted to Capybara's account in each Project namespace (none:
+                          no role or bindings, e.g. a plugin that only generates objects).
                         items:
                           description: |-
                             PolicyRule mirrors an RBAC rule (kept here so this package depends only
@@ -698,8 +699,6 @@ spec:
                           - name
                           type: object
                         type: array
-                    required:
-                    - rules
                     type: object
                   services:
                     description: |-
@@ -956,6 +955,78 @@ spec:
                       type: string
                   required:
                   - check
+                  - name
+                  - title
+                  type: object
+                type: array
+              tools:
+                description: |-
+                  Tools are web UIs the plugin brings (e.g. Grafana, Argo CD), listed
+                  in the console's tools launcher for clusters where it is installed
+                  and enabled, and opened in a new tab.
+                items:
+                  description: |-
+                    Tool is one web UI in the tools launcher. Exactly one of URL, URLKey
+                    and Service says where it is.
+                  properties:
+                    cookies:
+                      description: |-
+                        Cookies the tool sets for its own login (e.g. argocd.token): only
+                        these pass through, and only under the tool's path.
+                      items:
+                        type: string
+                      type: array
+                    icon:
+                      description: |-
+                        Icon: a name the console knows (grafana, argocd); a generic icon
+                        otherwise.
+                      type: string
+                    modes:
+                      description: 'Modes it applies to (default: all).'
+                      items:
+                        description: InstallMode is how a plugin is attached to a
+                          cluster.
+                        enum:
+                        - install
+                        - connect
+                        type: string
+                      type: array
+                    name:
+                      type: string
+                    service:
+                      description: |-
+                        Service: a Service in the cluster, served by Capybara at
+                        /api/plugins/<name>/tools/<tool>/<cluster>/ through the Kubernetes
+                        service proxy with Capybara's own account. The tool must expect that
+                        path as its root.
+                      properties:
+                        namespace:
+                          description: |-
+                            Namespace, or "" for the plugin's namespace (the chart's, or the
+                            connect config's).
+                          type: string
+                        port:
+                          description: Port name or number.
+                          type: string
+                        service:
+                          type: string
+                      required:
+                      - port
+                      - service
+                      type: object
+                    title:
+                      type: string
+                    url:
+                      description: |-
+                        URL: a path Capybara already serves for the plugin, under
+                        /api/plugins/<name>/; "{{cluster}}" is replaced.
+                      type: string
+                    urlKey:
+                      description: |-
+                        URLKey: the installation config key holding the tool's own https://
+                        address (e.g. an OpenShift route in connect mode).
+                      type: string
+                  required:
                   - name
                   - title
                   type: object

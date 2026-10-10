@@ -421,16 +421,22 @@ func syncProjectAccess(ctx context.Context, cs kubernetes.Interface, plugin, clu
 	labels := pluginLabels(plugin, clusterID)
 	labels[LabelProjectAccess] = "true"
 	opts := metav1.PatchOptions{FieldManager: "capybara-controller", Force: ptr.To(true)}
+	// Without rules, Capybara's account gets nothing in Projects (the plugin
+	// only generates objects or ServiceAccounts there).
+	grants := pa != nil && len(pa.Rules) > 0
 	if pa != nil && len(namespaces) > 0 {
-		subject, err := subjectFor(identity)
-		if err != nil {
-			return res, err
-		}
-		role := &rbacv1.ClusterRole{TypeMeta: metav1.TypeMeta{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "ClusterRole"},
-			ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels}, Rules: toRBAC(pa.Rules)}
-		body, _ := jsonMarshal(role)
-		if _, err := cs.RbacV1().ClusterRoles().Patch(ctx, name, types.ApplyPatchType, body, opts); err != nil {
-			return res, fmt.Errorf("project role: %w", err)
+		var subject rbacv1.Subject
+		if grants {
+			var err error
+			if subject, err = subjectFor(identity); err != nil {
+				return res, err
+			}
+			role := &rbacv1.ClusterRole{TypeMeta: metav1.TypeMeta{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "ClusterRole"},
+				ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels}, Rules: toRBAC(pa.Rules)}
+			body, _ := jsonMarshal(role)
+			if _, err := cs.RbacV1().ClusterRoles().Patch(ctx, name, types.ApplyPatchType, body, opts); err != nil {
+				return res, fmt.Errorf("project role: %w", err)
+			}
 		}
 	nextNamespace:
 		for _, ns := range namespaces {
@@ -452,6 +458,10 @@ func syncProjectAccess(ctx context.Context, cs kubernetes.Interface, plugin, clu
 					return res, fmt.Errorf("%s: service account %s: %w", ns, sa.Name, err)
 				}
 			}
+			if !grants {
+				res.Granted = append(res.Granted, ns)
+				continue
+			}
 			binding := &rbacv1.RoleBinding{TypeMeta: metav1.TypeMeta{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "RoleBinding"},
 				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns, Labels: labels},
 				RoleRef:    rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: name},
@@ -470,9 +480,16 @@ func syncProjectAccess(ctx context.Context, cs kubernetes.Interface, plugin, clu
 		want[ns] = true
 	}
 	selector := metav1.ListOptions{LabelSelector: v1alpha1.LabelPlugin + "=" + plugin + "," + LabelProjectAccess + "=true"}
-	bindings, err := cs.RbacV1().RoleBindings("").List(ctx, selector)
-	if err != nil {
-		return res, fmt.Errorf("list project role bindings: %w", err)
+	// A plugin without rules never had bindings or a role (nor may its
+	// installer list them).
+	ruleless := pa != nil && len(pa.Rules) == 0
+	var bindings rbacv1.RoleBindingList
+	if !ruleless {
+		list, err := cs.RbacV1().RoleBindings("").List(ctx, selector)
+		if err != nil {
+			return res, fmt.Errorf("list project role bindings: %w", err)
+		}
+		bindings = *list
 	}
 	for _, b := range bindings.Items {
 		if b.Name == name && !want[b.Namespace] {
@@ -498,7 +515,7 @@ func syncProjectAccess(ctx context.Context, cs kubernetes.Interface, plugin, clu
 			}
 		}
 	}
-	if pa == nil || len(res.Granted) == 0 {
+	if !ruleless && (pa == nil || len(res.Granted) == 0) {
 		if err := cs.RbacV1().ClusterRoles().Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
 			return res, err
 		}

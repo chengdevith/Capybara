@@ -201,8 +201,10 @@ type PluginPermissions struct {
 
 // ProjectAccess is what a plugin gets in every Project namespace.
 type ProjectAccess struct {
-	// Rules granted to Capybara's account in each Project namespace.
-	Rules []PolicyRule `json:"rules"`
+	// Rules granted to Capybara's account in each Project namespace (none:
+	// no role or bindings, e.g. a plugin that only generates objects).
+	// +optional
+	Rules []PolicyRule `json:"rules,omitempty"`
 	// ServiceAccounts created in each Project namespace, with no
 	// permissions of their own.
 	// +optional
@@ -303,6 +305,49 @@ type ObjectCleanup struct {
 	// FinishedCondition: an object is finished once this status condition
 	// is True or False (not Unknown).
 	FinishedCondition string `json:"finishedCondition"`
+}
+
+// Tool is one web UI in the tools launcher. Exactly one of URL, URLKey
+// and Service says where it is.
+type Tool struct {
+	Name  string `json:"name"`
+	Title string `json:"title"`
+	// Icon: a name the console knows (grafana, argocd); a generic icon
+	// otherwise.
+	// +optional
+	Icon string `json:"icon,omitempty"`
+	// Modes it applies to (default: all).
+	// +optional
+	Modes []InstallMode `json:"modes,omitempty"`
+	// URL: a path Capybara already serves for the plugin, under
+	// /api/plugins/<name>/; "{{cluster}}" is replaced.
+	// +optional
+	URL string `json:"url,omitempty"`
+	// URLKey: the installation config key holding the tool's own https://
+	// address (e.g. an OpenShift route in connect mode).
+	// +optional
+	URLKey string `json:"urlKey,omitempty"`
+	// Service: a Service in the cluster, served by Capybara at
+	// /api/plugins/<name>/tools/<tool>/<cluster>/ through the Kubernetes
+	// service proxy with Capybara's own account. The tool must expect that
+	// path as its root.
+	// +optional
+	Service *ToolService `json:"service,omitempty"`
+	// Cookies the tool sets for its own login (e.g. argocd.token): only
+	// these pass through, and only under the tool's path.
+	// +optional
+	Cookies []string `json:"cookies,omitempty"`
+}
+
+// ToolService is where a proxied tool runs.
+type ToolService struct {
+	// Namespace, or "" for the plugin's namespace (the chart's, or the
+	// connect config's).
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+	Service   string `json:"service"`
+	// Port name or number.
+	Port string `json:"port"`
 }
 
 // UninstallBlocker is a kind whose objects must be gone before uninstall.
@@ -681,6 +726,11 @@ type PluginSpec struct {
 	// the cluster (e.g. Applications whose deletion would cascade).
 	// +optional
 	UninstallBlockers []UninstallBlocker `json:"uninstallBlockers,omitempty"`
+	// Tools are web UIs the plugin brings (e.g. Grafana, Argo CD), listed
+	// in the console's tools launcher for clusters where it is installed
+	// and enabled, and opened in a new tab.
+	// +optional
+	Tools []Tool `json:"tools,omitempty"`
 	// +optional
 	Detect *Detect `json:"detect,omitempty"`
 	// Namespace for connect mode's backend account when the config does not
