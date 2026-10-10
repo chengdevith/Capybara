@@ -114,12 +114,14 @@ async function argoCreate(api: APIRequestContext, name: string, path: string) {
   expect(res.ok(), await res.text()).toBe(true)
 }
 
+// Sync takes every field from the body (Argo CD ignores the query here).
 async function argoSync(api: APIRequestContext, name: string) {
-  await expect.poll(async () => (await api.post(`${TOOL}/api/v1/applications/${name}/sync?appNamespace=${NS}`, { data: { prune: false } })).status(), { timeout: 60_000 }).toBe(200)
+  await expect.poll(async () => (await api.post(`${TOOL}/api/v1/applications/${name}/sync`, { data: { appNamespace: NS, prune: false } })).status(), { timeout: 60_000 }).toBe(200)
 }
 
 async function argoDelete(api: APIRequestContext, name: string, cascade: boolean) {
-  const res = await api.delete(`${TOOL}/api/v1/applications/${name}?appNamespace=${NS}&cascade=${cascade}`)
+  // Argo CD's API wants a JSON content type even without a body.
+  const res = await api.delete(`${TOOL}/api/v1/applications/${name}?appNamespace=${NS}&cascade=${cascade}`, { headers: { 'Content-Type': 'application/json' } })
   expect(res.ok(), await res.text()).toBe(true)
 }
 
