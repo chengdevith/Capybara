@@ -73,6 +73,15 @@ test('install on dev-1 from the Marketplace with an installer credential set in 
   for (const step of ['chart', 'prometheus', 'targets', 'grafana']) {
     await expect(page.getByTestId(`step-${step}`)).toBeVisible()
   }
+  // Grafana in the tools launcher of dev-1, opening in a new tab.
+  await page.goto('/c/dev-1/workloads/pods')
+  await page.getByTestId('tools-launcher').click()
+  const grafana = page.getByTestId('tool-grafana')
+  await expect(grafana).toHaveAttribute('href', '/api/plugins/monitoring/grafana/dev-1/')
+  await expect(grafana).toHaveAttribute('target', '_blank')
+  const [tab] = await Promise.all([page.context().waitForEvent('page'), grafana.click()])
+  await expect(tab).toHaveTitle(/Grafana/, { timeout: 30_000 })
+  await tab.close()
 })
 
 test('the Metrics tab shows on dev-1 only, and disabling hides the UI while Prometheus keeps running', async ({ page }) => {

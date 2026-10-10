@@ -82,7 +82,8 @@ flowchart LR
 | **Marketplace** | Install plugins per cluster, or connect them to a tool that already runs there. Enable or disable their UI per cluster. |
 | **Observe (monitoring plugin)** | Prometheus and Grafana: a Metrics tab on Pods, Deployments and Nodes, cluster and Project usage cards, alerts, and a Grafana link. |
 | **Pipelines (Tekton plugin)** | Create and edit Tasks and Pipelines in a YAML editor, start runs from a form, follow them in a graph with step logs; rerun, cancel, delete, clean up. In Project namespaces, within guardrails, all audited. |
-| **GitOps (Argo CD plugin)** | Argo CD Applications per Project, from a form or YAML: sync and health, the deployed resources, history; sync, refresh, roll back, auto-sync, self-heal and prune. Each Project gets its own Argo CD project limited to its namespace. All audited. |
+| **GitOps (Argo CD plugin)** | Argo CD with its own web UI, opened from the tools launcher in the top bar. Each Project gets its own Argo CD project limited to its namespace; uninstall is refused while Applications exist. |
+| **Tools launcher** | A grid icon in the top bar listing the web UIs installed on the current cluster (Argo CD, Grafana), each opening in a new tab. |
 
 ---
 
@@ -184,7 +185,7 @@ records in [docs/decisions/](docs/decisions/).
 | `sdk/` | `@capybara/sdk`: the extension API for plugin UIs |
 | `plugins/monitoring/` | First plugin (Observe): `plugin.yaml`, `chart/`, `backend/`, `ui/` |
 | `plugins/tekton/` | Pipelines plugin: `plugin.yaml`, `upstream/` (vendored release), generated `chart/`, `ui/` |
-| `plugins/argocd/` | GitOps plugin: `plugin.yaml`, vendored `chart/` with its preset, `ui/` |
+| `plugins/argocd/` | GitOps plugin: `plugin.yaml`, vendored `chart/` with its preset (no UI bundle: Argo CD's own UI) |
 | `plugins/_ui-build/` | Shared build config and checks for plugin UI bundles |
 | `deploy/` | k3d scripts, CRDs, size presets, sample workloads |
 | `hack/` | Developer scripts (`dev.sh`, `capybara-sa.sh`, `plugin-images.sh`, `plugin-ui.sh`) |
@@ -467,40 +468,36 @@ make plugin-images PLUGIN=argocd          # once: import Argo CD's pinned images
 hack/capybara-sa.sh dev-1 --installer argocd
 ```
 
-1. Upload the installer credential on the cluster's page, then
+1. Upload the installer credential on **that cluster's** page (Capybara
+   refuses a credential for another cluster), then
    *Marketplace → GitOps → Install on a cluster → Install*. Steps: chart →
-   API served → Redis, repo server, application controller ready →
-   Applications in Project namespaces → **Ready**. It installs Argo CD
-   v3.5.4 without its own UI, Dex, notifications or ApplicationSets, in the
-   `argocd` namespace (Pod Security `restricted`). Optional: an HTTP(S)
-   proxy for reaching Git servers.
-2. Create a **Project**. It gets an Argo CD project `capybara-<project>`:
+   API served → Redis, repo server, application controller, web UI ready →
+   **Ready**. It installs Argo CD v3.5.4 with its own web UI, without Dex,
+   notifications or ApplicationSets, in `argocd` (Pod Security
+   `restricted`).
+2. Open it from the **tools launcher** (the grid icon in the top bar; it
+   lists the tools installed on the current cluster, Grafana too) and log
+   in as `admin`. The password:
+   ```sh
+   kubectl --kubeconfig .local/kubeconfig/capybara-dev-1.yaml -n argocd \
+     get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+   ```
+3. Each **Project** gets an Argo CD project `capybara-<project>`:
    Applications only from and into its namespace on this cluster, no
    cluster-scoped kinds, never its quota, limits, network policies or role
-   bindings.
-3. **GitOps → Applications → Create Application**: name, repository
-   (`https://`, or `http://`/`git://` to a service in the cluster), revision
-   and path, sync options; or switch to YAML. Then:
-   - **Actions:** Sync (a revision, prune with the name typed), Refresh,
-     Hard refresh, Sync policy (auto-sync, self-heal, auto-prune), Edit,
-     Delete (with what it deployed, or the Application only).
-   - **Resources** (with refusals explained), **History** (sync to an
-     earlier revision when auto-sync is off), YAML, Events.
-   - A **GitOps** tab on Deployments, Services, ConfigMaps and Secrets an
-     Application deployed, and an Applications card on each Project.
-4. **Uninstall** is refused while Applications exist: delete them first.
-   The CRDs stay unless you choose to remove them.
+   bindings. Use it for the Project's Applications.
+4. **Uninstall** is refused while Applications exist: delete them in Argo
+   CD first. The CRDs stay unless you choose to remove them.
 
 **Connect existing** works with an Argo CD already in the cluster (on
 OpenShift: OpenShift GitOps, never a second install):
-`hack/capybara-sa.sh dev-2 --installer argocd --connect --set namespace=openshift-gitops`.
-If it only watches its own namespace, GitOps is view-only there.
+`hack/capybara-sa.sh dev-2 --installer argocd --connect --set namespace=openshift-gitops`;
+give its UI address (`uiURL`) to have it in the launcher.
 
-> [!NOTE]
-> Until Phase 5, every console user can create and sync Applications in
-> any Project namespace, from any https:// repository. Charts that need a
-> RoleBinding or cluster-scoped resources are refused at sync. See
-> [ADR 0009](docs/decisions/0009-phase-4.7-gitops.md).
+> [!WARNING]
+> Until Phase 5, Argo CD's admin can deploy anything anywhere in the
+> cluster (Argo CD's controller is cluster-wide). Keep the password to
+> cluster admins. See [ADR 0009](docs/decisions/0009-phase-4.7-gitops.md).
 
 ### Writing a plugin
 
@@ -537,8 +534,9 @@ byte. See [ADR 0006](docs/decisions/0006-phase-4.5-plugins.md) for the trust
 model (UI bundles currently run with full console access) and
 [ADR 0007](docs/decisions/0007-phase-4.6-tekton.md) for console permissions,
 declared actions and extension API versions. `plugins/argocd/` shows
-per-Project generated objects, action inputs, delete modes and uninstall
-blockers ([ADR 0009](docs/decisions/0009-phase-4.7-gitops.md)).
+per-Project generated objects, uninstall blockers and `tools` (a web UI
+for the launcher, served by Capybara)
+([ADR 0009](docs/decisions/0009-phase-4.7-gitops.md)).
 
 ---
 

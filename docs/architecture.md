@@ -238,15 +238,19 @@ browser ─▶ /api/clusters/<id>/plugin-actions/<plugin>/<action> (audited) ─
   TaskRun Logs tab with step logs, image pull problems, Rerun, Cancel,
   Delete, Clean up runs, a Project card with the latest runs. Writes only
   in Project namespaces (ADR 0008).
-- **GitOps** (id `argocd`, no backend): the argo-cd chart 10.10.1 (Argo CD
-  v3.5.4) with a small preset (controller, repo server, Redis; no API
-  server, Dex, notifications or ApplicationSets; CRDs kept; a locked
-  `default` AppProject as a hook), or Connect existing (view-only unless it
-  accepts Applications in any namespace). A generated AppProject
-  `capybara-<project>` per Project. UI `plugins/argocd/ui`: Applications
-  (form or YAML), Argo CD projects, Resources and History tabs, a GitOps tab
-  on managed objects, Sync/Refresh/Sync policy/Edit/Delete actions, a
-  Project card (ADR 0009).
+- **GitOps** (id `argocd`, no backend, no UI bundle): the argo-cd chart
+  10.10.1 (Argo CD v3.5.4) with a small preset (controller, repo server,
+  Redis, and Argo CD's own server and UI at Capybara's tool path; no Dex,
+  notifications or ApplicationSets; CRDs kept; a locked `default`
+  AppProject as a hook), or Connect existing. A generated AppProject
+  `capybara-<project>` per Project. Admin login until Phase 5 (ADR 0009).
+- **Tools** (`tools` in the manifest): web UIs listed in the console's tools
+  launcher (`GET /api/clusters/{id}/tools`) for installed and enabled
+  plugins: a path Capybara already serves (Grafana), an https address from
+  the config (connect), or a Service that Capybara proxies at
+  `/api/plugins/{plugin}/tools/{tool}/{cluster}/` with its own account
+  (console grant on `services/proxy` for that Service only; declared
+  cookies only; writes audited as `<plugin>.tool-request`).
 - **Per-Project access** (`permissions.project`): a ClusterRole
   `capybara-plugin-<name>-project` bound to Capybara's account in each
   Ready Project namespace, plus declared ServiceAccounts (no permissions
