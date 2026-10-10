@@ -208,6 +208,12 @@ test("through Argo CD's API as admin: sync works in the Project; cluster-scoped 
   expect(exists('ns', 'e2e-gitops-extra')).toBe(false)
   expect(exists('-n', NS, 'resourcequota/more')).toBe(false)
 
+  // Logout stays on Capybara's address (Argo CD only knows a placeholder host).
+  const logout = await request.get(`${TOOL}/auth/logout`, { maxRedirects: 0 })
+  expect(logout.status()).toBe(303)
+  expect(logout.headers().location).toBe(TOOL)
+  await argoLogin(request)
+
   const audit = (await (await request.get('/api/audit?limit=200')).json()) as { items: { action: string; name: string; result: string; detail?: string }[] }
   const writes = audit.items.filter((e) => e.action === 'argocd.tool-request')
   expect(writes.some((e) => e.result === 'success' && /POST \/api\/v1\/applications → 200/.test(e.detail ?? ''))).toBe(true)
